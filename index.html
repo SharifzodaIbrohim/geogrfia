@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Географияи ҷаҳон 🌍</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-sA+4sRZWsLkuxq1hO+Wv3LiK/7g3nMvcaV7wX73w301w=" crossorigin="" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <aside class="settings-panel" aria-label="Настройкаи сайт">
+        <button id="settingsToggle" class="settings-toggle" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Настройка">
+            <span aria-hidden="true">⚙</span>
+        </button>
+        <div id="settingsDrawer" class="settings-drawer">
+            <h2 data-i18n="settingsTitle">Настройка</h2>
+            <div class="settings-group">
+                <span class="settings-label" data-i18n="themeLabel">Ранг</span>
+                <div class="segmented-control" role="group" aria-label="Интихоби ранг">
+                    <button class="settings-option" type="button" data-theme-option="dark" data-i18n="darkMode">Торик</button>
+                    <button class="settings-option" type="button" data-theme-option="light" data-i18n="lightMode">Равшан</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <label class="settings-label" for="languageSelect" data-i18n="languageLabel">Забон</label>
+                <select id="languageSelect">
+                    <option value="tg">Тоҷикӣ</option>
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+        </div>
+    </aside>
+
+    <div class="top-action-buttons">
+        <button id="booksToggle" class="top-action-button books-toggle" type="button" aria-expanded="false" aria-controls="booksModal" title="Китобҳо">
+            <span aria-hidden="true">📚</span>
+        </button>
+        <button id="quizToggle" class="top-action-button quiz-toggle" type="button" aria-expanded="false" aria-controls="quizModal" title="Викторина">
+            <span aria-hidden="true">?</span>
+            <span data-i18n="quizButton">Викторина</span>
+        </button>
+        <button id="authToggle" class="top-action-button auth-toggle" type="button" aria-expanded="false" aria-controls="authModal" title="Воридшавӣ">
+            <span id="authToggleIcon" aria-hidden="true">👤</span>
+            <span id="authToggleText" data-i18n="authButton">Воридшавӣ</span>
+        </button>
+    </div>
+
+    <header class="hero">
+        <div class="hero-copy">
+            <span class="hero-icon">🌍</span>
+            <h1 data-i18n="heroTitle">Географияи ҷаҳон</h1>
+            <p data-i18n="heroText">Сайти интерактивӣ бо ҳамаи кишварҳо, маълумоти муфассал ва харита.</p>
+        </div>
+    </header>
+
+    <div id="alertBox" class="alert hidden"></div>
+
+    <section class="toolbar">
+        <div class="search-panel">
+            <label for="searchInput" data-i18n="searchLabel">Ҷустуҷӯи зуд</label>
+            <input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Номи кишвар, пойтахт ё минтақа..." autocomplete="off" />
+        </div>
+
+        <div class="filters-panel">
+            <div class="filter-item">
+                <label for="filterRegion" data-i18n="regionLabel">Минтақа</label>
+                <select id="filterRegion">
+                    <option value="all" data-i18n="allRegions">Ҳама минтақаҳо</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="filterSubregion" data-i18n="subregionLabel">Субминтақа</label>
+                <select id="filterSubregion">
+                    <option value="all" data-i18n="allSubregions">Ҳама субминтақаҳо</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="sortSelect" data-i18n="sortLabel">Сортировка</label>
+                <select id="sortSelect">
+                    <option value="name" data-i18n="sortName">Ном (A → Z)</option>
+                    <option value="population" data-i18n="sortPopulation">Аҳолӣ (зиёд → кам)</option>
+                    <option value="area" data-i18n="sortArea">Масоҳат (зиёд → кам)</option>
+                </select>
+            </div>
+            <button id="resetBtn" class="button-secondary" data-i18n="resetButton">Тозакунӣ</button>
+        </div>
+    </section>
+
+    <main>
+        <div id="results" class="results-grid"></div>
+    </main>
+
+    <div id="detailModal" class="modal">
+        <div class="modal-window">
+            <button id="closeModal" class="close-button" data-i18n-aria-label="closeModal" aria-label="Бастан">×</button>
+            <div class="modal-header">
+                <div>
+                    <h2 id="modalTitle"></h2>
+                    <p id="modalSubtitle"></p>
+                </div>
+                <div class="modal-badge" data-i18n="modalBadge">Маълумоти мукаммал</div>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="booksModal" class="modal">
+        <div class="modal-window books-window">
+            <button id="closeBooksModal" class="close-button" data-i18n-aria-label="closeModal" aria-label="Бастан">×</button>
+            <div class="modal-header">
+                <div>
+                    <h2 data-i18n="booksTitle">Китобҳои география</h2>
+                    <p data-i18n="booksSubtitle">Китоби лозимаро интихоб кунед, баъд хонед ё насб кунед.</p>
+                </div>
+                <div class="modal-badge" data-i18n="booksBadge">Китобхона</div>
+            </div>
+            <div class="modal-body books-body">
+                <div id="booksList" class="books-list"></div>
+                <div id="bookDetails" class="book-details"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="quizModal" class="modal">
+        <div class="modal-window quiz-window">
+            <button id="closeQuizModal" class="close-button" data-i18n-aria-label="closeModal" aria-label="Бастан">×</button>
+            <div class="modal-header">
+                <div>
+                    <h2 data-i18n="quizTitle">Викторина ва худсанҷӣ</h2>
+                    <p data-i18n="quizSubtitle">Бо дӯстатон навбат ба навбат бозӣ кунед ё худатонро санҷед.</p>
+                </div>
+                <div class="modal-badge" data-i18n="quizBadge">Score + Time</div>
+            </div>
+            <div class="modal-body quiz-body">
+                <div id="quizLocked" class="quiz-locked hidden">
+                    <h3 data-i18n="quizLockedTitle">Аввал ворид шавед</h3>
+                    <p data-i18n="quizLockedText">Барои викторина ва нигоҳ доштани натиҷаҳо ба ҳисоби худ ворид шавед.</p>
+                    <button id="quizLoginBtn" class="button-primary" type="button" data-i18n="authButton">Воридшавӣ</button>
+                </div>
+                <div id="quizApp" class="quiz-app">
+                    <div class="quiz-sidebar">
+                        <div class="segmented-control quiz-mode" role="group" aria-label="Интихоби ҳолати викторина">
+                            <button id="selfQuizModeBtn" class="settings-option active" type="button" data-quiz-mode="self" data-i18n="quizSelfMode">Худсанҷӣ</button>
+                            <button id="friendQuizModeBtn" class="settings-option" type="button" data-quiz-mode="friend" data-i18n="quizFriendMode">Бо дӯст</button>
+                        </div>
+                        <label class="settings-label" for="friendNameInput" data-i18n="friendNameLabel">Номи дӯст</label>
+                        <input id="friendNameInput" class="quiz-input" type="text" autocomplete="off" data-i18n-placeholder="friendNamePlaceholder" placeholder="Масалан: Али">
+                        <button id="startQuizBtn" class="button-primary" type="button" data-i18n="startQuiz">Оғоз</button>
+                        <button id="resetQuizBtn" class="button-secondary" type="button" data-i18n="resetQuiz">Аз нав</button>
+                        <div id="quizScoreboard" class="quiz-scoreboard"></div>
+                    </div>
+                    <div id="quizStage" class="quiz-stage"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="authModal" class="modal">
+        <div class="modal-window auth-window">
+            <button id="closeAuthModal" class="close-button" data-i18n-aria-label="closeModal" aria-label="Бастан">×</button>
+            <div class="modal-header">
+                <div>
+                    <h2 data-i18n="authTitle">Ҳисоби корбар</h2>
+                    <p data-i18n="authSubtitle">Ба сайт ворид шавед ё ҳисоби нав созед.</p>
+                </div>
+                <div id="authStatusBadge" class="modal-badge" data-i18n="authBadge">Воридшавӣ</div>
+            </div>
+            <div class="modal-body auth-body">
+                <div id="authMessage" class="auth-message hidden"></div>
+                <div id="authLoggedOut" class="auth-layout">
+                    <form id="loginForm" class="auth-card">
+                        <h3 data-i18n="loginTitle">Log in</h3>
+                        <label for="loginEmail" data-i18n="emailLabel">Email</label>
+                        <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+                        <label for="loginPassword" data-i18n="passwordLabel">Парол</label>
+                        <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+                        <button class="button-primary" type="submit" data-i18n="loginButton">Ворид шудан</button>
+                    </form>
+                    <form id="registerForm" class="auth-card">
+                        <h3 data-i18n="registerTitle">Регистратсия</h3>
+                        <label for="registerName" data-i18n="nameLabel">Ном</label>
+                        <input id="registerName" name="name" type="text" autocomplete="name" required>
+                        <label for="registerEmail" data-i18n="emailLabel">Email</label>
+                        <input id="registerEmail" name="email" type="email" autocomplete="email" required>
+                        <label for="registerPassword" data-i18n="passwordLabel">Парол</label>
+                        <input id="registerPassword" name="password" type="password" autocomplete="new-password" minlength="6" required>
+                        <button class="button-primary" type="submit" data-i18n="registerButton">Сабт шудан</button>
+                    </form>
+                </div>
+                <div id="authLoggedIn" class="auth-card auth-profile hidden">
+                    <div class="auth-avatar" aria-hidden="true">👤</div>
+                    <h3 id="authUserName"></h3>
+                    <p id="authUserEmail"></p>
+                    <button id="logoutBtn" class="button-secondary" type="button" data-i18n="logoutButton">Баромадан</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7ml+LZoIw4CwC8jhMQNiVDWPRv0v+T8rPBn60o=" crossorigin=""></script>
+    <script defer src="js/app.js"></script>
+</body>
+</html>

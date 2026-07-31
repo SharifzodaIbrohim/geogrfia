@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import tempfile
@@ -172,6 +173,10 @@ def static_proxy(path):
     return abort(404)
 
 
+# Ensure users file exists when the app starts (for gunicorn too)
+ensure_users_file()
+
+
 if __name__ == "__main__":
-    ensure_users_file()
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)

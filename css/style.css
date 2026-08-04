@@ -47,18 +47,35 @@ body {
 button, input, select { font: inherit; }
 button { border: 0; outline: none; background: none; color: inherit; cursor: pointer; }
 
-/* ===== App header (mobile style) ===== */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ===== Professional top bar ===== */
 .app-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: 18px 16px 8px;
+    padding: 16px 14px 10px;
+}
+
+.app-header-text {
+    min-width: 0;
+    flex: 1;
 }
 
 .app-header-text h1 {
     margin: 0;
-    font-size: 1.55rem;
+    font-size: 1.45rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1.2;
@@ -67,48 +84,64 @@ button { border: 0; outline: none; background: none; color: inherit; cursor: poi
 .app-header-text p {
     margin: 4px 0 0;
     color: var(--muted);
-    font-size: 0.88rem;
-    line-height: 1.4;
+    font-size: 0.84rem;
+    line-height: 1.35;
 }
 
-.menu-btn {
-    width: 42px;
-    height: 42px;
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.header-icon-btn {
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: var(--surface);
+    border: 1px solid var(--border);
     display: grid;
     place-items: center;
-    font-size: 1.15rem;
-    flex-shrink: 0;
-    border: 1px solid var(--border);
+    font-size: 1.05rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-/* Settings drawer */
+.header-icon-btn:active {
+    transform: scale(0.96);
+}
+
+/* Settings panel: toggle is visible in header row; drawer drops below */
 .settings-panel {
-    position: fixed;
-    top: 70px;
-    right: 12px;
+    position: relative;
     z-index: 1200;
 }
 
+.settings-toggle {
+    /* inherits header-icon-btn */
+}
+
 .settings-drawer {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
     width: min(280px, calc(100vw - 24px));
     display: grid;
-    gap: 16px;
+    gap: 14px;
     padding: 16px;
     border-radius: 18px;
     background: var(--surface);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
-    transform: translateY(-8px);
+    transform: translateY(-6px);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition: 0.2s ease;
 }
 
-.settings-panel.open .settings-drawer,
-body.settings-open .settings-drawer {
+.settings-panel.open .settings-drawer {
     transform: translateY(0);
     opacity: 1;
     visibility: visible;
@@ -165,10 +198,7 @@ body.settings-open .settings-drawer {
     margin-bottom: 16px;
 }
 
-.search-icon {
-    opacity: 0.55;
-    font-size: 0.95rem;
-}
+.search-icon { opacity: 0.55; font-size: 0.95rem; }
 
 #searchInput {
     flex: 1;
@@ -176,7 +206,7 @@ body.settings-open .settings-drawer {
     outline: none;
     background: transparent;
     color: var(--text);
-    font-size: 0.95rem;
+    font-size: 16px;
     min-width: 0;
 }
 
@@ -217,8 +247,7 @@ body.settings-open .settings-drawer {
     border-color: var(--accent);
 }
 
-.hidden-filters,
-.hidden-util {
+.hidden-filters {
     position: absolute !important;
     width: 1px !important;
     height: 1px !important;
@@ -246,7 +275,7 @@ body.settings-open .settings-drawer {
     font-weight: 600;
 }
 
-/* ===== Cards - 2 column mobile ===== */
+/* ===== Cards ===== */
 .results-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -259,12 +288,10 @@ body.settings-open .settings-drawer {
     overflow: hidden;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease;
 }
 
-.country-card:active {
-    transform: scale(0.98);
-}
+.country-card:active { transform: scale(0.98); }
 
 .card-flag {
     width: 100%;
@@ -273,9 +300,7 @@ body.settings-open .settings-drawer {
     display: block;
 }
 
-.card-content {
-    padding: 10px 11px 12px;
-}
+.card-content { padding: 10px 11px 12px; }
 
 .card-title {
     margin: 0 0 4px;
@@ -286,52 +311,17 @@ body.settings-open .settings-drawer {
 
 .card-meta {
     display: grid;
-    gap: 6px;
+    gap: 5px;
     color: var(--muted);
-    font-size: 0.78rem;
-    line-height: 1.4;
+    font-size: 0.76rem;
+    line-height: 1.35;
 }
+
+.card-meta p { margin: 0; }
 
 .card-meta strong {
     color: var(--accent);
     font-weight: 700;
-}
-
-/* Style capital line */
-.card-meta span:first-child,
-.card-capital {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--muted);
-    font-size: 0.78rem;
-    margin-bottom: 6px;
-}
-
-.card-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.card-stat {
-    background: rgba(255,255,255,0.04);
-    border-radius: 10px;
-    padding: 6px 7px;
-}
-
-.card-stat label {
-    display: block;
-    font-size: 0.68rem;
-    color: var(--muted);
-    margin-bottom: 2px;
-}
-
-.card-stat b {
-    font-size: 0.82rem;
-    color: var(--accent);
-    font-weight: 800;
 }
 
 .empty-state {
@@ -359,6 +349,13 @@ body.settings-open .settings-drawer {
     background: rgba(248, 113, 113, 0.12);
     border-color: rgba(248, 113, 113, 0.3);
     color: #fecaca;
+}
+.alert.success {
+    background: var(--accent-soft);
+}
+.alert.info {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.25);
 }
 
 /* ===== Bottom nav ===== */
@@ -389,11 +386,7 @@ body.settings-open .settings-drawer {
     padding: 4px 2px;
 }
 
-.nav-item .nav-icon {
-    font-size: 1.2rem;
-    line-height: 1;
-}
-
+.nav-item .nav-icon { font-size: 1.2rem; line-height: 1; }
 .nav-item.active {
     color: var(--accent);
     background: var(--accent-soft);
@@ -480,17 +473,12 @@ body.settings-open .settings-drawer {
     padding: 14px 16px 28px;
 }
 
-.detail-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-}
-
 .detail-section {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 14px;
+    margin-bottom: 12px;
 }
 
 .detail-section h3 {
@@ -506,16 +494,13 @@ body.settings-open .settings-drawer {
     font-size: 0.92rem;
 }
 
-.detail-section ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
+.detail-section ul { list-style: none; padding: 0; margin: 0; }
 
 .section-highlight {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+    margin-bottom: 12px;
 }
 
 .section-card {
@@ -538,6 +523,8 @@ body.settings-open .settings-drawer {
     font-weight: 700;
 }
 
+.section-group { display: grid; gap: 12px; }
+
 #countryMap,
 .map-placeholder {
     min-height: 200px;
@@ -545,6 +532,13 @@ body.settings-open .settings-drawer {
     background: var(--bg-deep);
     border: 1px solid var(--border);
     position: relative;
+}
+
+.country-map-wrapper { margin-top: 10px; }
+.country-map-wrapper h4 {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
 }
 
 .button-primary {
@@ -568,12 +562,7 @@ body.settings-open .settings-drawer {
     font-weight: 600;
 }
 
-/* Books / Quiz / Auth reuse */
-.books-body {
-    display: grid;
-    gap: 12px;
-}
-
+.books-body { display: grid; gap: 12px; }
 .books-list { display: grid; gap: 10px; }
 
 .book-card {
@@ -589,10 +578,7 @@ body.settings-open .settings-drawer {
     color: var(--text);
 }
 
-.book-card.active,
-.book-card:hover {
-    border-color: var(--accent);
-}
+.book-card.active, .book-card:hover { border-color: var(--accent); }
 
 .book-icon {
     width: 40px;
@@ -605,6 +591,17 @@ body.settings-open .settings-drawer {
     font-size: 1.2rem;
 }
 
+.book-card-title { display: block; font-weight: 800; }
+.book-card p, .book-details p { margin: 6px 0 0; color: var(--muted); font-size: 0.88rem; }
+.book-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.book-meta span {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
 .book-details {
     background: var(--surface);
     border-radius: 16px;
@@ -614,10 +611,18 @@ body.settings-open .settings-drawer {
     gap: 12px;
 }
 
-.book-actions {
+.book-detail-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent);
     display: grid;
-    gap: 8px;
+    place-items: center;
+    font-size: 1.5rem;
 }
+
+.book-actions { display: grid; gap: 8px; }
 
 .book-action {
     min-height: 44px;
@@ -638,10 +643,8 @@ body.settings-open .settings-drawer {
     color: var(--text);
 }
 
-.quiz-app {
-    display: grid;
-    gap: 12px;
-}
+.quiz-body { min-height: auto; }
+.quiz-app { display: grid; gap: 12px; }
 
 .quiz-sidebar,
 .quiz-stage,
@@ -663,6 +666,44 @@ body.settings-open .settings-drawer {
     font-size: 16px;
 }
 
+.quiz-scoreboard { display: grid; gap: 8px; margin-top: 8px; }
+.quiz-score-card {
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+    display: grid;
+    gap: 4px;
+}
+.quiz-score-card.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--text);
+}
+.quiz-score-card strong { color: var(--text); }
+
+.quiz-empty, .quiz-locked, .quiz-result {
+    display: grid;
+    gap: 12px;
+    text-align: center;
+    align-content: center;
+    min-height: 180px;
+}
+
+.quiz-progress { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.quiz-progress span {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--bg-deep);
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.quiz-question { display: grid; gap: 12px; }
+.quiz-options { display: grid; gap: 8px; }
+
 .quiz-option {
     width: 100%;
     min-height: 50px;
@@ -676,7 +717,17 @@ body.settings-open .settings-drawer {
     border-radius: 14px;
     padding: 10px;
     color: var(--text);
-    margin-bottom: 8px;
+}
+
+.quiz-option span {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 800;
 }
 
 .quiz-option.correct {
@@ -689,11 +740,38 @@ body.settings-open .settings-drawer {
     background: rgba(248, 113, 113, 0.12);
 }
 
-.auth-layout {
+.quiz-feedback {
+    padding: 12px;
+    border-radius: 12px;
     display: grid;
-    gap: 12px;
+    gap: 4px;
+}
+.quiz-feedback.correct {
+    background: var(--accent-soft);
+    border: 1px solid rgba(112, 219, 151, 0.35);
+}
+.quiz-feedback.wrong {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: #fecaca;
 }
 
+.quiz-winner { color: var(--accent); font-weight: 800; margin: 0; }
+.quiz-review { display: grid; gap: 12px; text-align: left; }
+.quiz-review-player { display: grid; gap: 8px; }
+.quiz-review-row {
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    display: grid;
+    gap: 4px;
+}
+.quiz-review-row.correct { border-color: rgba(112, 219, 151, 0.4); }
+.quiz-review-row.wrong { border-color: rgba(248, 113, 113, 0.35); }
+.quiz-review-row span { color: var(--muted); font-size: 0.85rem; }
+
+.auth-layout { display: grid; gap: 12px; }
 .auth-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -702,7 +780,8 @@ body.settings-open .settings-drawer {
     display: grid;
     gap: 10px;
 }
-
+.auth-card h3 { margin: 0 0 4px; }
+.auth-card label { color: var(--muted); font-size: 0.84rem; }
 .auth-card input {
     width: 100%;
     min-height: 46px;
@@ -720,7 +799,6 @@ body.settings-open .settings-drawer {
     background: var(--accent-soft);
     border: 1px solid rgba(112, 219, 151, 0.3);
 }
-
 .auth-message.error {
     background: rgba(248, 113, 113, 0.12);
     border-color: rgba(248, 113, 113, 0.3);
@@ -731,15 +809,9 @@ body.settings-open .settings-drawer {
 .auth-profile.hidden,
 .auth-layout.hidden,
 .quiz-app.hidden,
-.quiz-locked.hidden {
-    display: none;
-}
+.quiz-locked.hidden { display: none; }
 
-.auth-profile {
-    text-align: center;
-    justify-items: center;
-}
-
+.auth-profile { text-align: center; justify-items: center; }
 .auth-avatar {
     width: 64px;
     height: 64px;
@@ -751,17 +823,13 @@ body.settings-open .settings-drawer {
     font-size: 1.8rem;
     margin: 0 auto 8px;
 }
+.auth-profile p { margin: 0; color: var(--muted); }
 
-/* Wider phones / small tablets keep 2 cols */
 @media (min-width: 520px) {
-    .results-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 14px;
-    }
+    .results-grid { gap: 14px; }
     .card-flag { height: 110px; }
 }
 
-/* Desktop enhancement */
 @media (min-width: 900px) {
     body { padding-bottom: 0; }
     .bottom-nav { display: none; }
@@ -769,9 +837,15 @@ body.settings-open .settings-drawer {
     .app-header {
         max-width: 1100px;
         margin: 0 auto;
-        padding: 28px 24px 10px;
+        padding: 28px 24px 12px;
     }
-    .app-header-text h1 { font-size: 2.2rem; }
+    .app-header-text h1 { font-size: 2.1rem; }
+    .app-header-text p { font-size: 0.95rem; }
+
+    .header-icon-btn {
+        width: 44px;
+        height: 44px;
+    }
 
     .app-content {
         max-width: 1100px;
@@ -785,7 +859,7 @@ body.settings-open .settings-drawer {
     }
 
     .card-flag { height: 140px; }
-    .card-title { font-size: 1.15rem; }
+    .card-title { font-size: 1.12rem; }
 
     .modal {
         place-items: center;

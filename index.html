@@ -8,50 +8,62 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <!-- Mobile top bar -->
+    <!-- Professional top bar -->
     <header class="app-header">
         <div class="app-header-text">
             <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
             <p data-i18n="heroText">Барномаи интерактивии кишварҳо ва харита</p>
         </div>
-        <button id="settingsToggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Танзимот">
-            <span aria-hidden="true">☰</span>
-        </button>
-    </header>
 
-    <aside class="settings-panel" aria-label="Настройкаи сайт">
-        <div id="settingsDrawer" class="settings-drawer">
-            <h2 data-i18n="settingsTitle">Настройка</h2>
-            <div class="settings-group">
-                <span class="settings-label" data-i18n="themeLabel">Ранг</span>
-                <div class="segmented-control" role="group" aria-label="Интихоби ранг">
-                    <button class="settings-option" type="button" data-theme-option="dark" data-i18n="darkMode">Торик</button>
-                    <button class="settings-option" type="button" data-theme-option="light" data-i18n="lightMode">Равшан</button>
+        <div class="header-actions">
+            <button id="booksToggle" class="header-icon-btn" type="button" aria-expanded="false" aria-controls="booksModal" title="Китобҳо">
+                <span aria-hidden="true">📚</span>
+            </button>
+            <button id="quizToggle" class="header-icon-btn" type="button" aria-expanded="false" aria-controls="quizModal" title="Викторина">
+                <span aria-hidden="true">?</span>
+            </button>
+            <button id="authToggle" class="header-icon-btn" type="button" aria-expanded="false" aria-controls="authModal" title="Ҳисоб">
+                <span id="authToggleIcon" aria-hidden="true">👤</span>
+                <span id="authToggleText" class="sr-only" data-i18n="authButton">Ҳисоб</span>
+            </button>
+
+            <!-- MUST stay inside .settings-panel for app.js -->
+            <aside class="settings-panel" aria-label="Настройкаи сайт">
+                <button id="settingsToggle" class="header-icon-btn settings-toggle" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Танзимот">
+                    <span aria-hidden="true">☰</span>
+                </button>
+                <div id="settingsDrawer" class="settings-drawer">
+                    <h2 data-i18n="settingsTitle">Настройка</h2>
+                    <div class="settings-group">
+                        <span class="settings-label" data-i18n="themeLabel">Ранг</span>
+                        <div class="segmented-control" role="group" aria-label="Интихоби ранг">
+                            <button class="settings-option" type="button" data-theme-option="dark" data-i18n="darkMode">Торик</button>
+                            <button class="settings-option" type="button" data-theme-option="light" data-i18n="lightMode">Равшан</button>
+                        </div>
+                    </div>
+                    <div class="settings-group">
+                        <label class="settings-label" for="languageSelect" data-i18n="languageLabel">Забон</label>
+                        <select id="languageSelect">
+                            <option value="tg">Тоҷикӣ</option>
+                            <option value="ru">Русский</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            <div class="settings-group">
-                <label class="settings-label" for="languageSelect" data-i18n="languageLabel">Забон</label>
-                <select id="languageSelect">
-                    <option value="tg">Тоҷикӣ</option>
-                    <option value="ru">Русский</option>
-                    <option value="en">English</option>
-                </select>
-            </div>
+            </aside>
         </div>
-    </aside>
+    </header>
 
     <div class="app-content">
         <div class="search-wrap">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon" aria-hidden="true">🔍</span>
             <input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Ҷустуҷӯи кишвар, пойтахт, минтақа..." autocomplete="off" />
         </div>
 
-        <div class="region-label">Минтақаҳо (Regions):</div>
-        <div class="region-chips" id="regionChips">
-            <button type="button" class="chip active" data-region="all">Ҳама</button>
-        </div>
+        <div class="region-label" data-i18n="regionLabel">Минтақаҳо</div>
+        <div class="region-chips" id="regionChips"></div>
 
-        <!-- Hidden native selects kept for JS compatibility -->
+        <!-- Hidden native controls kept for app.js compatibility -->
         <div class="hidden-filters" aria-hidden="true">
             <select id="filterRegion"><option value="all">Ҳама</option></select>
             <select id="filterSubregion"><option value="all">Ҳама</option></select>
@@ -76,27 +88,24 @@
     </div>
 
     <!-- Bottom navigation -->
-    <nav class="bottom-nav">
-        <button type="button" class="nav-item active" data-nav="countries" id="navCountries">
-            <span class="nav-icon">🌐</span>
-            <span data-i18n="navCountries">Кишварҳо</span>
+    <nav class="bottom-nav" aria-label="Навигация">
+        <button type="button" class="nav-item active" id="navCountries">
+            <span class="nav-icon" aria-hidden="true">🌐</span>
+            <span>Кишварҳо</span>
         </button>
-        <button type="button" class="nav-item" data-nav="books" id="booksToggle">
-            <span class="nav-icon">📖</span>
-            <span data-i18n="booksTitle">Китобҳо</span>
+        <button type="button" class="nav-item" id="navBooks">
+            <span class="nav-icon" aria-hidden="true">📖</span>
+            <span>Китобҳо</span>
         </button>
-        <button type="button" class="nav-item" data-nav="auth" id="authToggle">
-            <span class="nav-icon" id="authToggleIcon">👤</span>
-            <span id="authToggleText" data-i18n="authButton">Ҳисоб</span>
+        <button type="button" class="nav-item" id="navQuiz">
+            <span class="nav-icon" aria-hidden="true">?</span>
+            <span>Викторина</span>
         </button>
-        <button type="button" class="nav-item" data-nav="settings" id="navSettings">
-            <span class="nav-icon">⚙</span>
-            <span data-i18n="settingsTitle">Танзимот</span>
+        <button type="button" class="nav-item" id="navAuth">
+            <span class="nav-icon" aria-hidden="true">👤</span>
+            <span>Ҳисоб</span>
         </button>
     </nav>
-
-    <!-- Hidden quiz toggle for JS -->
-    <button id="quizToggle" class="hidden-util" type="button" aria-hidden="true"></button>
 
     <div id="detailModal" class="modal">
         <div class="modal-window">
@@ -208,7 +217,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7ml+LZoIw4CwC8jhMQNiVDWPRv0v+T8rPBn60o=" crossorigin=""></script>
     <script defer src="js/app.js"></script>
     <script>
-      // Mobile UI helpers: region chips + bottom nav + sort button
       document.addEventListener('DOMContentLoaded', function () {
         const filterRegion = document.getElementById('filterRegion');
         const chipsWrap = document.getElementById('regionChips');
@@ -237,38 +245,46 @@
           });
         }
 
-        // Observe region select population by app.js
         const obs = new MutationObserver(syncChipsFromSelect);
-        if (filterRegion) obs.observe(filterRegion, { childList: true, subtree: true });
+        if (filterRegion) obs.observe(filterRegion, { childList: true, subtree: true, attributes: true });
         syncChipsFromSelect();
+        setInterval(syncChipsFromSelect, 800);
 
-        // Sort button cycles options
         if (sortBtn && sortSelect) {
+          const syncSortLabel = () => {
+            const opt = sortSelect.options[sortSelect.selectedIndex];
+            if (opt) sortBtn.textContent = '≡ ' + opt.textContent;
+          };
           sortBtn.addEventListener('click', () => {
             const opts = Array.from(sortSelect.options);
-            const idx = opts.findIndex(o => o.value === sortSelect.value);
+            const idx = Math.max(0, opts.findIndex(o => o.value === sortSelect.value));
             const next = opts[(idx + 1) % opts.length];
             sortSelect.value = next.value;
             sortSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            sortBtn.textContent = '≡ ' + next.textContent;
+            syncSortLabel();
           });
+          sortSelect.addEventListener('change', syncSortLabel);
+          syncSortLabel();
         }
 
-        // Country count observer
         if (results && countEl) {
-          const countObs = new MutationObserver(() => {
+          const updateCount = () => {
             const n = results.querySelectorAll('.country-card').length;
             countEl.textContent = n + ' кишвар';
-          });
-          countObs.observe(results, { childList: true });
+          };
+          new MutationObserver(updateCount).observe(results, { childList: true, subtree: true });
+          updateCount();
         }
 
-        // Bottom nav
-        const navSettings = document.getElementById('navSettings');
-        const settingsToggle = document.getElementById('settingsToggle');
-        if (navSettings && settingsToggle) {
-          navSettings.addEventListener('click', () => settingsToggle.click());
-        }
+        // Bottom nav bridges to existing toggles
+        const bridge = (navId, targetId) => {
+          const nav = document.getElementById(navId);
+          const target = document.getElementById(targetId);
+          if (nav && target) nav.addEventListener('click', () => target.click());
+        };
+        bridge('navBooks', 'booksToggle');
+        bridge('navQuiz', 'quizToggle');
+        bridge('navAuth', 'authToggle');
 
         document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
           item.addEventListener('click', () => {
@@ -276,6 +292,13 @@
             item.classList.add('active');
           });
         });
+
+        const navCountries = document.getElementById('navCountries');
+        if (navCountries) {
+          navCountries.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        }
       });
     </script>
 </body>

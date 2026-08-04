@@ -112,14 +112,9 @@ button { border: 0; outline: none; background: none; color: inherit; cursor: poi
     transform: scale(0.96);
 }
 
-/* Settings panel: toggle is visible in header row; drawer drops below */
 .settings-panel {
     position: relative;
     z-index: 1200;
-}
-
-.settings-toggle {
-    /* inherits header-icon-btn */
 }
 
 .settings-drawer {
@@ -350,9 +345,7 @@ button { border: 0; outline: none; background: none; color: inherit; cursor: poi
     border-color: rgba(248, 113, 113, 0.3);
     color: #fecaca;
 }
-.alert.success {
-    background: var(--accent-soft);
-}
+.alert.success { background: var(--accent-soft); }
 .alert.info {
     background: rgba(59, 130, 246, 0.12);
     border-color: rgba(59, 130, 246, 0.25);
@@ -830,44 +823,373 @@ button { border: 0; outline: none; background: none; color: inherit; cursor: poi
     .card-flag { height: 110px; }
 }
 
+/* =========================================================
+   DESKTOP ONLY — richer design + animations
+   Mobile styles above stay untouched
+   ========================================================= */
 @media (min-width: 900px) {
-    body { padding-bottom: 0; }
+    body {
+        padding-bottom: 0;
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(112, 219, 151, 0.14), transparent 55%),
+            radial-gradient(ellipse 40% 30% at 90% 20%, rgba(112, 219, 151, 0.06), transparent 50%),
+            linear-gradient(180deg, #141614 0%, #1a1c19 40%, #121412 100%);
+    }
+
+    body.light-theme {
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(31, 157, 87, 0.1), transparent 55%),
+            linear-gradient(180deg, #f8faf7 0%, #f3f5f2 50%, #eef1ec 100%);
+    }
+
     .bottom-nav { display: none; }
 
+    /* Header */
     .app-header {
-        max-width: 1100px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 28px 24px 12px;
+        padding: 36px 28px 18px;
+        align-items: center;
     }
-    .app-header-text h1 { font-size: 2.1rem; }
-    .app-header-text p { font-size: 0.95rem; }
+
+    .app-header-text h1 {
+        font-size: 2.35rem;
+        background: linear-gradient(135deg, #f2f4f1 30%, #70db97 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: fadeSlideDown 0.55s ease both;
+    }
+
+    body.light-theme .app-header-text h1 {
+        background: linear-gradient(135deg, #142016 20%, #1f9d57 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+    }
+
+    .app-header-text p {
+        font-size: 1rem;
+        margin-top: 8px;
+        animation: fadeSlideDown 0.55s ease 0.08s both;
+    }
+
+    .header-actions {
+        gap: 10px;
+        animation: fadeSlideDown 0.55s ease 0.12s both;
+    }
 
     .header-icon-btn {
-        width: 44px;
-        height: 44px;
+        width: 48px;
+        height: 48px;
+        font-size: 1.15rem;
+        border-radius: 16px;
+        transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
     }
 
+    .header-icon-btn:hover {
+        transform: translateY(-3px) scale(1.05);
+        border-color: rgba(112, 219, 151, 0.45);
+        box-shadow: 0 12px 28px rgba(112, 219, 151, 0.15);
+        background: var(--surface-2);
+    }
+
+    .settings-drawer {
+        top: calc(100% + 12px);
+        border-radius: 20px;
+        padding: 20px;
+        backdrop-filter: blur(12px);
+    }
+
+    /* Content shell */
     .app-content {
-        max-width: 1100px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 8px 24px 40px;
+        padding: 8px 28px 56px;
     }
 
+    /* Search */
+    .search-wrap {
+        padding: 16px 22px;
+        border-radius: 20px;
+        margin-bottom: 22px;
+        transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        animation: fadeSlideUp 0.5s ease 0.1s both;
+    }
+
+    .search-wrap:focus-within {
+        border-color: rgba(112, 219, 151, 0.5);
+        box-shadow: 0 0 0 4px rgba(112, 219, 151, 0.12), 0 16px 40px rgba(0,0,0,0.2);
+    }
+
+    #searchInput { font-size: 1.05rem; }
+
+    .region-label {
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        animation: fadeSlideUp 0.5s ease 0.15s both;
+    }
+
+    .region-chips {
+        gap: 10px;
+        margin-bottom: 18px;
+        animation: fadeSlideUp 0.5s ease 0.18s both;
+    }
+
+    .chip {
+        padding: 10px 18px;
+        font-size: 0.92rem;
+        transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    }
+
+    .chip.active {
+        box-shadow: 0 8px 22px rgba(112, 219, 151, 0.25);
+    }
+
+    .list-meta {
+        margin-bottom: 18px;
+        font-size: 0.95rem;
+        animation: fadeSlideUp 0.5s ease 0.2s both;
+    }
+
+    .sort-btn {
+        padding: 8px 14px;
+        border-radius: 12px;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .sort-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(112, 219, 151, 0.4);
+    }
+
+    /* Cards grid */
     .results-grid {
         grid-template-columns: repeat(3, 1fr);
+        gap: 22px;
+    }
+
+    .country-card {
+        border-radius: 22px;
+        transition:
+            transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.35s ease,
+            border-color 0.35s ease;
+        animation: cardIn 0.5s ease both;
+    }
+
+    .country-card:nth-child(1) { animation-delay: 0.05s; }
+    .country-card:nth-child(2) { animation-delay: 0.09s; }
+    .country-card:nth-child(3) { animation-delay: 0.13s; }
+    .country-card:nth-child(4) { animation-delay: 0.17s; }
+    .country-card:nth-child(5) { animation-delay: 0.21s; }
+    .country-card:nth-child(6) { animation-delay: 0.25s; }
+    .country-card:nth-child(n+7) { animation-delay: 0.28s; }
+
+    .country-card:hover {
+        transform: translateY(-10px) scale(1.015);
+        border-color: rgba(112, 219, 151, 0.45);
+        box-shadow:
+            0 24px 50px rgba(0, 0, 0, 0.35),
+            0 0 0 1px rgba(112, 219, 151, 0.12),
+            0 12px 40px rgba(112, 219, 151, 0.1);
+    }
+
+    .country-card:active { transform: translateY(-4px) scale(1.01); }
+
+    .card-flag {
+        height: 150px;
+        transition: transform 0.45s ease;
+    }
+
+    .country-card:hover .card-flag {
+        transform: scale(1.06);
+    }
+
+    .card-content { padding: 16px 18px 18px; }
+
+    .card-title {
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+    }
+
+    .card-meta {
+        font-size: 0.88rem;
+        gap: 7px;
+    }
+
+    /* Modal desktop */
+    .modal {
+        place-items: center;
+        padding: 28px;
+        backdrop-filter: blur(6px);
+    }
+
+    .modal-window {
+        max-width: 980px;
+        border-radius: 26px;
+        max-height: 90vh;
+        box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+        animation: modalPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .modal.show .modal-window {
+        animation: modalPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .close-button {
+        width: 44px;
+        height: 44px;
+        transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .close-button:hover {
+        transform: rotate(90deg) scale(1.08);
+        background: var(--surface-2);
+    }
+
+    .modal-header {
+        padding: 28px 28px 16px;
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .modal-header h2 { font-size: 1.85rem; }
+    .modal-body { padding: 20px 28px 32px; }
+
+    .detail-section {
+        padding: 20px;
+        border-radius: 18px;
+        transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .detail-section:hover {
+        border-color: rgba(112, 219, 151, 0.28);
+        box-shadow: 0 8px 28px rgba(0,0,0,0.15);
+    }
+
+    .section-card {
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .section-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(112, 219, 151, 0.3);
+    }
+
+    #countryMap, .map-placeholder {
+        min-height: 280px;
+        border-radius: 18px;
+    }
+
+    .button-primary,
+    .button-secondary,
+    .book-action {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .button-primary:hover,
+    .book-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(112, 219, 151, 0.28);
+    }
+
+    .button-secondary:hover {
+        transform: translateY(-2px);
+        border-color: rgba(112, 219, 151, 0.35);
+    }
+
+    .book-card {
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .book-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 36px rgba(0,0,0,0.2);
+    }
+
+    .quiz-option {
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .quiz-option:hover:not(:disabled) {
+        transform: translateX(4px);
+        border-color: rgba(112, 219, 151, 0.45);
+    }
+
+    .auth-layout {
+        grid-template-columns: 1fr 1fr;
         gap: 18px;
     }
 
-    .card-flag { height: 140px; }
-    .card-title { font-size: 1.12rem; }
-
-    .modal {
-        place-items: center;
-        padding: 24px;
+    .books-body {
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 18px;
     }
-    .modal-window {
-        max-width: 960px;
-        border-radius: 22px;
-        max-height: 90vh;
+
+    .quiz-app {
+        grid-template-columns: 0.75fr 1.25fr;
+        gap: 18px;
+    }
+}
+
+/* Desktop animations */
+@keyframes fadeSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cardIn {
+    from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }

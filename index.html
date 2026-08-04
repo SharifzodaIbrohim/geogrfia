@@ -2,16 +2,24 @@
 <html lang="tg">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Географияи ҷаҳон 🌍</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ҷуғрофияи Ҷаҳон</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-sA+4sRZWsLkuxq1hO+Wv3LiK/7g3nMvcaV7wX73w301w=" crossorigin="" />
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <aside class="settings-panel" aria-label="Настройкаи сайт">
-        <button id="settingsToggle" class="settings-toggle" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Настройка">
-            <span aria-hidden="true">⚙</span>
+    <!-- Mobile top bar -->
+    <header class="app-header">
+        <div class="app-header-text">
+            <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
+            <p data-i18n="heroText">Барномаи интерактивии кишварҳо ва харита</p>
+        </div>
+        <button id="settingsToggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Танзимот">
+            <span aria-hidden="true">☰</span>
         </button>
+    </header>
+
+    <aside class="settings-panel" aria-label="Настройкаи сайт">
         <div id="settingsDrawer" class="settings-drawer">
             <h2 data-i18n="settingsTitle">Настройка</h2>
             <div class="settings-group">
@@ -32,64 +40,63 @@
         </div>
     </aside>
 
-    <div class="top-action-buttons">
-        <button id="booksToggle" class="top-action-button books-toggle" type="button" aria-expanded="false" aria-controls="booksModal" title="Китобҳо">
-            <span aria-hidden="true">📚</span>
-        </button>
-        <button id="quizToggle" class="top-action-button quiz-toggle" type="button" aria-expanded="false" aria-controls="quizModal" title="Викторина">
-            <span aria-hidden="true">?</span>
-            <span data-i18n="quizButton">Викторина</span>
-        </button>
-        <button id="authToggle" class="top-action-button auth-toggle" type="button" aria-expanded="false" aria-controls="authModal" title="Воридшавӣ">
-            <span id="authToggleIcon" aria-hidden="true">👤</span>
-            <span id="authToggleText" data-i18n="authButton">Воридшавӣ</span>
-        </button>
+    <div class="app-content">
+        <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Ҷустуҷӯи кишвар, пойтахт, минтақа..." autocomplete="off" />
+        </div>
+
+        <div class="region-label">Минтақаҳо (Regions):</div>
+        <div class="region-chips" id="regionChips">
+            <button type="button" class="chip active" data-region="all">Ҳама</button>
+        </div>
+
+        <!-- Hidden native selects kept for JS compatibility -->
+        <div class="hidden-filters" aria-hidden="true">
+            <select id="filterRegion"><option value="all">Ҳама</option></select>
+            <select id="filterSubregion"><option value="all">Ҳама</option></select>
+            <select id="sortSelect">
+                <option value="name">Ном (А-Я)</option>
+                <option value="population">Аҳолӣ</option>
+                <option value="area">Масоҳат</option>
+            </select>
+            <button id="resetBtn" type="button">Тозакунӣ</button>
+        </div>
+
+        <div class="list-meta">
+            <span id="countryCount">0 кишвар</span>
+            <button type="button" class="sort-btn" id="sortBtn">≡ Ном (А-Я)</button>
+        </div>
+
+        <div id="alertBox" class="alert hidden"></div>
+
+        <main>
+            <div id="results" class="results-grid"></div>
+        </main>
     </div>
 
-    <header class="hero">
-        <div class="hero-copy">
-            <span class="hero-icon">🌍</span>
-            <h1 data-i18n="heroTitle">Географияи ҷаҳон</h1>
-            <p data-i18n="heroText">Сайти интерактивӣ бо ҳамаи кишварҳо, маълумоти муфассал ва харита.</p>
-        </div>
-    </header>
+    <!-- Bottom navigation -->
+    <nav class="bottom-nav">
+        <button type="button" class="nav-item active" data-nav="countries" id="navCountries">
+            <span class="nav-icon">🌐</span>
+            <span data-i18n="navCountries">Кишварҳо</span>
+        </button>
+        <button type="button" class="nav-item" data-nav="books" id="booksToggle">
+            <span class="nav-icon">📖</span>
+            <span data-i18n="booksTitle">Китобҳо</span>
+        </button>
+        <button type="button" class="nav-item" data-nav="auth" id="authToggle">
+            <span class="nav-icon" id="authToggleIcon">👤</span>
+            <span id="authToggleText" data-i18n="authButton">Ҳисоб</span>
+        </button>
+        <button type="button" class="nav-item" data-nav="settings" id="navSettings">
+            <span class="nav-icon">⚙</span>
+            <span data-i18n="settingsTitle">Танзимот</span>
+        </button>
+    </nav>
 
-    <div id="alertBox" class="alert hidden"></div>
-
-    <section class="toolbar">
-        <div class="search-panel">
-            <label for="searchInput" data-i18n="searchLabel">Ҷустуҷӯи зуд</label>
-            <input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Номи кишвар, пойтахт ё минтақа..." autocomplete="off" />
-        </div>
-
-        <div class="filters-panel">
-            <div class="filter-item">
-                <label for="filterRegion" data-i18n="regionLabel">Минтақа</label>
-                <select id="filterRegion">
-                    <option value="all" data-i18n="allRegions">Ҳама минтақаҳо</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="filterSubregion" data-i18n="subregionLabel">Субминтақа</label>
-                <select id="filterSubregion">
-                    <option value="all" data-i18n="allSubregions">Ҳама субминтақаҳо</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="sortSelect" data-i18n="sortLabel">Сортировка</label>
-                <select id="sortSelect">
-                    <option value="name" data-i18n="sortName">Ном (A → Z)</option>
-                    <option value="population" data-i18n="sortPopulation">Аҳолӣ (зиёд → кам)</option>
-                    <option value="area" data-i18n="sortArea">Масоҳат (зиёд → кам)</option>
-                </select>
-            </div>
-            <button id="resetBtn" class="button-secondary" data-i18n="resetButton">Тозакунӣ</button>
-        </div>
-    </section>
-
-    <main>
-        <div id="results" class="results-grid"></div>
-    </main>
+    <!-- Hidden quiz toggle for JS -->
+    <button id="quizToggle" class="hidden-util" type="button" aria-hidden="true"></button>
 
     <div id="detailModal" class="modal">
         <div class="modal-window">
@@ -200,5 +207,76 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7ml+LZoIw4CwC8jhMQNiVDWPRv0v+T8rPBn60o=" crossorigin=""></script>
     <script defer src="js/app.js"></script>
+    <script>
+      // Mobile UI helpers: region chips + bottom nav + sort button
+      document.addEventListener('DOMContentLoaded', function () {
+        const filterRegion = document.getElementById('filterRegion');
+        const chipsWrap = document.getElementById('regionChips');
+        const sortSelect = document.getElementById('sortSelect');
+        const sortBtn = document.getElementById('sortBtn');
+        const results = document.getElementById('results');
+        const countEl = document.getElementById('countryCount');
+
+        function syncChipsFromSelect() {
+          if (!filterRegion || !chipsWrap) return;
+          const opts = Array.from(filterRegion.options);
+          chipsWrap.innerHTML = '';
+          opts.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chip' + (opt.value === filterRegion.value ? ' active' : '');
+            btn.dataset.region = opt.value;
+            btn.textContent = opt.textContent;
+            btn.addEventListener('click', () => {
+              filterRegion.value = opt.value;
+              filterRegion.dispatchEvent(new Event('change', { bubbles: true }));
+              chipsWrap.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+              btn.classList.add('active');
+            });
+            chipsWrap.appendChild(btn);
+          });
+        }
+
+        // Observe region select population by app.js
+        const obs = new MutationObserver(syncChipsFromSelect);
+        if (filterRegion) obs.observe(filterRegion, { childList: true, subtree: true });
+        syncChipsFromSelect();
+
+        // Sort button cycles options
+        if (sortBtn && sortSelect) {
+          sortBtn.addEventListener('click', () => {
+            const opts = Array.from(sortSelect.options);
+            const idx = opts.findIndex(o => o.value === sortSelect.value);
+            const next = opts[(idx + 1) % opts.length];
+            sortSelect.value = next.value;
+            sortSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            sortBtn.textContent = '≡ ' + next.textContent;
+          });
+        }
+
+        // Country count observer
+        if (results && countEl) {
+          const countObs = new MutationObserver(() => {
+            const n = results.querySelectorAll('.country-card').length;
+            countEl.textContent = n + ' кишвар';
+          });
+          countObs.observe(results, { childList: true });
+        }
+
+        // Bottom nav
+        const navSettings = document.getElementById('navSettings');
+        const settingsToggle = document.getElementById('settingsToggle');
+        if (navSettings && settingsToggle) {
+          navSettings.addEventListener('click', () => settingsToggle.click());
+        }
+
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
+          item.addEventListener('click', () => {
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+          });
+        });
+      });
+    </script>
 </body>
 </html>

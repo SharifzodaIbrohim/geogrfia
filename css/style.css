@@ -28,6 +28,7 @@ body.light-theme {
 
 html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -1170,6 +1171,7 @@ body.light-theme #countryMap {
     color: var(--muted);
 }
 
+/* ========== Tablet ========== */
 @media (max-width: 920px) {
     .filters-panel {
         grid-template-columns: 1fr 1fr;
@@ -1186,28 +1188,46 @@ body.light-theme #countryMap {
     .auth-layout {
         grid-template-columns: 1fr;
     }
+
+    .results-grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px;
+    }
 }
 
+/* ========== Phone ========== */
 @media (max-width: 760px) {
     .settings-panel {
-        top: 14px;
-        left: 12px;
+        top: 12px;
+        left: 10px;
     }
 
     .settings-toggle {
-        width: 44px;
-        height: 44px;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        font-size: 1.2rem;
+    }
+
+    .settings-drawer {
+        width: min(260px, calc(100vw - 70px));
+        padding: 14px;
+        border-radius: 16px;
+        gap: 14px;
     }
 
     .top-action-buttons {
-        top: 14px;
-        right: 12px;
+        top: 12px;
+        right: 10px;
+        gap: 8px;
     }
 
     .top-action-button {
-        height: 44px;
-        min-width: 44px;
+        height: 42px;
+        min-width: 42px;
         border-radius: 14px;
+        padding: 0 10px;
+        font-size: 0.9rem;
     }
 
     #authToggleText {
@@ -1215,33 +1235,181 @@ body.light-theme #countryMap {
     }
 
     .hero {
-        padding: 44px 16px 28px;
+        padding: 56px 14px 22px;
+    }
+
+    .hero-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        font-size: 1.6rem;
+        margin-bottom: 12px;
+    }
+
+    .hero h1 {
+        font-size: 1.85rem;
+        margin-bottom: 10px;
+    }
+
+    .hero p {
+        font-size: 0.92rem;
+        line-height: 1.65;
+        padding: 0 4px;
     }
 
     .toolbar,
-    .results-grid {
-        width: calc(100% - 32px);
+    .results-grid,
+    .alert {
+        width: calc(100% - 24px);
+    }
+
+    .toolbar {
+        padding: 16px 0 10px;
+        gap: 12px;
+    }
+
+    #searchInput,
+    #filterRegion,
+    #filterSubregion,
+    #sortSelect {
+        padding: 14px 14px;
+        border-radius: 14px;
+        font-size: 16px; /* prevents iOS zoom */
     }
 
     .filters-panel {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
 
-    .detail-grid {
+    .button-secondary {
+        width: 100%;
+        min-width: 0;
+        padding: 14px 16px;
+        border-radius: 14px;
+    }
+
+    .results-grid {
         grid-template-columns: 1fr;
+        gap: 14px;
+        margin-bottom: 32px;
+    }
+
+    .country-card {
+        border-radius: 20px;
+    }
+
+    .card-flag {
+        height: 160px;
+    }
+
+    .card-content {
+        padding: 16px 16px 18px;
+    }
+
+    .card-title {
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+    }
+
+    .card-meta {
+        font-size: 0.9rem;
+        gap: 8px;
+    }
+
+    .modal {
+        padding: 10px;
+        align-items: flex-end;
     }
 
     .modal-window {
-        max-height: 90vh;
+        max-height: 92vh;
+        border-radius: 20px 20px 0 0;
+        width: 100%;
+    }
+
+    .close-button {
+        width: 40px;
+        height: 40px;
+        top: 14px;
+        right: 14px;
+        font-size: 1.4rem;
     }
 
     .modal-header {
         flex-direction: column;
         align-items: stretch;
+        gap: 12px;
+        padding: 20px 16px 12px;
+    }
+
+    .modal-header h2 {
+        font-size: 1.45rem;
+        padding-right: 40px;
+    }
+
+    .modal-badge {
+        align-self: flex-start;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .detail-section {
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .detail-section h3 {
+        font-size: 0.98rem;
+        margin-bottom: 12px;
+    }
+
+    #countryMap,
+    .map-placeholder {
+        min-height: 220px;
+        border-radius: 14px;
     }
 
     .books-body {
-        padding: 18px;
+        padding: 0;
+        gap: 14px;
+    }
+
+    .book-card {
+        min-height: auto;
+        padding: 14px;
+        border-radius: 16px;
+        gap: 12px;
+    }
+
+    .book-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+
+    .book-details {
+        padding: 16px;
+        border-radius: 16px;
+        gap: 14px;
+    }
+
+    .book-actions {
+        flex-direction: column;
+    }
+
+    .book-action {
+        width: 100%;
+        justify-content: center;
     }
 
     .quiz-body {
@@ -1251,17 +1419,62 @@ body.light-theme #countryMap {
     .quiz-sidebar,
     .quiz-stage,
     .quiz-locked {
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .quiz-stage {
+        min-height: auto;
+    }
+
+    .quiz-option {
+        min-height: 52px;
+        border-radius: 14px;
+        padding: 10px 12px;
+    }
+
+    .auth-card {
         padding: 18px;
+        border-radius: 16px;
+    }
+
+    .auth-card input {
+        font-size: 16px;
+        min-height: 48px;
+    }
+
+    .empty-state {
+        padding: 32px 20px;
+        border-radius: 16px;
     }
 }
 
-@media (max-width: 520px) {
+/* ========== Small phones ========== */
+@media (max-width: 400px) {
     .hero h1 {
-        font-size: 2.2rem;
+        font-size: 1.6rem;
     }
 
-    .button-secondary {
-        width: 100%;
+    .hero p {
+        font-size: 0.88rem;
+    }
+
+    .top-action-button {
+        height: 40px;
+        min-width: 40px;
+    }
+
+    .settings-toggle {
+        width: 40px;
+        height: 40px;
+    }
+
+    .card-flag {
+        height: 140px;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
     }
 }
 

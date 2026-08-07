@@ -30,6 +30,7 @@
     loadMonitor();
     loadStudents();
     loadOlympiads();
+    loadAdmins();
   }
 
   function showLogin() {
@@ -65,7 +66,6 @@
 
   logoutBtn.addEventListener('click', showLogin);
 
-  // Tabs
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
@@ -76,6 +76,7 @@
       if (btn.dataset.tab === 'students') loadStudents();
       if (btn.dataset.tab === 'olympiads') loadOlympiads();
       if (btn.dataset.tab === 'results') loadOlympiadsForResults();
+      if (btn.dataset.tab === 'admins') loadAdmins();
     });
   });
 
@@ -85,6 +86,18 @@
     return `<span class="badge off">${status || '—'}</span>`;
   }
 
+  function windowBadge(o) {
+    if (o.windowStatus === 'open') return '<span class="badge">Кушода</span>';
+    if (o.windowStatus === 'not_started') return '<span class="badge off">Оғоз нашудааст</span>';
+    if (o.windowStatus === 'ended') return '<span class="badge fail">Анҷом</span>';
+    return '<span class="badge off">Хомӯш</span>';
+  }
+
+  function fmtTime(t) {
+    if (!t) return '—';
+    return String(t).slice(0, 16).replace('T', ' ');
+  }
+
   async function loadMonitor() {
     try {
       const data = await api('/api/admin/monitor');
@@ -92,7 +105,7 @@
       document.getElementById('statsGrid').innerHTML = `
         <div class="stat"><b>${s.students || 0}</b><span>Хонандагон</span></div>
         <div class="stat"><b>${s.olympiads || 0}</b><span>Олимпиадаҳо</span></div>
-        <div class="stat"><b>${s.activeOlympiads || 0}</b><span>Фаъол</span></div>
+        <div class="stat"><b>${s.activeOlympiads || 0}</b><span>Кушода ҳоло</span></div>
         <div class="stat"><b>${s.results || 0}</b><span>Натиҷаҳо</span></div>
         <div class="stat"><b>${s.passed || 0}</b><span>Гузаштанд</span></div>
         <div class="stat"><b>${s.failed || 0}</b><span>Нагузаштанд</span></div>
@@ -114,9 +127,7 @@
     }
   }
 
-  // Students
-  const studentForm = document.getElementById('studentForm');
-  studentForm.addEventListener('submit', async (e) => {
+  document.getElementById('studentForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('studentFormMsg');
     msg.classList.add('hidden');
@@ -129,7 +140,7 @@
           school: document.getElementById('school').value.trim(),
         }),
       });
-      studentForm.reset();
+      e.target.reset();
       const s = data.student;
       document.getElementById('newIdBox').classList.remove('hidden');
       document.getElementById('newIdName').textContent = s.fullName;
@@ -150,6 +161,29 @@
       document.getElementById('copyIdBtn').textContent = 'Нусха шуд';
       setTimeout(() => { document.getElementById('copyIdBtn').textContent = 'Нусха'; }, 1500);
     } catch {}
+  });
+
+  document.getElementById('exportStudentsBtn').addEventListener('click', async () => {
+    try {
+      const res = await fetch(API + '/api/admin/students/export', {
+        headers: { 'X-Admin-Token': token },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Хатои содирот');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'students.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   async function loadStudents() {
@@ -180,7 +214,6 @@
     }
   }
 
-  // Olympiads — question builder
   const questionsList = document.getElementById('questionsList');
   let questionCount = 0;
 
@@ -234,13 +267,10 @@
       const optionInputs = [...card.querySelectorAll('.opt-text')];
       const radios = [...card.querySelectorAll('input[type=radio]')];
       const options = optionInputs.map((i) => i.value.trim()).filter(Boolean);
-      let answer = 0;
-      radios.forEach((r, idx) => { if (r.checked) answer = idx; });
-      // map answer index to filtered options index approximately by original order
       const allVals = optionInputs.map((i) => i.value.trim());
       const selectedRaw = allVals.findIndex((_, i) => radios[i]?.checked);
       const selectedVal = selectedRaw >= 0 ? allVals[selectedRaw] : allVals[0];
-      answer = Math.max(0, options.indexOf(selectedVal));
+      const answer = Math.max(0, options.indexOf(selectedVal));
       if (text && options.length >= 2) {
         questions.push({ text, options, answer });
       }
@@ -254,12 +284,14 @@
           type: document.getElementById('olyType').value,
           passScore: Number(document.getElementById('olyPass').value) || 70,
           isActive: document.getElementById('olyActive').checked,
+          startTime: document.getElementById('olyStart').value || null,
+          endTime: document.getElementById('olyEnd').value || null,
           questions,
         }),
       });
       msg.textContent = 'Сабт шуд';
       msg.classList.remove('hidden', 'error');
-      document.getElementById('olympiadForm').reset();
+      e.target.reset();
       questionsList.innerHTML = '';
       questionCount = 0;
       addQuestion();
@@ -283,7 +315,8 @@
           <td>${o.type === 'quiz' ? 'Викторина' : 'Олимпиада'}</td>
           <td>${o.questionCount || 0}</td>
           <td>${o.passScore}%</td>
-          <td>${o.isActive ? '<span class="badge">Фаъол</span>' : '<span class="badge off">Хомӯш</span>'}</td>
+          <td style="font-size:0.82rem">${fmtTime(o.startTime)} → ${fmtTime(o.endTime)}</td>
+          <td>${windowBadge(o)}</td>
           <td>
             <button type="button" class="btn small" data-toggle-oly="${esc(o.id)}" data-active="${o.isActive ? '1' : '0'}">
               ${o.isActive ? 'Хомӯш' : 'Фаъол'}
@@ -291,7 +324,7 @@
             <button type="button" class="btn small danger" data-del-oly="${esc(o.id)}">Нест</button>
           </td>
         </tr>
-      `).join('') : '<tr><td colspan="6">Ҳанӯз нест</td></tr>';
+      `).join('') : '<tr><td colspan="7">Ҳанӯз нест</td></tr>';
 
       body.querySelectorAll('[data-toggle-oly]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -313,7 +346,6 @@
         });
       });
 
-      // fill results select
       const sel = document.getElementById('resultOlympiadSelect');
       const current = sel.value;
       sel.innerHTML = '<option value="">— интихоб —</option>' +
@@ -354,6 +386,62 @@
     }
   });
 
+  // Admins
+  document.getElementById('adminForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('adminFormMsg');
+    msg.classList.add('hidden');
+    try {
+      await api('/api/admin/admins', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.getElementById('newAdminName').value.trim(),
+          login: document.getElementById('newAdminLogin').value.trim(),
+          password: document.getElementById('newAdminPassword').value,
+        }),
+      });
+      msg.textContent = 'Админ илова шуд';
+      msg.classList.remove('hidden', 'error');
+      e.target.reset();
+      loadAdmins();
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.classList.remove('hidden');
+      msg.classList.add('error');
+    }
+  });
+
+  async function loadAdmins() {
+    try {
+      const data = await api('/api/admin/admins');
+      const body = document.getElementById('adminsBody');
+      const list = data.admins || [];
+      body.innerHTML = list.length ? list.map((a) => `
+        <tr>
+          <td>${esc(a.name)}</td>
+          <td><code>${esc(a.login)}</code></td>
+          <td>${esc(a.createdBy || '—')}</td>
+          <td>${esc((a.createdAt || '').slice(0, 19).replace('T', ' '))}</td>
+          <td>
+            ${a.id === admin?.id
+              ? '<span class="muted">шумо</span>'
+              : `<button type="button" class="btn small danger" data-del-admin="${esc(a.id)}">Нест</button>`}
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="5">Админ нест</td></tr>';
+
+      body.querySelectorAll('[data-del-admin]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Админ нест карда шавад?')) return;
+          await api('/api/admin/admins/' + btn.dataset.delAdmin, { method: 'DELETE' });
+          loadAdmins();
+        });
+      });
+    } catch (err) {
+      if (String(err.message).includes('рад')) showLogin();
+    }
+  }
+
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -363,7 +451,6 @@
     return esc(s).replace(/`/g, '');
   }
 
-  // boot
   if (token && admin) {
     api('/api/admin/me').then(showApp).catch(showLogin);
   }

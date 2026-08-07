@@ -37,10 +37,10 @@
       <button type="button" class="tab" data-tab="students">Хонандагон</button>
       <button type="button" class="tab" data-tab="olympiads">Олимпиада / Викторина</button>
       <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
+      <button type="button" class="tab" data-tab="admins">Админҳо</button>
     </nav>
 
     <main class="panel">
-      <!-- MONITOR -->
       <section id="tab-monitor" class="tab-panel">
         <h2>Мониторинг</h2>
         <div class="stats" id="statsGrid"></div>
@@ -62,9 +62,11 @@
         </div>
       </section>
 
-      <!-- STUDENTS -->
       <section id="tab-students" class="tab-panel hidden">
-        <h2>Хонандагон</h2>
+        <div class="row-between">
+          <h2>Хонандагон</h2>
+          <button type="button" id="exportStudentsBtn" class="btn primary">⬇ Excel (CSV)</button>
+        </div>
         <form id="studentForm" class="card form-grid">
           <h3>Сабти хонандаи нав + ID</h3>
           <label>Ному насаб</label>
@@ -102,7 +104,6 @@
         </div>
       </section>
 
-      <!-- OLYMPIADS -->
       <section id="tab-olympiads" class="tab-panel hidden">
         <h2>Олимпиада / Викторина</h2>
         <form id="olympiadForm" class="card form-grid">
@@ -116,6 +117,10 @@
           </select>
           <label>Ҳадди гузаштан (%)</label>
           <input id="olyPass" type="number" min="0" max="100" value="70" />
+          <label>Оғоз (ихтиёрӣ)</label>
+          <input id="olyStart" type="datetime-local" />
+          <label>Анҷом (ихтиёрӣ)</label>
+          <input id="olyEnd" type="datetime-local" />
           <label><input id="olyActive" type="checkbox" /> Фавран фаъол кунед</label>
 
           <div class="questions-block">
@@ -138,6 +143,7 @@
                 <th>Навъ</th>
                 <th>Саволҳо</th>
                 <th>Ҳад</th>
+                <th>Вақт</th>
                 <th>Ҳолат</th>
                 <th></th>
               </tr>
@@ -147,7 +153,6 @@
         </div>
       </section>
 
-      <!-- RESULTS -->
       <section id="tab-results" class="tab-panel hidden">
         <h2>Натиҷаҳо аз рӯи олимпиада</h2>
         <label>Олимпиадаро интихоб кунед</label>
@@ -166,6 +171,35 @@
               </tr>
             </thead>
             <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-admins" class="tab-panel hidden">
+        <h2>Админҳо</h2>
+        <form id="adminForm" class="card form-grid">
+          <h3>Админи нав</h3>
+          <label>Ном</label>
+          <input id="newAdminName" required placeholder="Али Раҳимов" />
+          <label>Логин</label>
+          <input id="newAdminLogin" required placeholder="ali" autocomplete="off" />
+          <label>Парол</label>
+          <input id="newAdminPassword" type="password" required minlength="6" autocomplete="new-password" />
+          <button type="submit" class="btn primary">Илова кардан</button>
+          <p id="adminFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ном</th>
+                <th>Логин</th>
+                <th>Сохтааст</th>
+                <th>Сана</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="adminsBody"></tbody>
           </table>
         </div>
       </section>

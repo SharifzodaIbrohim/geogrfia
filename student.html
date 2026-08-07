@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Хонанда — Олимпиада</title>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <div id="loginView" class="auth-shell">
+    <form id="studentLoginForm" class="auth-card">
+      <h1>Воридшавии хонанда</h1>
+      <p class="muted">Танҳо бо ID-е, ки админ додааст</p>
+      <label>ID-и шумо</label>
+      <input id="studentIdInput" type="text" inputmode="numeric" placeholder="0218923193724217841" required />
+      <button type="submit" class="btn primary">Ворид шудан</button>
+      <p id="loginError" class="error hidden"></p>
+      <p class="muted center"><a href="/">Бозгашт ба сайт</a></p>
+    </form>
+  </div>
+
+  <div id="appView" class="hidden">
+    <header class="topbar">
+      <div>
+        <strong id="studentName">—</strong>
+        <span id="studentMeta" class="muted"></span>
+      </div>
+      <div class="topbar-actions">
+        <a href="/" class="btn ghost">Сайт</a>
+        <button id="logoutBtn" type="button" class="btn">Баромадан</button>
+      </div>
+    </header>
+
+    <main class="panel">
+      <section id="listView">
+        <h2>Олимпиадаҳои фаъол</h2>
+        <div id="olympiadList" class="cards"></div>
+        <p id="emptyOly" class="muted hidden">Ҳоло олимпиадаи фаъол нест.</p>
+      </section>
+
+      <section id="examView" class="hidden">
+        <div class="row-between">
+          <h2 id="examTitle">—</h2>
+          <span id="examProgress" class="badge">0/0</span>
+        </div>
+        <div id="examQuestions"></div>
+        <button id="submitExamBtn" type="button" class="btn primary">Супоридан</button>
+        <p id="examMsg" class="msg hidden"></p>
+      </section>
+
+      <section id="resultView" class="hidden">
+        <div class="card highlight center">
+          <h2>Натиҷа</h2>
+          <p class="score-big" id="resultScore">0%</p>
+          <p id="resultDetail"></p>
+          <p id="resultStatus" class="badge"></p>
+          <button id="backToListBtn" type="button" class="btn">Бозгашт</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/student.js"></script>
+</body>
+</html>

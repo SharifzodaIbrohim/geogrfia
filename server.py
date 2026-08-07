@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import os
 import re
@@ -11,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, request, send_from_directory
+from flask import Flask, Response, abort, jsonify, request, send_from_directory
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -61,6 +63,21 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def parse_dt(value):
+    if not value:
+        return None
+    try:
+        text = str(value).strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
 def ensure_json_file(path: Path, default="[]") -> None:
     DATA_DIR.mkdir(exist_ok=True)
     if not path.exists():
@@ -72,7 +89,7 @@ def load_json(path: Path) -> list | dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError:
-        return [] if path != ADMINS_FILE else []
+        return []
     return data
 
 
@@ -106,11 +123,9 @@ def verify_password(password: str, salt: str, stored_hash: str) -> bool:
 
 
 def generate_long_id() -> str:
-    """19-digit unique student ID."""
     students = load_json(STUDENTS_FILE)
     existing = {s.get("id") for s in students if isinstance(s, dict)}
     for _ in range(50):
-        # 19 digits, does not start with 0
         num = secrets.randbelow(9 * 10**18) + 10**18
         sid = str(num)
         if sid not in existing:
@@ -138,6 +153,34 @@ def public_student(s: dict) -> dict:
     }
 
 
+def public_admin(a: dict) -> dict:
+    return {
+        "id": a["id"],
+        "login": a["login"],
+        "name": a.get("name", a["login"]),
+        "createdAt": a.get("createdAt"),
+        "createdBy": a.get("createdBy"),
+    }
+
+
+def olympiad_window_status(o: dict) -> str:
+    """open | not_started | ended | inactive"""
+    if not o.get("isActive"):
+        return "inactive"
+    now = datetime.now(timezone.utc)
+    start = parse_dt(o.get("startTime"))
+    end = parse_dt(o.get("endTime"))
+    if start and now < start:
+        return "not_started"
+    if end and now > end:
+        return "ended"
+    return "open"
+
+
+def is_olympiad_open(o: dict) -> bool:
+    return olympiad_window_status(o) == "open"
+
+
 def public_olympiad(o: dict, include_answers: bool = False) -> dict:
     questions = []
     for q in o.get("questions") or []:
@@ -149,6 +192,7 @@ def public_olympiad(o: dict, include_answers: bool = False) -> dict:
         if include_answers:
             item["answer"] = q.get("answer")
         questions.append(item)
+    window = olympiad_window_status(o)
     return {
         "id": o["id"],
         "title": o["title"],
@@ -157,6 +201,8 @@ def public_olympiad(o: dict, include_answers: bool = False) -> dict:
         "isActive": bool(o.get("isActive")),
         "startTime": o.get("startTime"),
         "endTime": o.get("endTime"),
+        "windowStatus": window,
+        "isOpen": window == "open",
         "questions": questions,
         "questionCount": len(questions),
         "createdAt": o.get("createdAt"),
@@ -164,7 +210,6 @@ def public_olympiad(o: dict, include_answers: bool = False) -> dict:
     }
 
 
-# Simple in-memory admin tokens (enough for phase 1)
 ADMIN_TOKENS: dict[str, dict] = {}
 
 
@@ -180,10 +225,7 @@ def create_admin_token(admin: dict) -> str:
 
 def require_admin():
     token = request.headers.get("X-Admin-Token", "")
-    admin = ADMIN_TOKENS.get(token)
-    if not admin:
-        return None
-    return admin
+    return ADMIN_TOKENS.get(token)
 
 
 @app.route("/")
@@ -202,8 +244,6 @@ def admin_page():
 def student_page():
     return send_from_directory(BASE_DIR, "student.html")
 
-
-# ---------- Existing public auth (legacy) ----------
 
 @app.post("/api/register")
 def register():
@@ -256,8 +296,6 @@ def login():
     return jsonify({"user": public_user(user)})
 
 
-# ---------- Admin auth ----------
-
 @app.post("/api/admin/login")
 def admin_login():
     payload = request.get_json(silent=True) or {}
@@ -274,7 +312,7 @@ def admin_login():
     token = create_admin_token(admin)
     return jsonify({
         "token": token,
-        "admin": {"id": admin["id"], "login": admin["login"], "name": admin.get("name", admin["login"])},
+        "admin": public_admin(admin),
     })
 
 
@@ -286,7 +324,80 @@ def admin_me():
     return jsonify({"admin": admin})
 
 
-# ---------- Students (admin only create) ----------
+# ---------- Admins management ----------
+
+@app.get("/api/admin/admins")
+def admin_list_admins():
+    admin = require_admin()
+    if not admin:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    admins = load_json(ADMINS_FILE)
+    if not isinstance(admins, list):
+        admins = []
+    return jsonify({"admins": [public_admin(a) for a in admins]})
+
+
+@app.post("/api/admin/admins")
+def admin_create_admin():
+    admin = require_admin()
+    if not admin:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    login_name = str(payload.get("login", "")).strip()
+    name = str(payload.get("name", "")).strip() or login_name
+    password = str(payload.get("password", ""))
+
+    if len(login_name) < 3:
+        return jsonify({"error": "Логин бояд камаш 3 рамз бошад."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Парол бояд камаш 6 рамз бошад."}), 400
+
+    with LOCK:
+        admins = load_json(ADMINS_FILE)
+        if not isinstance(admins, list):
+            admins = []
+        if any(a.get("login") == login_name for a in admins):
+            return jsonify({"error": "Ин логин аллакай вуҷуд дорад."}), 409
+
+        salt, password_hash = hash_password(password)
+        new_admin = {
+            "id": str(uuid.uuid4()),
+            "login": login_name,
+            "name": name,
+            "salt": salt,
+            "passwordHash": password_hash,
+            "createdBy": admin["login"],
+            "createdAt": utc_now(),
+        }
+        admins.append(new_admin)
+        save_json(ADMINS_FILE, admins)
+
+    return jsonify({"admin": public_admin(new_admin)}), 201
+
+
+@app.delete("/api/admin/admins/<admin_id>")
+def admin_delete_admin(admin_id: str):
+    admin = require_admin()
+    if not admin:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    if admin.get("id") == admin_id:
+        return jsonify({"error": "Шумо наметавонед худро нест кунед."}), 400
+
+    with LOCK:
+        admins = load_json(ADMINS_FILE)
+        if not isinstance(admins, list):
+            admins = []
+        new_list = [a for a in admins if a.get("id") != admin_id]
+        if len(new_list) == len(admins):
+            return jsonify({"error": "Админ ёфт нашуд."}), 404
+        if len(new_list) == 0:
+            return jsonify({"error": "Наметавон охирин админро нест кард."}), 400
+        save_json(ADMINS_FILE, new_list)
+    return jsonify({"ok": True})
+
+
+# ---------- Students ----------
 
 @app.get("/api/admin/students")
 def admin_list_students():
@@ -297,6 +408,42 @@ def admin_list_students():
     if not isinstance(students, list):
         students = []
     return jsonify({"students": [public_student(s) for s in students]})
+
+
+@app.get("/api/admin/students/export")
+def admin_export_students():
+    """CSV for Excel (UTF-8 BOM)."""
+    admin = require_admin()
+    if not admin:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+
+    students = load_json(STUDENTS_FILE)
+    if not isinstance(students, list):
+        students = []
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["ID", "Ному насаб", "Синф", "Мактаб", "Сохтааст", "Сана"])
+    for s in students:
+        writer.writerow([
+            s.get("id", ""),
+            s.get("fullName", ""),
+            s.get("className", ""),
+            s.get("school", ""),
+            s.get("createdBy", ""),
+            (s.get("createdAt") or "")[:19].replace("T", " "),
+        ])
+
+    # BOM so Excel opens Tajik text correctly
+    data = "\ufeff" + buf.getvalue()
+    filename = f"students_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        data.encode("utf-8"),
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @app.post("/api/admin/students")
@@ -352,8 +499,6 @@ def admin_delete_student(student_id: str):
     return jsonify({"ok": True})
 
 
-# ---------- Student login by long ID ----------
-
 @app.post("/api/student/login")
 def student_login():
     payload = request.get_json(silent=True) or {}
@@ -370,6 +515,19 @@ def student_login():
 
 
 # ---------- Olympiads ----------
+
+def normalize_time_field(value):
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    # Accept datetime-local: 2026-08-08T14:30
+    if "T" in text and len(text) == 16:
+        text = text + ":00+05:00"  # Tajikistan UTC+5 default if no tz
+    dt = parse_dt(text)
+    return dt.isoformat() if dt else text
+
 
 @app.get("/api/admin/olympiads")
 def admin_list_olympiads():
@@ -398,6 +556,13 @@ def admin_create_olympiad():
     except (TypeError, ValueError):
         pass_score = 70
     pass_score = max(0, min(100, pass_score))
+
+    start_time = normalize_time_field(payload.get("startTime"))
+    end_time = normalize_time_field(payload.get("endTime"))
+    if start_time and end_time:
+        s, e = parse_dt(start_time), parse_dt(end_time)
+        if s and e and e <= s:
+            return jsonify({"error": "Вақти анҷом бояд баъд аз оғоз бошад."}), 400
 
     raw_questions = payload.get("questions") or []
     if not title:
@@ -430,8 +595,8 @@ def admin_create_olympiad():
         "type": otype,
         "passScore": pass_score,
         "isActive": bool(payload.get("isActive", False)),
-        "startTime": payload.get("startTime"),
-        "endTime": payload.get("endTime"),
+        "startTime": start_time,
+        "endTime": end_time,
         "questions": questions,
         "createdBy": admin["login"],
         "createdAt": utc_now(),
@@ -472,6 +637,10 @@ def admin_update_olympiad(olympiad_id: str):
                 pass
         if "title" in payload and str(payload["title"]).strip():
             olympiad["title"] = str(payload["title"]).strip()
+        if "startTime" in payload:
+            olympiad["startTime"] = normalize_time_field(payload.get("startTime"))
+        if "endTime" in payload:
+            olympiad["endTime"] = normalize_time_field(payload.get("endTime"))
 
         save_json(OLYMPIADS_FILE, items)
 
@@ -497,11 +666,11 @@ def admin_delete_olympiad(olympiad_id: str):
 
 @app.get("/api/olympiads/active")
 def list_active_olympiads():
-    """For students — only active olympiads, without correct answers."""
     items = load_json(OLYMPIADS_FILE)
     if not isinstance(items, list):
         items = []
-    active = [public_olympiad(o, include_answers=False) for o in items if o.get("isActive")]
+    # Only currently open (active + inside time window)
+    active = [public_olympiad(o, include_answers=False) for o in items if is_olympiad_open(o)]
     return jsonify({"olympiads": active})
 
 
@@ -524,14 +693,19 @@ def submit_olympiad(olympiad_id: str):
     olympiad = next((o for o in items if o.get("id") == olympiad_id), None)
     if not olympiad:
         return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
-    if not olympiad.get("isActive"):
+
+    window = olympiad_window_status(olympiad)
+    if window == "inactive":
         return jsonify({"error": "Ин олимпиада ҳоло фаъол нест."}), 403
+    if window == "not_started":
+        return jsonify({"error": "Олимпиада ҳанӯз оғоз нашудааст."}), 403
+    if window == "ended":
+        return jsonify({"error": "Вақти олимпиада ба охир расид."}), 403
 
     questions = olympiad.get("questions") or []
     if not questions:
         return jsonify({"error": "Саволҳо нестанд."}), 400
 
-    # answers: list of {questionId, selected} or list of ints in order
     selected_map = {}
     if isinstance(answers, list):
         for i, a in enumerate(answers):
@@ -585,7 +759,6 @@ def submit_olympiad(olympiad_id: str):
         results = load_json(RESULTS_FILE)
         if not isinstance(results, list):
             results = []
-        # replace previous attempt for same student+olympiad
         results = [
             r for r in results
             if not (r.get("studentId") == student_id and r.get("olympiadId") == olympiad_id)
@@ -639,7 +812,7 @@ def admin_monitor():
         "stats": {
             "students": len(students),
             "olympiads": len(olympiads),
-            "activeOlympiads": sum(1 for o in olympiads if o.get("isActive")),
+            "activeOlympiads": sum(1 for o in olympiads if is_olympiad_open(o)),
             "results": len(results),
             "passed": sum(1 for r in results if r.get("status") == "passed"),
             "failed": sum(1 for r in results if r.get("status") == "failed"),

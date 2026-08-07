@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <!-- Professional top bar -->
     <header class="app-header">
         <div class="app-header-text">
             <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
@@ -16,6 +15,9 @@
         </div>
 
         <div class="header-actions">
+            <a href="/student" class="header-icon-btn" title="Олимпиада (хонанда)" style="text-decoration:none">
+                <span aria-hidden="true">🏅</span>
+            </a>
             <button id="booksToggle" class="header-icon-btn" type="button" aria-expanded="false" aria-controls="booksModal" title="Китобҳо">
                 <span aria-hidden="true">📚</span>
             </button>
@@ -27,7 +29,6 @@
                 <span id="authToggleText" class="sr-only" data-i18n="authButton">Ҳисоб</span>
             </button>
 
-            <!-- MUST stay inside .settings-panel for app.js -->
             <aside class="settings-panel" aria-label="Настройкаи сайт">
                 <button id="settingsToggle" class="header-icon-btn settings-toggle" type="button" aria-expanded="false" aria-controls="settingsDrawer" title="Танзимот">
                     <span aria-hidden="true">☰</span>
@@ -49,6 +50,10 @@
                             <option value="en">English</option>
                         </select>
                     </div>
+                    <div class="settings-group">
+                        <a href="/student" style="color:var(--accent);font-weight:600">Олимпиада (хонанда)</a>
+                        <a href="/admin" style="color:var(--muted);font-size:0.85rem">Панели админ</a>
+                    </div>
                 </div>
             </aside>
         </div>
@@ -63,7 +68,6 @@
         <div class="region-label" data-i18n="regionLabel">Минтақаҳо</div>
         <div class="region-chips" id="regionChips"></div>
 
-        <!-- Hidden native controls kept for app.js compatibility -->
         <div class="hidden-filters" aria-hidden="true">
             <select id="filterRegion"><option value="all">Ҳама</option></select>
             <select id="filterSubregion"><option value="all">Ҳама</option></select>
@@ -87,7 +91,6 @@
         </main>
     </div>
 
-    <!-- Bottom navigation -->
     <nav class="bottom-nav" aria-label="Навигация">
         <button type="button" class="nav-item active" id="navCountries">
             <span class="nav-icon" aria-hidden="true">🌐</span>
@@ -276,7 +279,6 @@
           updateCount();
         }
 
-        // Bottom nav bridges to existing toggles
         const bridge = (navId, targetId) => {
           const nav = document.getElementById(navId);
           const target = document.getElementById(targetId);

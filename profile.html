@@ -25,8 +25,8 @@
 
   <div id="loginGate" class="pr-gate">
     <div class="pr-gate-card">
-      <h1>Profile</h1>
-      <p>Барои дидани профил бо Google ворид шавед.</p>
+      <h1>🎯 Profile</h1>
+      <p>Барои дидани профил ва иштирок дар викторинаҳо бо Google ворид шавед.</p>
       <div id="googleSignInBtn"></div>
       <p class="pr-muted"><a href="/">← Home</a></p>
     </div>
@@ -36,45 +36,77 @@
     <section class="pr-hero">
       <div class="pr-identity">
         <div class="pr-avatar-lg" id="prAvatar">?</div>
-        <div>
+        <div class="pr-id-text">
           <div class="pr-role">🎯 Participant</div>
           <h1 id="prName">—</h1>
           <p class="pr-email" id="prEmail">—</p>
           <p class="pr-meta" id="prMeta">—</p>
         </div>
       </div>
-      <div class="pr-rating-box">
-        <div class="pr-rating-label">Rating</div>
-        <div class="pr-rating-val" id="prRating">1200</div>
-        <div class="pr-rating-sub">Max <span id="prMaxRating">1200</span></div>
+      <div class="pr-metrics">
+        <div class="pr-metric">
+          <span class="pr-metric-label">Rating</span>
+          <div class="pr-metric-row">
+            <b id="prRating">1200</b>
+            <span class="pr-delta" id="prDelta"></span>
+          </div>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Max Rating</span>
+          <b id="prMaxRating">1200</b>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Contests</span>
+          <b id="prContests">0</b>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Problems Solved</span>
+          <b id="prSolved">0</b>
+        </div>
       </div>
     </section>
 
-    <div class="pr-stats">
-      <div class="pr-stat"><b id="prContests">0</b><span>Quizzes / Attempts</span></div>
-      <div class="pr-stat"><b id="prSolved">0</b><span>Passed</span></div>
-      <div class="pr-stat"><b id="prFailed">0</b><span>Failed</span></div>
-    </div>
-
     <nav class="pr-tabs">
       <button type="button" class="pr-tab active" data-tab="overview">Overview</button>
+      <button type="button" class="pr-tab" data-tab="contests">Contests</button>
       <button type="button" class="pr-tab" data-tab="submissions">Submissions</button>
       <button type="button" class="pr-tab" data-tab="settings">Settings</button>
     </nav>
 
     <section class="pr-panel active" id="tab-overview">
-      <h2>Rating Progress</h2>
-      <div class="pr-progress">
-        <div class="pr-progress-bar"><i id="prBar" style="width:40%"></i></div>
-        <p class="pr-muted" id="prProgressText">Профилро пурра кунед ва викторина супоред</p>
+      <div class="pr-two-col">
+        <div>
+          <h2>Rating Progress</h2>
+          <div class="pr-progress">
+            <div class="pr-progress-bar"><i id="prBar" style="width:25%"></i></div>
+            <p class="pr-muted" id="prProgressText">Профилро пурра кунед ва викторина супоред</p>
+          </div>
+          <div class="pr-tier" id="prTier">—</div>
+        </div>
+        <div>
+          <h2>Маълумоти иштирокчӣ</h2>
+          <div class="pr-grid-info">
+            <div><span>Ҷинс</span><b id="prGender">—</b></div>
+            <div><span>Мактаб</span><b id="prSchool">—</b></div>
+            <div><span>Минтақа / шаҳр</span><b id="prRegion">—</b></div>
+            <div><span>Синф</span><b id="prClass">—</b></div>
+          </div>
+        </div>
       </div>
-      <h2>Маълумоти иштирокчӣ</h2>
-      <div class="pr-grid-info">
-        <div><span>Ҷинс</span><b id="prGender">—</b></div>
-        <div><span>Мактаб</span><b id="prSchool">—</b></div>
-        <div><span>Минтақа / шаҳр</span><b id="prRegion">—</b></div>
-        <div><span>Синф</span><b id="prClass">—</b></div>
+      <h2 style="margin-top:1.25rem">Rating History</h2>
+      <div id="prHistory" class="pr-list">
+        <p class="pr-muted">Баъди супоридани викторинаҳо таърих пайдо мешавад.</p>
       </div>
+    </section>
+
+    <section class="pr-panel" id="tab-contests">
+      <h2>Викторинаҳо / Олимпиадаҳо</h2>
+      <div class="pr-stats-mini">
+        <div class="pr-stat"><b id="prPassed">0</b><span>Гузашт</span></div>
+        <div class="pr-stat"><b id="prFailed">0</b><span>Нагузашт</span></div>
+        <div class="pr-stat"><b id="prAttempts">0</b><span>Ҳама кӯшишҳо</span></div>
+      </div>
+      <div id="prContestsList" class="pr-list"><p class="pr-muted">Ҳоло холӣ</p></div>
     </section>
 
     <section class="pr-panel" id="tab-submissions">
@@ -106,11 +138,10 @@
     </section>
   </main>
 
-  <!-- Onboarding modal after first Google login -->
   <div id="onboardModal" class="pr-modal hidden">
     <div class="pr-modal-card">
       <h2>Пур кардани профил</h2>
-      <p class="pr-muted">Барои иштирок дар викторинаҳо ин маълумотро пур кунед.</p>
+      <p class="pr-muted">Барои иштирок дар викторинаҳо ин маълумотро пур кунед (ҳатмӣ).</p>
       <form id="onboardForm" class="pr-form">
         <label>Ҷинс</label>
         <select id="oGender" required>
@@ -119,12 +150,12 @@
           <option value="female">Духтар</option>
         </select>
         <label>Мактаб</label>
-        <input id="oSchool" required />
+        <input id="oSchool" required placeholder="Номи мактаб" />
         <label>Минтақа / шаҳр</label>
-        <input id="oRegion" required />
+        <input id="oRegion" required placeholder="Масалан: Душанбе, Бохтар" />
         <label>Синф</label>
-        <input id="oClass" required placeholder="10б" />
-        <button type="submit" class="pr-btn">Сабт</button>
+        <input id="oClass" required placeholder="Масалан: 9а, 11б" />
+        <button type="submit" class="pr-btn">Сабт ва идома</button>
         <p id="oMsg" class="pr-muted"></p>
       </form>
     </div>

@@ -22,6 +22,12 @@
   let endsAt = null;
   let googleClientId = null;
 
+  let FP = localStorage.getItem('geo_fp');
+  if (!FP) {
+    FP = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('geo_fp', FP);
+  }
+
   const $ = (id) => document.getElementById(id);
   const views = {
     list: $('viewList'),
@@ -37,19 +43,16 @@
 
   function paintAuthBtn() {
     const btn = $('btnAuth');
-    if (user) {
-      btn.textContent = user.name ? user.name.split(' ')[0] : 'Профил';
-    } else if (studentId) {
-      btn.textContent = 'ID ✓';
-    } else {
-      btn.textContent = 'Ворид';
-    }
+    if (user) btn.textContent = user.name ? user.name.split(' ')[0] : 'Профил';
+    else if (studentId) btn.textContent = 'ID ✓';
+    else btn.textContent = 'Ворид';
   }
 
   async function api(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (token) headers['X-User-Token'] = token;
     if (studentId) headers['X-Student-Id'] = studentId;
+    headers['X-Client-Fingerprint'] = FP;
     const res = await fetch(API + path, { ...options, headers });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || data.reason || 'Хато');
@@ -75,6 +78,7 @@
           <h3>${esc(q.title)}</h3>
           <p>${esc(q.description || '')}</p>
           <p>
+            <span class="tag">${esc(q.source || 'quiz')}</span>
             <span class="tag">${esc(q.accessMode || 'public')}</span>
             <span class="tag">${q.questionCount || 0} савол</span>
             ${q.timeLimitSec ? `<span class="tag">${Math.round(q.timeLimitSec / 60)} дақ</span>` : ''}
@@ -102,11 +106,12 @@
       });
       attempt = data;
       currentQuiz = {
-        id: data.quizId,
+        id: data.quizId || id,
         title: data.title,
         questions: data.questions || [],
         passScore: data.passScore,
         timeLimitSec: data.timeLimitSec,
+        source: data.source || 'quiz',
       };
       answers = {};
       qIndex = 0;
@@ -117,11 +122,9 @@
       startTimer();
       show('take');
     } catch (e) {
-      if (String(e.message).includes('Google') || String(e.message).includes('google') || String(e.message).includes('рад')) {
-        openAuth(e.message);
-      } else {
-        alert(e.message);
-      }
+      const msg = String(e.message || '');
+      if (/Google|google|рад|Student|ID|хонанда/i.test(msg)) openAuth(msg);
+      else alert(msg);
     }
   }
 
@@ -184,14 +187,30 @@
   async function submitQuiz(auto) {
     if (!attempt || !currentQuiz) return;
     stopTimer();
-    const payloadAnswers = currentQuiz.questions.map((q, i) => ({
-      questionId: q.id || (i + 1),
-      selected: answers[String(q.id || i + 1)] ?? null,
-    }));
+    let answersPayload;
+    if (currentQuiz.source === 'olympiad') {
+      answersPayload = {};
+      (currentQuiz.questions || []).forEach((q, i) => {
+        const sel = answers[String(q.id || i + 1)];
+        if (sel == null) return;
+        const key = q.originalIndex != null ? q.originalIndex : i;
+        answersPayload[String(key)] = sel;
+      });
+    } else {
+      answersPayload = currentQuiz.questions.map((q, i) => ({
+        questionId: q.id || (i + 1),
+        selected: answers[String(q.id || i + 1)] ?? null,
+      }));
+    }
     try {
       const data = await api('/api/quizzes/' + currentQuiz.id + '/submit', {
         method: 'POST',
-        body: JSON.stringify({ attemptId: attempt.attemptId, answers: payloadAnswers }),
+        body: JSON.stringify({
+          attemptId: attempt.attemptId || attempt.sessionId,
+          sessionId: attempt.sessionId,
+          sessionToken: attempt.sessionToken,
+          answers: answersPayload,
+        }),
       });
       const r = data.result || {};
       $('resultScore').textContent = (r.score ?? '—') + '%';
@@ -201,7 +220,7 @@
       $('resultDetail').textContent =
         `${r.correct}/${r.total} дуруст · ҳад ${r.passScore}%` +
         (r.timedOut ? ' · вақт тамом' : '') +
-        (auto ? ' · худкор супорида шуд' : '');
+        (auto ? ' · худкор' : '');
       show('result');
     } catch (e) {
       alert(e.message);
@@ -226,9 +245,7 @@
             <strong>${esc(h.title || h.quizId)}</strong>
             <div class="q-muted">${esc((h.finishedAt || '').slice(0, 19).replace('T', ' '))}</div>
           </div>
-          <div>
-            <span class="q-badge ${h.status === 'passed' ? 'ok' : 'fail'}">${h.score}%</span>
-          </div>
+          <div><span class="q-badge ${h.status === 'passed' ? 'ok' : 'fail'}">${h.score}%</span></div>
         </div>
       `).join('');
     } catch (e) {
@@ -255,9 +272,7 @@
     $('studentIdInput').value = studentId;
   }
 
-  function closeAuth() {
-    $('authOverlay').classList.add('hidden');
-  }
+  function closeAuth() { $('authOverlay').classList.add('hidden'); }
 
   async function initGoogle() {
     try {
@@ -289,14 +304,12 @@
       const el = $('googleSignInBtn');
       el.innerHTML = '';
       window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 280 });
-    } catch (e) {
-      console.warn(e);
-    }
+    } catch (e) { console.warn(e); }
   }
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) =>
-      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   $('btnBackList').addEventListener('click', () => { stopTimer(); show('list'); });
@@ -315,21 +328,18 @@
   $('btnAuth').addEventListener('click', () => openAuth());
   $('authClose').addEventListener('click', closeAuth);
   $('btnLogout').addEventListener('click', () => {
-    token = '';
-    user = null;
+    token = ''; user = null;
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(USER_OBJ);
     localStorage.removeItem('userToken');
     localStorage.removeItem('currentUser');
-    paintAuthBtn();
-    closeAuth();
+    paintAuthBtn(); closeAuth();
   });
   $('btnSaveStudent').addEventListener('click', () => {
     studentId = $('studentIdInput').value.trim();
     if (studentId) localStorage.setItem(STUDENT_KEY, studentId);
     else localStorage.removeItem(STUDENT_KEY);
-    paintAuthBtn();
-    closeAuth();
+    paintAuthBtn(); closeAuth();
   });
 
   paintAuthBtn();

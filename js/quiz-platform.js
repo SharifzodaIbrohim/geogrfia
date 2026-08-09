@@ -4,15 +4,19 @@
   const USER_OBJ = 'geo_user';
   const STUDENT_KEY = 'geo_student_id';
 
-  let token = localStorage.getItem(USER_KEY) || '';
+  let token = localStorage.getItem(USER_KEY) || localStorage.getItem('userToken') || '';
   let user = null;
-  try { user = JSON.parse(localStorage.getItem(USER_OBJ) || 'null'); } catch { user = null; }
+  try {
+    user = JSON.parse(localStorage.getItem(USER_OBJ) || localStorage.getItem('currentUser') || 'null');
+  } catch { user = null; }
+  if (token && !localStorage.getItem(USER_KEY)) localStorage.setItem(USER_KEY, token);
+  if (user && !localStorage.getItem(USER_OBJ)) localStorage.setItem(USER_OBJ, JSON.stringify(user));
   let studentId = localStorage.getItem(STUDENT_KEY) || '';
 
   let quizzes = [];
   let currentQuiz = null;
   let attempt = null;
-  let answers = {}; // questionId -> selected index
+  let answers = {};
   let qIndex = 0;
   let timerId = null;
   let endsAt = null;
@@ -272,6 +276,8 @@
             user = data.user;
             localStorage.setItem(USER_KEY, token);
             localStorage.setItem(USER_OBJ, JSON.stringify(user));
+            localStorage.setItem('userToken', token);
+            localStorage.setItem('currentUser', JSON.stringify(user));
             paintAuthBtn();
             closeAuth();
           } catch (e) {
@@ -290,10 +296,9 @@
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
   }
 
-  // Events
   $('btnBackList').addEventListener('click', () => { stopTimer(); show('list'); });
   $('btnPrev').addEventListener('click', () => { if (qIndex > 0) { qIndex--; renderQuestion(); } });
   $('btnNext').addEventListener('click', () => {
@@ -314,6 +319,8 @@
     user = null;
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(USER_OBJ);
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('currentUser');
     paintAuthBtn();
     closeAuth();
   });
@@ -327,6 +334,5 @@
 
   paintAuthBtn();
   loadList();
-  // warm google status
   setTimeout(initGoogle, 500);
 })();

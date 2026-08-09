@@ -1,4 +1,4 @@
-"""Geografia server — dual-mode core + Phase 2–8 hooks."""
+"""Geografia server — dual-mode core + Phase 2–12 hooks."""
 from __future__ import annotations
 
 import urllib.request
@@ -24,10 +24,10 @@ from db.rbac import admin_can, deny_message, role_permissions, normalize_role, V
 from db.auth_tokens import issue_admin_token  # noqa: E402
 from db import schools_api  # noqa: E402
 from db.quiz_routes import register_quiz_routes  # noqa: E402
+from db.olympiad_routes import register_olympiad_engine_routes  # noqa: E402
 import hashlib  # noqa: E402
 import secrets  # noqa: E402
 
-# Allow Phase 8 quiz UI assets through static_proxy whitelist
 try:
     PUBLIC_PATHS.update({
         "quiz.html",
@@ -94,6 +94,7 @@ app.view_functions["submit_olympiad"] = submit_olympiad
 
 register_routes(app, public_student, public_user, olympiad_window_status)
 register_quiz_routes(app, _jwt_require_user, require_perm)
+register_olympiad_engine_routes(app, _jwt_require_user, olympiad_window_status)
 
 
 @app.route("/quiz")

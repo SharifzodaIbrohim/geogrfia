@@ -1,0 +1,1 @@
+see server.py PUBLIC_PATHS

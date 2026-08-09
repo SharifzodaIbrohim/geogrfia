@@ -41,7 +41,10 @@
       <section id="examView" class="hidden">
         <div class="row-between">
           <h2 id="examTitle">—</h2>
-          <span id="examProgress" class="badge">0/0</span>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <span id="examTimer" class="badge">—</span>
+            <span id="examProgress" class="badge">0/0</span>
+          </div>
         </div>
         <div id="examQuestions"></div>
         <button id="submitExamBtn" type="button" class="btn primary">Супоридан</button>

@@ -1,4 +1,4 @@
-"""Geografia server — dual-mode core + Phase 2–18 hooks."""
+"""Geografia server — dual-mode core + Phase 2–25 hooks."""
 from __future__ import annotations
 
 import urllib.request
@@ -36,7 +36,9 @@ try:
     PUBLIC_PATHS.update({
         "quiz.html",
         "css/quiz.css",
+        "css/platform.css",
         "js/quiz-platform.js",
+        "js/platform.js",
         "js/admin-audit.js",
     })
 except Exception:

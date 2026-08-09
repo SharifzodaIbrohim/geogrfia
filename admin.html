@@ -25,6 +25,7 @@
       <div>
         <strong>Панели админ</strong>
         <span id="adminName" class="muted"></span>
+        <span id="adminRoleBadge" class="badge" style="margin-left:0.5rem"></span>
       </div>
       <div class="topbar-actions">
         <a href="/" class="btn ghost">Сайт</a>
@@ -33,16 +34,17 @@
     </header>
 
     <nav class="tabs">
-      <button type="button" class="tab active" data-tab="monitor">Мониторинг</button>
+      <button type="button" class="tab active" data-tab="monitor">Dashboard</button>
       <button type="button" class="tab" data-tab="students">Хонандагон</button>
       <button type="button" class="tab" data-tab="olympiads">Олимпиада / Викторина</button>
       <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
+      <button type="button" class="tab" data-tab="schools">Мактабҳо</button>
       <button type="button" class="tab" data-tab="admins">Админҳо</button>
     </nav>
 
     <main class="panel">
       <section id="tab-monitor" class="tab-panel">
-        <h2>Мониторинг</h2>
+        <h2>Dashboard / Мониторинг</h2>
         <div class="stats" id="statsGrid"></div>
         <h3>Натиҷаҳои охирин</h3>
         <div class="table-wrap">
@@ -78,26 +80,18 @@
           <button type="submit" class="btn primary">Сохтани ID</button>
           <p id="studentFormMsg" class="msg hidden"></p>
         </form>
-
         <div id="newIdBox" class="card highlight hidden">
           <h3>ID-и нав сохта шуд</h3>
           <p><strong>Ном:</strong> <span id="newIdName"></span></p>
           <p><strong>ID:</strong> <code id="newIdValue"></code>
             <button type="button" id="copyIdBtn" class="btn small">Нусха</button>
           </p>
-          <p class="muted">Ин ID-ро ба хонанда диҳед. Бо ҳамин ID ворид мешавад.</p>
+          <p class="muted">Ин ID-ро ба хонанда диҳед.</p>
         </div>
-
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Ном</th>
-                <th>Синф</th>
-                <th>Мактаб</th>
-                <th></th>
-              </tr>
+              <tr><th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th><th></th></tr>
             </thead>
             <tbody id="studentsBody"></tbody>
           </table>
@@ -109,7 +103,7 @@
         <form id="olympiadForm" class="card form-grid">
           <h3>Сохтани нав</h3>
           <label>Унвон</label>
-          <input id="olyTitle" required placeholder="Олимпиадаи география — марти 2026" />
+          <input id="olyTitle" required />
           <label>Навъ</label>
           <select id="olyType">
             <option value="olympiad">Олимпиада</option>
@@ -121,8 +115,7 @@
           <input id="olyStart" type="datetime-local" />
           <label>Анҷом (ихтиёрӣ)</label>
           <input id="olyEnd" type="datetime-local" />
-          <label><input id="olyActive" type="checkbox" /> Фавран фаъол кунед</label>
-
+          <label><input id="olyActive" type="checkbox" /> Фавран фаъол</label>
           <div class="questions-block">
             <div class="row-between">
               <h3>Саволҳо</h3>
@@ -130,23 +123,13 @@
             </div>
             <div id="questionsList"></div>
           </div>
-
           <button type="submit" class="btn primary">Сабт кардан</button>
           <p id="olyFormMsg" class="msg hidden"></p>
         </form>
-
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Унвон</th>
-                <th>Навъ</th>
-                <th>Саволҳо</th>
-                <th>Ҳад</th>
-                <th>Вақт</th>
-                <th>Ҳолат</th>
-                <th></th>
-              </tr>
+              <tr><th>Унвон</th><th>Навъ</th><th>Саволҳо</th><th>Ҳад</th><th>Вақт</th><th>Ҳолат</th><th></th></tr>
             </thead>
             <tbody id="olympiadsBody"></tbody>
           </table>
@@ -154,23 +137,45 @@
       </section>
 
       <section id="tab-results" class="tab-panel hidden">
-        <h2>Натиҷаҳо аз рӯи олимпиада</h2>
-        <label>Олимпиадаро интихоб кунед</label>
+        <h2>Натиҷаҳо</h2>
+        <label>Олимпиада</label>
         <select id="resultOlympiadSelect"></select>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Хонанда</th>
-                <th>Синф</th>
-                <th>Мактаб</th>
-                <th>Бал</th>
-                <th>Дуруст</th>
-                <th>Ҳолат</th>
-                <th>Вақт</th>
-              </tr>
+              <tr><th>Хонанда</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Дуруст</th><th>Ҳолат</th><th>Вақт</th></tr>
             </thead>
             <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-schools" class="tab-panel hidden">
+        <h2>Мактабҳо</h2>
+        <form id="schoolForm" class="card form-grid">
+          <h3>Мактаби нав</h3>
+          <label>Ном</label>
+          <input id="schoolName" required placeholder="Литсейи тамоюли технологӣ" />
+          <label>Ҷойгиршавӣ (ихтиёрӣ)</label>
+          <input id="schoolLocation" placeholder="Душанбе" />
+          <button type="submit" class="btn primary">Илова</button>
+          <p id="schoolFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Ном</th><th>Ҷой</th><th>Хонандагон</th><th></th></tr>
+            </thead>
+            <tbody id="schoolsBody"></tbody>
+          </table>
+        </div>
+        <h3>Омор аз рӯи мактаб</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Мактаб</th><th>Хонанда</th><th>Натиҷа</th><th>Гузашт</th></tr>
+            </thead>
+            <tbody id="schoolStatsBody"></tbody>
           </table>
         </div>
       </section>
@@ -180,24 +185,27 @@
         <form id="adminForm" class="card form-grid">
           <h3>Админи нав</h3>
           <label>Ном</label>
-          <input id="newAdminName" required placeholder="Али Раҳимов" />
+          <input id="newAdminName" required />
           <label>Логин</label>
-          <input id="newAdminLogin" required placeholder="ali" autocomplete="off" />
+          <input id="newAdminLogin" required autocomplete="off" />
           <label>Парол</label>
           <input id="newAdminPassword" type="password" required minlength="6" autocomplete="new-password" />
+          <label>Нақш (RBAC)</label>
+          <select id="newAdminRole">
+            <option value="olympiad_admin">olympiad_admin</option>
+            <option value="user_admin">user_admin</option>
+            <option value="quiz_admin">quiz_admin</option>
+            <option value="monitor">monitor</option>
+            <option value="content_admin">content_admin</option>
+            <option value="super_admin">super_admin</option>
+          </select>
           <button type="submit" class="btn primary">Илова кардан</button>
           <p id="adminFormMsg" class="msg hidden"></p>
         </form>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Ном</th>
-                <th>Логин</th>
-                <th>Сохтааст</th>
-                <th>Сана</th>
-                <th></th>
-              </tr>
+              <tr><th>Ном</th><th>Логин</th><th>Нақш</th><th>Сохтааст</th><th>Сана</th><th></th></tr>
             </thead>
             <tbody id="adminsBody"></tbody>
           </table>

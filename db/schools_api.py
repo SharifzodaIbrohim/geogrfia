@@ -6,8 +6,16 @@ import uuid
 from sqlalchemy import text
 
 from db.connection import get_session
-from db.repo import use_pg, DATA_DIR, _load_json, _save_json, _utc_now, list_students, list_olympiads, list_results
-from db.repo import is_olympiad_open if False else None  # placeholder avoid
+from db.repo import (
+    use_pg,
+    DATA_DIR,
+    _load_json,
+    _save_json,
+    _utc_now,
+    list_students,
+    list_olympiads,
+    list_results,
+)
 
 
 def list_schools() -> list[dict]:
@@ -96,12 +104,6 @@ def dashboard_stats() -> dict:
     results = list_results()
     schools = list_schools()
 
-    def is_open(o):
-        if not o.get("isActive"):
-            return False
-        # windowStatus may already be computed by public layer; raw list has isActive
-        return bool(o.get("isActive"))
-
     by_school: dict[str, dict] = {}
     for st in students:
         key = st.get("school") or "—"
@@ -122,7 +124,7 @@ def dashboard_stats() -> dict:
             "students": len(students),
             "schools": len(schools),
             "olympiads": len(olympiads),
-            "activeOlympiads": sum(1 for o in olympiads if is_open(o)),
+            "activeOlympiads": sum(1 for o in olympiads if o.get("isActive")),
             "results": len(results),
             "passed": sum(1 for r in results if r.get("status") == "passed"),
             "failed": sum(1 for r in results if r.get("status") == "failed"),

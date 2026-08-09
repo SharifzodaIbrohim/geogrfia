@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Викторинаҳо — География</title>
+  <link rel="stylesheet" href="css/quiz.css" />
+</head>
+<body>
+  <header class="q-header">
+    <a href="/" class="q-brand">← География</a>
+    <h1>Викторинаҳо</h1>
+    <div class="q-header-actions">
+      <button type="button" id="btnHistory" class="q-btn ghost">Таърих</button>
+      <button type="button" id="btnAuth" class="q-btn">Ворид</button>
+    </div>
+  </header>
+
+  <main class="q-main">
+    <!-- List -->
+    <section id="viewList" class="q-view">
+      <p class="q-lead">Викторинаҳои ҷуғрофӣ — балл server-side, таймер, таърих дар профил.</p>
+      <div id="quizList" class="q-grid"></div>
+      <p id="listEmpty" class="q-empty hidden">Ҳанӯз викторина нест. Админ метавонад аз API созад.</p>
+      <p id="listError" class="q-error hidden"></p>
+    </section>
+
+    <!-- Take quiz -->
+    <section id="viewTake" class="q-view hidden">
+      <div class="q-take-top">
+        <button type="button" id="btnBackList" class="q-btn ghost">← Рӯйхат</button>
+        <div class="q-timer" id="timerBox">—</div>
+      </div>
+      <h2 id="takeTitle"></h2>
+      <p id="takeMeta" class="q-muted"></p>
+      <div id="questionBox" class="q-card"></div>
+      <div class="q-nav">
+        <button type="button" id="btnPrev" class="q-btn ghost" disabled>Қаблӣ</button>
+        <span id="qProgress" class="q-muted"></span>
+        <button type="button" id="btnNext" class="q-btn">Баъдӣ</button>
+      </div>
+      <button type="button" id="btnSubmit" class="q-btn primary full">Супоридан</button>
+    </section>
+
+    <!-- Result -->
+    <section id="viewResult" class="q-view hidden">
+      <div class="q-card result">
+        <h2>Натиҷа</h2>
+        <p class="q-score" id="resultScore">—</p>
+        <p id="resultStatus" class="q-badge"></p>
+        <p id="resultDetail" class="q-muted"></p>
+        <div class="q-row">
+          <button type="button" id="btnAgain" class="q-btn">Боз рӯйхат</button>
+          <button type="button" id="btnToHistory" class="q-btn ghost">Таърих</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- History / profile -->
+    <section id="viewHistory" class="q-view hidden">
+      <div class="q-take-top">
+        <button type="button" id="btnBackFromHistory" class="q-btn ghost">← Рӯйхат</button>
+      </div>
+      <h2>Таърихи викторинаҳо</h2>
+      <p id="historyHint" class="q-muted">Барои нигоҳ доштани таърих бо Google ворид шавед.</p>
+      <div id="historyList" class="q-list"></div>
+    </section>
+  </main>
+
+  <!-- Auth modal -->
+  <div id="authOverlay" class="q-overlay hidden">
+    <div class="q-modal">
+      <button type="button" id="authClose" class="q-close">×</button>
+      <h2>Воридшавӣ</h2>
+      <p class="q-muted">Google — барои викторинаҳои google-only ва таърих.</p>
+      <div id="googleBtnWrap" class="g-btn-wrap">
+        <div id="googleSignInBtn"></div>
+      </div>
+      <p id="authMsg" class="q-error hidden"></p>
+      <div id="authProfile" class="hidden">
+        <p><strong id="authName"></strong></p>
+        <p class="q-muted" id="authEmail"></p>
+        <button type="button" id="btnLogout" class="q-btn full">Баромадан</button>
+      </div>
+      <hr />
+      <p class="q-muted small">Ё Student ID (барои school-mode):</p>
+      <input id="studentIdInput" placeholder="ID-и хонанда" />
+      <button type="button" id="btnSaveStudent" class="q-btn full">Нигоҳ доштани ID</button>
+    </div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/quiz-platform.js"></script>
+</body>
+</html>

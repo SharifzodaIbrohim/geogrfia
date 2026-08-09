@@ -1,0 +1,134 @@
+/* Profile — participant card (Geografia brand) */
+body.pf-page-profile {
+  margin: 0;
+  background: var(--pf-bg, #0e1210);
+  color: var(--pf-text, #eef3ef);
+  font-family: Inter, system-ui, sans-serif;
+  min-height: 100vh;
+}
+.hidden { display: none !important; }
+.pr-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+.pr-gate {
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+.pr-gate-card {
+  background: var(--pf-panel, #1a211d);
+  border: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  border-radius: 16px;
+  padding: 2rem;
+  width: min(400px, 100%);
+  text-align: center;
+}
+.pr-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.pr-identity { display: flex; gap: 1rem; align-items: center; }
+.pr-avatar-lg {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: rgba(112,219,151,.15);
+  border: 2px solid #70db97;
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 1.4rem; color: #70db97;
+  overflow: hidden;
+}
+.pr-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+.pr-role { color: #8b968c; font-size: 0.85rem; margin-bottom: 0.2rem; }
+.pr-identity h1 { margin: 0; font-size: 1.45rem; }
+.pr-email { margin: 0.2rem 0; color: #8b968c; font-size: 0.9rem; }
+.pr-meta { margin: 0; color: #70db97; font-size: 0.88rem; font-weight: 600; }
+.pr-rating-box {
+  background: var(--pf-panel, #1a211d);
+  border: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  min-width: 140px;
+  text-align: center;
+}
+.pr-rating-label { color: #8b968c; font-size: 0.8rem; }
+.pr-rating-val { font-size: 1.85rem; font-weight: 800; color: #70db97; }
+.pr-rating-sub { color: #8b968c; font-size: 0.8rem; }
+.pr-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.pr-stat {
+  background: var(--pf-panel, #1a211d);
+  border: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  border-radius: 12px;
+  padding: 0.85rem;
+  text-align: center;
+}
+.pr-stat b { display: block; font-size: 1.35rem; font-weight: 800; }
+.pr-stat span { color: #8b968c; font-size: 0.75rem; }
+.pr-tabs {
+  display: flex; gap: 0.35rem; border-bottom: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  margin-bottom: 1rem; flex-wrap: wrap;
+}
+.pr-tab {
+  background: none; border: 0; color: #8b968c; font-weight: 600;
+  padding: 0.65rem 0.9rem; cursor: pointer; border-bottom: 2px solid transparent;
+}
+.pr-tab.active { color: #eef3ef; border-bottom-color: #70db97; }
+.pr-panel { display: none; }
+.pr-panel.active { display: block; }
+.pr-panel h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+.pr-progress-bar {
+  height: 8px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; margin-bottom: 0.5rem;
+}
+.pr-progress-bar i {
+  display: block; height: 100%; background: linear-gradient(90deg, #4ecf80, #70db97); border-radius: 99px;
+}
+.pr-grid-info {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;
+}
+.pr-grid-info div {
+  background: var(--pf-panel, #1a211d);
+  border: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  border-radius: 12px; padding: 0.75rem 0.9rem;
+}
+.pr-grid-info span { display: block; color: #8b968c; font-size: 0.75rem; margin-bottom: 0.25rem; }
+.pr-grid-info b { font-size: 0.95rem; }
+.pr-list .pr-row {
+  display: flex; justify-content: space-between; gap: 0.75rem;
+  padding: 0.7rem 0; border-bottom: 1px solid var(--pf-line, rgba(255,255,255,.06));
+  font-size: 0.9rem;
+}
+.pr-form { display: grid; gap: 0.45rem; max-width: 420px; }
+.pr-form label { font-size: 0.82rem; color: #8b968c; margin-top: 0.35rem; }
+.pr-form input, .pr-form select {
+  padding: 0.65rem 0.75rem; border-radius: 10px;
+  border: 1px solid var(--pf-line, rgba(255,255,255,.1));
+  background: #151a17; color: #eef3ef; font: inherit;
+}
+.pr-btn {
+  margin-top: 0.75rem; padding: 0.7rem 1.1rem; border-radius: 10px; border: 0;
+  background: #70db97; color: #0a120e; font-weight: 700; cursor: pointer;
+}
+.pr-btn.ghost { background: transparent; border: 1px solid var(--pf-line, rgba(255,255,255,.12)); color: #eef3ef; }
+.pr-muted { color: #8b968c; font-size: 0.88rem; }
+.pr-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  display: grid; place-items: center; z-index: 300; padding: 1rem;
+}
+.pr-modal-card {
+  background: #1a211d; border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px; padding: 1.5rem; width: min(420px, 100%);
+}
+@media (max-width: 560px) {
+  .pr-stats { grid-template-columns: 1fr; }
+  .pr-grid-info { grid-template-columns: 1fr; }
+}

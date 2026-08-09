@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile — Geografia</title>
+  <link rel="stylesheet" href="css/platform.css" />
+  <link rel="stylesheet" href="css/profile.css" />
+</head>
+<body class="pf-page-profile">
+  <header class="pf-topbar">
+    <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
+    <nav class="pf-nav">
+      <a href="/">Home</a>
+      <a href="/countries">Countries</a>
+      <a href="/quiz">Quizzes</a>
+      <a href="/student">Olympiads</a>
+      <a href="/profile" class="active">Profile</a>
+    </nav>
+    <div class="pf-actions">
+      <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
+      <a class="pf-avatar" id="pfAvatar" href="/profile">G</a>
+    </div>
+  </header>
+
+  <div id="loginGate" class="pr-gate">
+    <div class="pr-gate-card">
+      <h1>Profile</h1>
+      <p>Барои дидани профил бо Google ворид шавед.</p>
+      <div id="googleSignInBtn"></div>
+      <p class="pr-muted"><a href="/">← Home</a></p>
+    </div>
+  </div>
+
+  <main id="profileApp" class="pr-wrap hidden">
+    <section class="pr-hero">
+      <div class="pr-identity">
+        <div class="pr-avatar-lg" id="prAvatar">?</div>
+        <div>
+          <div class="pr-role">🎯 Participant</div>
+          <h1 id="prName">—</h1>
+          <p class="pr-email" id="prEmail">—</p>
+          <p class="pr-meta" id="prMeta">—</p>
+        </div>
+      </div>
+      <div class="pr-rating-box">
+        <div class="pr-rating-label">Rating</div>
+        <div class="pr-rating-val" id="prRating">1200</div>
+        <div class="pr-rating-sub">Max <span id="prMaxRating">1200</span></div>
+      </div>
+    </section>
+
+    <div class="pr-stats">
+      <div class="pr-stat"><b id="prContests">0</b><span>Quizzes / Attempts</span></div>
+      <div class="pr-stat"><b id="prSolved">0</b><span>Passed</span></div>
+      <div class="pr-stat"><b id="prFailed">0</b><span>Failed</span></div>
+    </div>
+
+    <nav class="pr-tabs">
+      <button type="button" class="pr-tab active" data-tab="overview">Overview</button>
+      <button type="button" class="pr-tab" data-tab="submissions">Submissions</button>
+      <button type="button" class="pr-tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <section class="pr-panel active" id="tab-overview">
+      <h2>Rating Progress</h2>
+      <div class="pr-progress">
+        <div class="pr-progress-bar"><i id="prBar" style="width:40%"></i></div>
+        <p class="pr-muted" id="prProgressText">Профилро пурра кунед ва викторина супоред</p>
+      </div>
+      <h2>Маълумоти иштирокчӣ</h2>
+      <div class="pr-grid-info">
+        <div><span>Ҷинс</span><b id="prGender">—</b></div>
+        <div><span>Мактаб</span><b id="prSchool">—</b></div>
+        <div><span>Минтақа / шаҳр</span><b id="prRegion">—</b></div>
+        <div><span>Синф</span><b id="prClass">—</b></div>
+      </div>
+    </section>
+
+    <section class="pr-panel" id="tab-submissions">
+      <h2>Супоришҳои охирин</h2>
+      <div id="prRecent" class="pr-list"><p class="pr-muted">Ҳоло холӣ</p></div>
+    </section>
+
+    <section class="pr-panel" id="tab-settings">
+      <h2>Танзими профил</h2>
+      <form id="prForm" class="pr-form">
+        <label>Ном</label>
+        <input id="fName" type="text" />
+        <label>Ҷинс</label>
+        <select id="fGender" required>
+          <option value="">Интихоб</option>
+          <option value="male">Писар</option>
+          <option value="female">Духтар</option>
+        </select>
+        <label>Мактаб</label>
+        <input id="fSchool" type="text" required placeholder="Номи мактаб" />
+        <label>Минтақа / шаҳр</label>
+        <input id="fRegion" type="text" required placeholder="Масалан: Бохтар" />
+        <label>Синф</label>
+        <input id="fClass" type="text" required placeholder="Масалан: 10б" />
+        <button type="submit" class="pr-btn">Нигоҳ доштан</button>
+        <p id="prFormMsg" class="pr-muted"></p>
+      </form>
+      <button type="button" id="prLogout" class="pr-btn ghost">Баромадан</button>
+    </section>
+  </main>
+
+  <!-- Onboarding modal after first Google login -->
+  <div id="onboardModal" class="pr-modal hidden">
+    <div class="pr-modal-card">
+      <h2>Пур кардани профил</h2>
+      <p class="pr-muted">Барои иштирок дар викторинаҳо ин маълумотро пур кунед.</p>
+      <form id="onboardForm" class="pr-form">
+        <label>Ҷинс</label>
+        <select id="oGender" required>
+          <option value="">Интихоб</option>
+          <option value="male">Писар</option>
+          <option value="female">Духтар</option>
+        </select>
+        <label>Мактаб</label>
+        <input id="oSchool" required />
+        <label>Минтақа / шаҳр</label>
+        <input id="oRegion" required />
+        <label>Синф</label>
+        <input id="oClass" required placeholder="10б" />
+        <button type="submit" class="pr-btn">Сабт</button>
+        <p id="oMsg" class="pr-muted"></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/platform.js"></script>
+  <script src="js/profile.js"></script>
+</body>
+</html>

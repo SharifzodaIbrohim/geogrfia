@@ -41,8 +41,17 @@
     </nav>
     <main class="panel">
       <section id="tab-monitor" class="tab-panel">
-        <h2>Dashboard / Мониторинг</h2>
+        <h2>Dashboard / Live Monitoring</h2>
         <div class="stats" id="statsGrid"></div>
+        <div style="margin:0.75rem 0"><button type="button" class="btn" id="refreshLiveBtn">Навсозии Live</button></div>
+        <h3>Дар ҷараён (in progress)</h3>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Хонанда</th><th>ID</th><th>Олимпиада</th><th>Ҷавобҳо</th><th>Оғоз</th><th>Анҷом</th>
+        </tr></thead><tbody id="liveProgressBody"></tbody></table></div>
+        <h3>Олимпиадаҳои фаъол</h3>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Унвон</th><th>Навъ</th><th>Дар ҷараён</th><th>Супорида</th><th>Гузашт</th><th>Нагузашт</th>
+        </tr></thead><tbody id="liveActiveBody"></tbody></table></div>
         <h3>Натиҷаҳои охирин</h3>
         <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Мактаб / Синф</th><th>Олимпиада</th><th>Бал</th><th>Ҳолат</th><th>Вақт</th></tr></thead><tbody id="recentResultsBody"></tbody></table></div>
       </section>
@@ -80,9 +89,37 @@
         <div class="table-wrap"><table><thead><tr><th>Унвон</th><th>Навъ</th><th>Саволҳо</th><th>Ҳад</th><th>Вақт</th><th>Ҳолат</th><th></th></tr></thead><tbody id="olympiadsBody"></tbody></table></div>
       </section>
       <section id="tab-results" class="tab-panel hidden">
-        <h2>Натиҷаҳо</h2>
-        <label>Олимпиада</label><select id="resultOlympiadSelect"></select>
-        <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Дуруст</th><th>Ҳолат</th><th>Вақт</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+        <h2>Натиҷаҳо / Leaderboard / Export</h2>
+        <div style="display:grid;gap:0.5rem;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:0.75rem">
+          <div><label>Олимпиада</label><select id="resultOlympiadSelect"></select></div>
+          <div><label>Мактаб</label><input id="filterSchool" placeholder="мактаб" /></div>
+          <div><label>Синф</label><input id="filterClass" placeholder="10б" /></div>
+          <div><label>Ҳолат</label>
+            <select id="filterStatus">
+              <option value="">Ҳама</option>
+              <option value="passed">Гузашт</option>
+              <option value="failed">Нагузашт</option>
+            </select>
+          </div>
+          <div><label>Мин бал</label><input id="filterMinScore" type="number" min="0" max="100" /></div>
+          <div><label>Макс бал</label><input id="filterMaxScore" type="number" min="0" max="100" /></div>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+          <button type="button" class="btn primary" id="applyFiltersBtn">Филтр</button>
+          <button type="button" class="btn" id="exportCsvBtn">Export CSV</button>
+          <button type="button" class="btn" id="loadLeaderboardBtn">Leaderboard</button>
+          <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.9rem">
+            <input type="checkbox" id="leaderboardPublicChk" checked /> Leaderboard public
+          </label>
+          <button type="button" class="btn" id="saveLbVisBtn">Нигоҳ доштан</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Хонанда</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Дуруст</th><th>Ҳолат</th><th>Вақт</th>
+        </tr></thead><tbody id="resultsBody"></tbody></table></div>
+        <h3>Leaderboard</h3>
+        <div class="table-wrap"><table><thead><tr>
+          <th>#</th><th>Ном</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Ҳолат</th>
+        </tr></thead><tbody id="leaderboardBody"></tbody></table></div>
       </section>
       <section id="tab-schools" class="tab-panel hidden">
         <h2>Мактабҳо</h2>
@@ -141,7 +178,7 @@
       if (!res.ok) throw new Error(data.error || 'Хато');
       return data;
     }
-    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]); }); }
     async function enhanceDashboard(){
       try {
         var data = await api('/api/admin/dashboard');
@@ -224,5 +261,108 @@
     if (localStorage.getItem('geo_admin_token')) setTimeout(enhanceDashboard, 1200);
   })();
   </script>
+<script>
+(function(){
+  function tok(){ return localStorage.getItem('geo_admin_token') || localStorage.getItem('adminToken') || ''; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]);}); }
+  async function jget(url){
+    var r = await fetch(url,{headers:{'X-Admin-Token':tok(),'Content-Type':'application/json'}});
+    var d = await r.json().catch(function(){return {};});
+    if(!r.ok) throw new Error(d.error||'Хато');
+    return d;
+  }
+  async function loadLive(){
+    try{
+      var d = await jget('/api/admin/live');
+      var pb = document.getElementById('liveProgressBody');
+      var ab = document.getElementById('liveActiveBody');
+      if(pb){
+        var rows = d.inProgress||[];
+        pb.innerHTML = rows.length ? rows.map(function(s){
+          return '<tr><td>'+esc(s.studentName||'—')+'</td><td>'+esc(s.studentCode||'')+'</td><td>'+esc(String(s.olympiadId||'').slice(0,8))+'…</td><td>'+(s.answered||0)+'</td><td>'+esc(String(s.startedAt||'').slice(0,19))+'</td><td>'+esc(String(s.endsAt||'—').slice(0,19))+'</td></tr>';
+        }).join('') : '<tr><td colspan="6">Ҳеҷ кас дар ҷараён нест</td></tr>';
+      }
+      if(ab){
+        var rows2 = d.active||[];
+        ab.innerHTML = rows2.length ? rows2.map(function(o){
+          return '<tr><td>'+esc(o.title)+'</td><td>'+esc(o.type)+'</td><td>'+(o.inProgressCount||0)+'</td><td>'+(o.finishedCount||0)+'</td><td>'+(o.passed||0)+'</td><td>'+(o.failed||0)+'</td></tr>';
+        }).join('') : '<tr><td colspan="6">—</td></tr>';
+      }
+    }catch(e){ console.warn(e); }
+  }
+  async function loadFilteredResults(){
+    var id = (document.getElementById('resultOlympiadSelect')||{}).value||'';
+    var q = new URLSearchParams();
+    if(id) q.set('olympiadId', id);
+    var school = (document.getElementById('filterSchool')||{}).value; if(school) q.set('school', school.trim());
+    var cls = (document.getElementById('filterClass')||{}).value; if(cls) q.set('class', cls.trim());
+    var st = (document.getElementById('filterStatus')||{}).value; if(st) q.set('status', st);
+    var minS = (document.getElementById('filterMinScore')||{}).value; if(minS) q.set('minScore', minS);
+    var maxS = (document.getElementById('filterMaxScore')||{}).value; if(maxS) q.set('maxScore', maxS);
+    var d = await jget('/api/admin/results?'+q.toString());
+    var body = document.getElementById('resultsBody');
+    if(!body) return;
+    var rows = d.results||[];
+    body.innerHTML = rows.length ? rows.map(function(r){
+      return '<tr><td>'+esc(r.studentName)+'</td><td>'+esc(r.studentClass)+'</td><td>'+esc(r.studentSchool)+'</td><td>'+r.score+'%</td><td>'+r.correct+'/'+r.total+'</td><td>'+esc(r.status)+'</td><td>'+esc(String(r.finishedAt||'').slice(0,19))+'</td></tr>';
+    }).join('') : '<tr><td colspan="7">Натиҷа нест</td></tr>';
+  }
+  async function loadLb(){
+    var id = (document.getElementById('resultOlympiadSelect')||{}).value;
+    if(!id){ alert('Олимпиадаро интихоб кунед'); return; }
+    var d = await jget('/api/admin/olympiads/'+id+'/leaderboard');
+    var chk = document.getElementById('leaderboardPublicChk');
+    if(chk) chk.checked = !!d.leaderboardPublic;
+    var body = document.getElementById('leaderboardBody');
+    var rows = d.entries||[];
+    body.innerHTML = rows.length ? rows.map(function(e){
+      return '<tr><td>'+e.rank+'</td><td>'+esc(e.studentName)+'</td><td>'+esc(e.studentClass)+'</td><td>'+esc(e.studentSchool)+'</td><td>'+e.score+'%</td><td>'+esc(e.status)+'</td></tr>';
+    }).join('') : '<tr><td colspan="6">Холӣ</td></tr>';
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var rb = document.getElementById('refreshLiveBtn');
+    if(rb) rb.addEventListener('click', loadLive);
+    var af = document.getElementById('applyFiltersBtn');
+    if(af) af.addEventListener('click', function(){ loadFilteredResults().catch(function(e){ alert(e.message); }); });
+    var ex = document.getElementById('exportCsvBtn');
+    if(ex) ex.addEventListener('click', function(){
+      var id = (document.getElementById('resultOlympiadSelect')||{}).value||'';
+      var q = new URLSearchParams();
+      if(id) q.set('olympiadId', id);
+      var school = (document.getElementById('filterSchool')||{}).value; if(school) q.set('school', school.trim());
+      var cls = (document.getElementById('filterClass')||{}).value; if(cls) q.set('class', cls.trim());
+      var st = (document.getElementById('filterStatus')||{}).value; if(st) q.set('status', st);
+      fetch('/api/admin/results/export?'+q.toString(), { headers: { 'X-Admin-Token': tok() }})
+        .then(function(r){ return r.blob(); })
+        .then(function(b){
+          var u = URL.createObjectURL(b);
+          var a = document.createElement('a'); a.href=u; a.download='results.csv'; a.click();
+          URL.revokeObjectURL(u);
+        }).catch(function(e){ alert(e.message); });
+    });
+    var lb = document.getElementById('loadLeaderboardBtn');
+    if(lb) lb.addEventListener('click', function(){ loadLb().catch(function(e){ alert(e.message); }); });
+    var sv = document.getElementById('saveLbVisBtn');
+    if(sv) sv.addEventListener('click', function(){
+      var id = (document.getElementById('resultOlympiadSelect')||{}).value;
+      if(!id){ alert('Олимпиадаро интихоб кунед'); return; }
+      var pub = (document.getElementById('leaderboardPublicChk')||{}).checked;
+      fetch('/api/admin/olympiads/'+id+'/leaderboard', {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Admin-Token':tok()},
+        body: JSON.stringify({ public: !!pub })
+      }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||'Хато'); alert('Нигоҳ дошта шуд'); }); })
+        .catch(function(e){ alert(e.message); });
+    });
+    document.querySelectorAll('.tab').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if(btn.dataset.tab==='monitor') loadLive();
+        if(btn.dataset.tab==='results') setTimeout(function(){ loadFilteredResults().catch(function(){}); }, 400);
+      });
+    });
+    setTimeout(loadLive, 1000);
+  });
+})();
+</script>
 </body>
 </html>

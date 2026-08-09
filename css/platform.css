@@ -1,4 +1,4 @@
-/* Geografia platform design system — own brand (green), not Electicode copy */
+/* Geografia platform — green brand; never hide main countries app */
 :root {
   --bg: #1a1c19;
   --bg-deep: #141614;
@@ -33,7 +33,13 @@ body.light-theme {
   --shadow: 0 8px 24px rgba(20, 32, 22, 0.1);
 }
 
-/* Top platform bar */
+/* CRITICAL FIX: never hide app sections */
+.pf-view,
+.pf-view.active,
+section.pf-view {
+  display: block !important;
+}
+
 .pf-topbar {
   position: sticky;
   top: 0;
@@ -43,9 +49,12 @@ body.light-theme {
   gap: 0.75rem;
   min-height: var(--header-h);
   padding: 0 0.85rem;
-  background: color-mix(in srgb, var(--nav) 92%, transparent);
+  background: rgba(31, 36, 31, 0.95);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
+}
+body.light-theme .pf-topbar {
+  background: rgba(255, 255, 255, 0.95);
 }
 .pf-brand {
   display: flex;
@@ -74,9 +83,7 @@ body.light-theme {
   gap: 0.15rem;
   flex: 1;
   overflow-x: auto;
-  scrollbar-width: none;
 }
-.pf-nav::-webkit-scrollbar { display: none; }
 .pf-nav a {
   text-decoration: none;
   color: var(--muted);
@@ -85,17 +92,13 @@ body.light-theme {
   padding: 0.45rem 0.7rem;
   border-radius: 999px;
   white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
 }
 .pf-nav a:hover,
 .pf-nav a.active {
   color: var(--text);
   background: var(--accent-soft);
 }
-.pf-nav a[data-pf="quizzes"].active,
-.pf-nav a[href="/quiz"] {
-  color: var(--accent);
-}
+.pf-nav a[href="/quiz"] { color: var(--accent); }
 .pf-actions {
   display: flex;
   align-items: center;
@@ -112,20 +115,9 @@ body.light-theme {
   display: grid;
   place-items: center;
   cursor: pointer;
-  text-decoration: none;
   font-size: 0.95rem;
-  position: relative;
 }
 .pf-icon-btn:hover { border-color: var(--accent); }
-.pf-icon-btn .pf-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-}
 .pf-avatar {
   width: 36px;
   height: 36px;
@@ -143,7 +135,6 @@ body.light-theme {
 }
 .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-/* Hero */
 .pf-hero {
   margin: 1rem 0.85rem 1.25rem;
   padding: 1.5rem 1.25rem;
@@ -158,7 +149,6 @@ body.light-theme {
   margin: 0 0 0.4rem;
   font-size: clamp(1.45rem, 4vw, 2rem);
   font-weight: 800;
-  letter-spacing: -0.03em;
 }
 .pf-hero p {
   margin: 0 0 1rem;
@@ -187,15 +177,12 @@ body.light-theme {
   background: var(--accent);
   color: #0d1510;
 }
-.pf-btn-primary:hover { filter: brightness(1.05); }
 .pf-btn-ghost {
   background: transparent;
   border-color: var(--border);
   color: var(--text);
 }
-.pf-btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
-/* Stats row */
 .pf-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -223,9 +210,8 @@ body.light-theme {
   font-weight: 600;
 }
 
-/* Section cards */
 .pf-section {
-  margin: 0 0.85rem 1.5rem;
+  margin: 0 0.85rem 1.25rem;
 }
 .pf-section-head {
   display: flex;
@@ -261,10 +247,6 @@ body.light-theme {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem 1.1rem;
-  transition: border-color 0.15s, transform 0.15s;
-}
-.pf-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 .pf-card h3 {
   margin: 0 0 0.35rem;
@@ -288,52 +270,13 @@ body.light-theme {
   font-weight: 700;
 }
 
-/* Views */
-.pf-view { display: none; }
-.pf-view.active { display: block; }
-
-/* Desktop nav */
 @media (min-width: 900px) {
   .pf-nav { display: flex; }
 }
 
-/* Mobile bottom nav — platform */
-.pf-bottom {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 90;
-  display: flex;
-  justify-content: space-around;
-  padding: 0.4rem 0.25rem calc(0.4rem + env(safe-area-inset-bottom));
-  background: var(--nav);
-  border-top: 1px solid var(--border);
-}
-.pf-bottom a {
-  flex: 1;
-  text-align: center;
-  text-decoration: none;
-  color: var(--muted);
-  font-size: 0.65rem;
-  font-weight: 600;
-  padding: 0.25rem;
-}
-.pf-bottom a span {
-  display: block;
-  font-size: 1.15rem;
-  line-height: 1.3;
-}
-.pf-bottom a.active,
-.pf-bottom a[href="/quiz"] {
-  color: var(--accent);
-}
-@media (min-width: 900px) {
-  .pf-bottom { display: none; }
-  body { padding-bottom: 0 !important; }
-}
+/* One bottom nav only — original .bottom-nav */
+.pf-bottom { display: none !important; }
 
-/* Notify drawer */
 .pf-drawer {
   position: fixed;
   top: var(--header-h);
@@ -355,5 +298,3 @@ body.light-theme {
   border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
 }
-.pf-drawer-item:last-child { border-bottom: 0; }
-.pf-drawer-item small { color: var(--muted); }

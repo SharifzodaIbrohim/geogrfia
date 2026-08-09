@@ -188,6 +188,12 @@
             <div class="modal-body auth-body">
                 <div id="authMessage" class="auth-message hidden"></div>
                 <div id="authLoggedOut" class="auth-layout">
+                    <div class="auth-card" style="margin-bottom:0.75rem">
+                        <h3 style="margin-top:0">Google</h3>
+                        <p style="font-size:0.9rem;margin:0.35rem 0 0.75rem;opacity:0.8">Бо Gmail зуд ворид шавед</p>
+                        <div id="googleSignInBtn" class="google-btn-host"></div>
+                        <p style="font-size:0.8rem;margin-top:0.5rem;opacity:0.7">Ё email / парол аз поён</p>
+                    </div>
                     <form id="loginForm" class="auth-card">
                         <h3 data-i18n="loginTitle">Log in</h3>
                         <label for="loginEmail" data-i18n="emailLabel">Email</label>
@@ -208,7 +214,7 @@
                     </form>
                 </div>
                 <div id="authLoggedIn" class="auth-card auth-profile hidden">
-                    <div class="auth-avatar" aria-hidden="true">👤</div>
+                    <div class="auth-avatar" id="authUserAvatar" aria-hidden="true">👤</div>
                     <h3 id="authUserName"></h3>
                     <p id="authUserEmail"></p>
                     <button id="logoutBtn" class="button-secondary" type="button" data-i18n="logoutButton">Баромадан</button>
@@ -218,7 +224,88 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7ml+LZoIw4CwC8jhMQNiVDWPRv0v+T8rPBn60o=" crossorigin=""></script>
+    <script>
+/* Fix legacy AUTH_API_BASE pointing to 127.0.0.1 on production */
+(function () {
+  var orig = window.fetch;
+  window.fetch = function (input, init) {
+    if (typeof input === 'string' && input.indexOf('http://127.0.0.1:5000') === 0) {
+      input = input.replace('http://127.0.0.1:5000', '');
+    }
+    return orig.call(this, input, init);
+  };
+})();
+    </script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script defer src="js/app.js"></script>
+    <script>
+(function () {
+  function showMsg(text, isError) {
+    var el = document.getElementById('authMessage');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'auth-message' + (isError ? ' error' : '');
+    el.classList.remove('hidden');
+  }
+  async function onCredential(response) {
+    try {
+      var res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: response.credential }),
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || 'Google login failed');
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      if (data.token) localStorage.setItem('userToken', data.token);
+      showMsg('Бо Google ворид шудед');
+      setTimeout(function () { location.reload(); }, 600);
+    } catch (e) {
+      showMsg(e.message || 'Хато', true);
+    }
+  }
+  async function init() {
+    var host = document.getElementById('googleSignInBtn');
+    if (!host) return;
+    try {
+      var res = await fetch('/api/auth/google/status');
+      var status = await res.json();
+      if (!status.configured || !status.clientId) {
+        host.style.display = 'none';
+        return;
+      }
+      function start() {
+        if (!window.google || !google.accounts || !google.accounts.id) return false;
+        google.accounts.id.initialize({
+          client_id: status.clientId,
+          callback: onCredential,
+          auto_select: false,
+          ux_mode: 'popup',
+        });
+        google.accounts.id.renderButton(host, {
+          theme: 'outline',
+          size: 'large',
+          shape: 'pill',
+          text: 'continue_with',
+          width: 280,
+        });
+        return true;
+      }
+      if (!start()) {
+        var n = 0;
+        var t = setInterval(function () {
+          n += 1;
+          if (start() || n > 50) clearInterval(t);
+        }, 200);
+      }
+    } catch (e) {
+      host.style.display = 'none';
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+    </script>
     <script>
       document.addEventListener('DOMContentLoaded', function () {
         const filterRegion = document.getElementById('filterRegion');

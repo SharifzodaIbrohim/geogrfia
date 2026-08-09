@@ -15,6 +15,10 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, request, send_from_directory
 
+from db.connection import health_check as db_health_check
+from db import repo
+from db.google_auth import google_configured, GOOGLE_CLIENT_ID, verify_google_id_token
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 USERS_FILE = DATA_DIR / "users.json"
@@ -52,7 +56,9 @@ app.config["JSON_AS_ASCII"] = False
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Token, X-Student-Id"
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Content-Type, X-Admin-Token, X-Student-Id, X-User-Token"
+    )
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     if request.method == "OPTIONS":
         response.status_code = 204
@@ -123,8 +129,7 @@ def verify_password(password: str, salt: str, stored_hash: str) -> bool:
 
 
 def generate_long_id() -> str:
-    students = load_json(STUDENTS_FILE)
-    existing = {s.get("id") for s in students if isinstance(s, dict)}
+    existing = repo.student_codes_set()
     for _ in range(50):
         num = secrets.randbelow(9 * 10**18) + 10**18
         sid = str(num)
@@ -136,9 +141,10 @@ def generate_long_id() -> str:
 def public_user(user: dict) -> dict:
     return {
         "id": user["id"],
-        "name": user["name"],
-        "email": user["email"],
-        "createdAt": user["createdAt"],
+        "name": user.get("name"),
+        "email": user.get("email"),
+        "avatar": user.get("avatar") or user.get("avatar_url"),
+        "createdAt": user.get("createdAt"),
     }
 
 
@@ -164,7 +170,6 @@ def public_admin(a: dict) -> dict:
 
 
 def olympiad_window_status(o: dict) -> str:
-    """open | not_started | ended | inactive"""
     if not o.get("isActive"):
         return "inactive"
     now = datetime.now(timezone.utc)
@@ -211,6 +216,7 @@ def public_olympiad(o: dict, include_answers: bool = False) -> dict:
 
 
 ADMIN_TOKENS: dict[str, dict] = {}
+USER_TOKENS: dict[str, dict] = {}
 
 
 def create_admin_token(admin: dict) -> str:
@@ -223,9 +229,20 @@ def create_admin_token(admin: dict) -> str:
     return token
 
 
+def create_user_token(user: dict) -> str:
+    token = secrets.token_hex(24)
+    USER_TOKENS[token] = public_user(user)
+    return token
+
+
 def require_admin():
     token = request.headers.get("X-Admin-Token", "")
     return ADMIN_TOKENS.get(token)
+
+
+def require_user():
+    token = request.headers.get("X-User-Token", "")
+    return USER_TOKENS.get(token)
 
 
 @app.route("/")
@@ -245,6 +262,20 @@ def student_page():
     return send_from_directory(BASE_DIR, "student.html")
 
 
+@app.get("/api/health")
+def api_health():
+    h = db_health_check()
+    return jsonify({
+        "ok": True,
+        "app": "geografia",
+        "dataBackend": repo.backend_name(),
+        "database": h,
+        "googleAuth": google_configured(),
+    })
+
+
+# ---------- Legacy email auth (still JSON/PG via repo users) ----------
+
 @app.post("/api/register")
 def register():
     payload = request.get_json(silent=True) or {}
@@ -259,14 +290,14 @@ def register():
     if len(password) < 6:
         return jsonify({"error": "Парол бояд камаш 6 рамз бошад."}), 400
 
+    if repo.find_user_by_email(email):
+        return jsonify({"error": "Ин email аллакай сабт шудааст."}), 409
+
+    salt, password_hash = hash_password(password)
     with LOCK:
         users = load_json(USERS_FILE)
         if not isinstance(users, list):
             users = []
-        if any(user.get("email") == email for user in users):
-            return jsonify({"error": "Ин email аллакай сабт шудааст."}), 409
-
-        salt, password_hash = hash_password(password)
         user = {
             "id": str(uuid.uuid4()),
             "name": name,
@@ -286,15 +317,62 @@ def login():
     email = str(payload.get("email", "")).strip().lower()
     password = str(payload.get("password", ""))
 
-    users = load_json(USERS_FILE)
-    if not isinstance(users, list):
-        users = []
-    user = next((item for item in users if item.get("email") == email), None)
+    user = repo.find_user_by_email(email)
+    if not user:
+        users = load_json(USERS_FILE)
+        user = next((item for item in users if item.get("email") == email), None)
     if not user or not verify_password(password, user.get("salt", ""), user.get("passwordHash", "")):
         return jsonify({"error": "Email ё парол нодуруст аст."}), 401
 
-    return jsonify({"user": public_user(user)})
+    token = create_user_token(user)
+    return jsonify({"user": public_user(user), "token": token})
 
+
+# ---------- Phase 2: Google Auth ----------
+
+@app.get("/api/auth/google/status")
+def google_status():
+    return jsonify({
+        "configured": google_configured(),
+        "clientId": GOOGLE_CLIENT_ID if google_configured() else None,
+    })
+
+
+@app.post("/api/auth/google")
+def google_login():
+    if not google_configured():
+        return jsonify({
+            "error": "Google OAuth ҳоло танзим нашудааст. GOOGLE_CLIENT_ID-ро гузоред.",
+        }), 503
+
+    payload = request.get_json(silent=True) or {}
+    id_token = str(payload.get("idToken") or payload.get("credential") or "").strip()
+    if not id_token:
+        return jsonify({"error": "idToken лозим аст."}), 400
+
+    info = verify_google_id_token(id_token)
+    if not info:
+        return jsonify({"error": "Google token нодуруст аст."}), 401
+
+    user = repo.upsert_google_user(
+        google_id=info["sub"],
+        email=info["email"],
+        name=info["name"],
+        avatar=info.get("picture"),
+    )
+    token = create_user_token(user)
+    return jsonify({"user": public_user(user), "token": token})
+
+
+@app.get("/api/auth/me")
+def auth_me():
+    user = require_user()
+    if not user:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    return jsonify({"user": user})
+
+
+# ---------- Admin auth ----------
 
 @app.post("/api/admin/login")
 def admin_login():
@@ -302,10 +380,7 @@ def admin_login():
     login_name = str(payload.get("login", "")).strip()
     password = str(payload.get("password", ""))
 
-    admins = load_json(ADMINS_FILE)
-    if not isinstance(admins, list):
-        admins = []
-    admin = next((a for a in admins if a.get("login") == login_name), None)
+    admin = repo.find_admin_by_login(login_name)
     if not admin or not verify_password(password, admin.get("salt", ""), admin.get("passwordHash", "")):
         return jsonify({"error": "Логин ё парол нодуруст аст."}), 401
 
@@ -313,6 +388,7 @@ def admin_login():
     return jsonify({
         "token": token,
         "admin": public_admin(admin),
+        "backend": repo.backend_name(),
     })
 
 
@@ -321,7 +397,7 @@ def admin_me():
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-    return jsonify({"admin": admin})
+    return jsonify({"admin": admin, "backend": repo.backend_name()})
 
 
 # ---------- Admins management ----------
@@ -331,10 +407,7 @@ def admin_list_admins():
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-    admins = load_json(ADMINS_FILE)
-    if not isinstance(admins, list):
-        admins = []
-    return jsonify({"admins": [public_admin(a) for a in admins]})
+    return jsonify({"admins": [public_admin(a) for a in repo.list_admins()]})
 
 
 @app.post("/api/admin/admins")
@@ -352,27 +425,11 @@ def admin_create_admin():
         return jsonify({"error": "Логин бояд камаш 3 рамз бошад."}), 400
     if len(password) < 6:
         return jsonify({"error": "Парол бояд камаш 6 рамз бошад."}), 400
+    if repo.find_admin_by_login(login_name):
+        return jsonify({"error": "Ин логин аллакай вуҷуд дорад."}), 409
 
-    with LOCK:
-        admins = load_json(ADMINS_FILE)
-        if not isinstance(admins, list):
-            admins = []
-        if any(a.get("login") == login_name for a in admins):
-            return jsonify({"error": "Ин логин аллакай вуҷуд дорад."}), 409
-
-        salt, password_hash = hash_password(password)
-        new_admin = {
-            "id": str(uuid.uuid4()),
-            "login": login_name,
-            "name": name,
-            "salt": salt,
-            "passwordHash": password_hash,
-            "createdBy": admin["login"],
-            "createdAt": utc_now(),
-        }
-        admins.append(new_admin)
-        save_json(ADMINS_FILE, admins)
-
+    salt, password_hash = hash_password(password)
+    new_admin = repo.create_admin(login_name, name, salt, password_hash, admin["login"])
     return jsonify({"admin": public_admin(new_admin)}), 201
 
 
@@ -383,17 +440,10 @@ def admin_delete_admin(admin_id: str):
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
     if admin.get("id") == admin_id:
         return jsonify({"error": "Шумо наметавонед худро нест кунед."}), 400
-
-    with LOCK:
-        admins = load_json(ADMINS_FILE)
-        if not isinstance(admins, list):
-            admins = []
-        new_list = [a for a in admins if a.get("id") != admin_id]
-        if len(new_list) == len(admins):
-            return jsonify({"error": "Админ ёфт нашуд."}), 404
-        if len(new_list) == 0:
-            return jsonify({"error": "Наметавон охирин админро нест кард."}), 400
-        save_json(ADMINS_FILE, new_list)
+    if repo.count_admins() <= 1:
+        return jsonify({"error": "Наметавон охирин админро нест кард."}), 400
+    if not repo.delete_admin(admin_id):
+        return jsonify({"error": "Админ ёфт нашуд."}), 404
     return jsonify({"ok": True})
 
 
@@ -404,23 +454,16 @@ def admin_list_students():
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-    students = load_json(STUDENTS_FILE)
-    if not isinstance(students, list):
-        students = []
-    return jsonify({"students": [public_student(s) for s in students]})
+    return jsonify({"students": [public_student(s) for s in repo.list_students()]})
 
 
 @app.get("/api/admin/students/export")
 def admin_export_students():
-    """CSV for Excel (UTF-8 BOM)."""
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
 
-    students = load_json(STUDENTS_FILE)
-    if not isinstance(students, list):
-        students = []
-
+    students = repo.list_students()
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["ID", "Ному насаб", "Синф", "Мактаб", "Сохтааст", "Сана"])
@@ -434,15 +477,12 @@ def admin_export_students():
             (s.get("createdAt") or "")[:19].replace("T", " "),
         ])
 
-    # BOM so Excel opens Tajik text correctly
     data = "\ufeff" + buf.getvalue()
     filename = f"students_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
     return Response(
         data.encode("utf-8"),
         mimetype="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -464,21 +504,8 @@ def admin_create_student():
     if not school:
         return jsonify({"error": "Мактабро ворид кунед."}), 400
 
-    with LOCK:
-        students = load_json(STUDENTS_FILE)
-        if not isinstance(students, list):
-            students = []
-        student = {
-            "id": generate_long_id(),
-            "fullName": full_name,
-            "className": class_name,
-            "school": school,
-            "createdBy": admin["login"],
-            "createdAt": utc_now(),
-        }
-        students.append(student)
-        save_json(STUDENTS_FILE, students)
-
+    code = generate_long_id()
+    student = repo.create_student(code, full_name, class_name, school, admin["login"])
     return jsonify({"student": public_student(student)}), 201
 
 
@@ -487,15 +514,8 @@ def admin_delete_student(student_id: str):
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-
-    with LOCK:
-        students = load_json(STUDENTS_FILE)
-        if not isinstance(students, list):
-            students = []
-        new_list = [s for s in students if s.get("id") != student_id]
-        if len(new_list) == len(students):
-            return jsonify({"error": "Хонанда ёфт нашуд."}), 404
-        save_json(STUDENTS_FILE, new_list)
+    if not repo.delete_student(student_id):
+        return jsonify({"error": "Хонанда ёфт нашуд."}), 404
     return jsonify({"ok": True})
 
 
@@ -503,14 +523,9 @@ def admin_delete_student(student_id: str):
 def student_login():
     payload = request.get_json(silent=True) or {}
     student_id = str(payload.get("id", "")).strip()
-
-    students = load_json(STUDENTS_FILE)
-    if not isinstance(students, list):
-        students = []
-    student = next((s for s in students if s.get("id") == student_id), None)
+    student = repo.find_student_by_code(student_id)
     if not student:
         return jsonify({"error": "ID нодуруст аст ё хонанда ёфт нашуд."}), 401
-
     return jsonify({"student": public_student(student)})
 
 
@@ -522,9 +537,8 @@ def normalize_time_field(value):
     text = str(value).strip()
     if not text:
         return None
-    # Accept datetime-local: 2026-08-08T14:30
     if "T" in text and len(text) == 16:
-        text = text + ":00+05:00"  # Tajikistan UTC+5 default if no tz
+        text = text + ":00+05:00"
     dt = parse_dt(text)
     return dt.isoformat() if dt else text
 
@@ -534,9 +548,7 @@ def admin_list_olympiads():
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-    items = load_json(OLYMPIADS_FILE)
-    if not isinstance(items, list):
-        items = []
+    items = repo.list_olympiads()
     return jsonify({"olympiads": [public_olympiad(o, include_answers=True) for o in items]})
 
 
@@ -582,15 +594,9 @@ def admin_create_olympiad():
             return jsonify({"error": f"Саволи {i + 1} нодуруст аст."}), 400
         if answer < 0 or answer >= len(options):
             return jsonify({"error": f"Ҷавоби дурусти саволи {i + 1} нодуруст аст."}), 400
-        questions.append({
-            "id": i + 1,
-            "text": text,
-            "options": options,
-            "answer": answer,
-        })
+        questions.append({"id": i + 1, "text": text, "options": options, "answer": answer})
 
-    olympiad = {
-        "id": str(uuid.uuid4()),
+    olympiad = repo.create_olympiad({
         "title": title,
         "type": otype,
         "passScore": pass_score,
@@ -599,16 +605,7 @@ def admin_create_olympiad():
         "endTime": end_time,
         "questions": questions,
         "createdBy": admin["login"],
-        "createdAt": utc_now(),
-    }
-
-    with LOCK:
-        items = load_json(OLYMPIADS_FILE)
-        if not isinstance(items, list):
-            items = []
-        items.append(olympiad)
-        save_json(OLYMPIADS_FILE, items)
-
+    })
     return jsonify({"olympiad": public_olympiad(olympiad, include_answers=True)}), 201
 
 
@@ -619,31 +616,24 @@ def admin_update_olympiad(olympiad_id: str):
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
 
     payload = request.get_json(silent=True) or {}
+    patch = {}
+    if "isActive" in payload:
+        patch["isActive"] = bool(payload["isActive"])
+    if "passScore" in payload:
+        try:
+            patch["passScore"] = max(0, min(100, int(payload["passScore"])))
+        except (TypeError, ValueError):
+            pass
+    if "title" in payload and str(payload["title"]).strip():
+        patch["title"] = str(payload["title"]).strip()
+    if "startTime" in payload:
+        patch["startTime"] = normalize_time_field(payload.get("startTime"))
+    if "endTime" in payload:
+        patch["endTime"] = normalize_time_field(payload.get("endTime"))
 
-    with LOCK:
-        items = load_json(OLYMPIADS_FILE)
-        if not isinstance(items, list):
-            items = []
-        olympiad = next((o for o in items if o.get("id") == olympiad_id), None)
-        if not olympiad:
-            return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
-
-        if "isActive" in payload:
-            olympiad["isActive"] = bool(payload["isActive"])
-        if "passScore" in payload:
-            try:
-                olympiad["passScore"] = max(0, min(100, int(payload["passScore"])))
-            except (TypeError, ValueError):
-                pass
-        if "title" in payload and str(payload["title"]).strip():
-            olympiad["title"] = str(payload["title"]).strip()
-        if "startTime" in payload:
-            olympiad["startTime"] = normalize_time_field(payload.get("startTime"))
-        if "endTime" in payload:
-            olympiad["endTime"] = normalize_time_field(payload.get("endTime"))
-
-        save_json(OLYMPIADS_FILE, items)
-
+    olympiad = repo.update_olympiad(olympiad_id, patch)
+    if not olympiad:
+        return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
     return jsonify({"olympiad": public_olympiad(olympiad, include_answers=True)})
 
 
@@ -652,24 +642,14 @@ def admin_delete_olympiad(olympiad_id: str):
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-
-    with LOCK:
-        items = load_json(OLYMPIADS_FILE)
-        if not isinstance(items, list):
-            items = []
-        new_list = [o for o in items if o.get("id") != olympiad_id]
-        if len(new_list) == len(items):
-            return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
-        save_json(OLYMPIADS_FILE, new_list)
+    if not repo.delete_olympiad(olympiad_id):
+        return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
     return jsonify({"ok": True})
 
 
 @app.get("/api/olympiads/active")
 def list_active_olympiads():
-    items = load_json(OLYMPIADS_FILE)
-    if not isinstance(items, list):
-        items = []
-    # Only currently open (active + inside time window)
+    items = repo.list_olympiads()
     active = [public_olympiad(o, include_answers=False) for o in items if is_olympiad_open(o)]
     return jsonify({"olympiads": active})
 
@@ -680,17 +660,11 @@ def submit_olympiad(olympiad_id: str):
     student_id = str(payload.get("studentId", "")).strip()
     answers = payload.get("answers") or []
 
-    students = load_json(STUDENTS_FILE)
-    if not isinstance(students, list):
-        students = []
-    student = next((s for s in students if s.get("id") == student_id), None)
+    student = repo.find_student_by_code(student_id)
     if not student:
         return jsonify({"error": "Хонанда ёфт нашуд."}), 401
 
-    items = load_json(OLYMPIADS_FILE)
-    if not isinstance(items, list):
-        items = []
-    olympiad = next((o for o in items if o.get("id") == olympiad_id), None)
+    olympiad = repo.find_olympiad(olympiad_id)
     if not olympiad:
         return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
 
@@ -754,17 +728,7 @@ def submit_olympiad(olympiad_id: str):
         "answers": detail,
         "finishedAt": utc_now(),
     }
-
-    with LOCK:
-        results = load_json(RESULTS_FILE)
-        if not isinstance(results, list):
-            results = []
-        results = [
-            r for r in results
-            if not (r.get("studentId") == student_id and r.get("olympiadId") == olympiad_id)
-        ]
-        results.append(result)
-        save_json(RESULTS_FILE, results)
+    repo.save_result(result)
 
     return jsonify({
         "result": {
@@ -783,11 +747,7 @@ def admin_olympiad_results(olympiad_id: str):
     admin = require_admin()
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-
-    results = load_json(RESULTS_FILE)
-    if not isinstance(results, list):
-        results = []
-    filtered = [r for r in results if r.get("olympiadId") == olympiad_id]
+    filtered = repo.list_results(olympiad_id)
     filtered.sort(key=lambda r: r.get("finishedAt") or "", reverse=True)
     return jsonify({"results": filtered})
 
@@ -798,17 +758,12 @@ def admin_monitor():
     if not admin:
         return jsonify({"error": "Дастрасӣ рад шуд."}), 401
 
-    students = load_json(STUDENTS_FILE)
-    olympiads = load_json(OLYMPIADS_FILE)
-    results = load_json(RESULTS_FILE)
-    if not isinstance(students, list):
-        students = []
-    if not isinstance(olympiads, list):
-        olympiads = []
-    if not isinstance(results, list):
-        results = []
+    students = repo.list_students()
+    olympiads = repo.list_olympiads()
+    results = repo.list_results()
 
     return jsonify({
+        "backend": repo.backend_name(),
         "stats": {
             "students": len(students),
             "olympiads": len(olympiads),

@@ -26,7 +26,6 @@ from db.admin_role import (  # noqa: E402
     enrich_admin,
     create_admin_with_role,
     update_admin_role,
-    list_admins_with_roles,
 )
 from db.rbac import (  # noqa: E402
     admin_can,
@@ -59,13 +58,12 @@ def require_admin():
 
 
 def require_perm(*perms: str):
-    """Return admin if allowed, else None. Caller must 403."""
     admin = require_admin()
     if not admin:
         return None
     if any(admin_can(admin, p) for p in perms):
         return admin
-    return False  # authenticated but forbidden
+    return False
 
 
 globals()["create_admin_token"] = create_admin_token
@@ -73,7 +71,6 @@ globals()["create_user_token"] = _jwt_user_token
 globals()["require_admin"] = require_admin
 globals()["require_user"] = _jwt_require_user
 
-# --- Gate olympiad submit by participant assignment ---
 _orig_submit = globals().get("submit_olympiad")
 
 
@@ -99,11 +96,6 @@ app.view_functions["submit_olympiad"] = submit_olympiad
 register_routes(app, public_student, public_user, olympiad_window_status)
 
 
-# --- Phase 4–5: enrich /api/admin/me and protect routes ---
-
-_orig_admin_me = app.view_functions.get("admin_me")
-
-
 def admin_me():
     admin = require_admin()
     if not admin:
@@ -127,9 +119,7 @@ _orig_admin_login = app.view_functions.get("admin_login")
 
 
 def admin_login():
-    # use core login then re-issue JWT with role
     resp = _orig_admin_login()
-    # resp is Flask Response
     if getattr(resp, "status_code", 200) != 200:
         return resp
     try:
@@ -177,7 +167,6 @@ def _gate(view_name: str, *perms: str):
     app.view_functions[view_name] = wrapper
 
 
-# Map existing view function names to permissions
 _gate("admin_list_students", "students.read")
 _gate("admin_create_student", "students.write")
 _gate("admin_delete_student", "students.write")
@@ -190,9 +179,8 @@ _gate("admin_olympiad_results", "results.read")
 _gate("admin_monitor", "monitor.read")
 _gate("admin_list_admins", "admins.read")
 _gate("admin_delete_admin", "admins.write")
-
-# Override create admin to support role (super_admin only)
-_orig_create_admin = app.view_functions.get("admin_create_admin")
+_gate("admin_list_participants", "olympiads.read", "participants.write")
+_gate("admin_set_participants", "participants.write")
 
 
 def admin_create_admin():
@@ -207,8 +195,6 @@ def admin_create_admin():
     name = str(payload.get("name", "")).strip() or login_name
     password = str(payload.get("password", ""))
     role = normalize_role(payload.get("role") or "olympiad_admin")
-    if role == "super_admin" and normalize_role(admin.get("role")) != "super_admin":
-        return jsonify({"error": "Наметавон super_admin сохт."}), 403
 
     if len(login_name) < 3:
         return jsonify({"error": "Логин бояд камаш 3 рамз бошад."}), 400

@@ -1,11 +1,10 @@
-"""Geografia server — dual-mode core + Phase 2/3/4-5 hooks."""
+"""Geografia server — dual-mode core + Phase 2/3/4-5/6-7 hooks."""
 from __future__ import annotations
 
 import urllib.request
 
 from flask import jsonify, request
 
-# Load dual-mode server implementation (Phase 1.5)
 _CORE = (
     "https://raw.githubusercontent.com/isoevibrohim/geogrfia/"
     "3e9e5989f992afa7ab478c9da0480bed9a2c8375/server.py"
@@ -13,28 +12,17 @@ _CORE = (
 _code = urllib.request.urlopen(_CORE, timeout=60).read()
 exec(compile(_code, "server_core_remote.py", "exec"), globals())
 
-# Phase 2 JWT + Phase 3 student link / participants / access
 from db.phase23_hooks import (  # noqa: E402
-    create_admin_token as _jwt_admin_token,
     create_user_token as _jwt_user_token,
     require_admin as _jwt_require_admin,
     require_user as _jwt_require_user,
     register_routes,
 )
 from db import student_access  # noqa: E402
-from db.admin_role import (  # noqa: E402
-    enrich_admin,
-    create_admin_with_role,
-    update_admin_role,
-)
-from db.rbac import (  # noqa: E402
-    admin_can,
-    deny_message,
-    role_permissions,
-    normalize_role,
-    VALID_ROLES,
-)
+from db.admin_role import enrich_admin, create_admin_with_role, update_admin_role  # noqa: E402
+from db.rbac import admin_can, deny_message, role_permissions, normalize_role, VALID_ROLES  # noqa: E402
 from db.auth_tokens import issue_admin_token  # noqa: E402
+from db import schools_api  # noqa: E402
 import hashlib  # noqa: E402
 import secrets  # noqa: E402
 
@@ -242,3 +230,56 @@ def admin_list_roles():
             for r in VALID_ROLES
         ]
     })
+
+
+# ---------- Phase 6–7: Schools + Dashboard ----------
+
+@app.get("/api/admin/dashboard")
+def admin_dashboard():
+    admin = require_perm("monitor.read", "students.read")
+    if admin is None:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    if admin is False:
+        return jsonify({"error": deny_message("monitor.read")}), 403
+    return jsonify(schools_api.dashboard_stats())
+
+
+@app.get("/api/admin/schools")
+def admin_list_schools():
+    admin = require_perm("schools.read", "students.read")
+    if admin is None:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    if admin is False:
+        return jsonify({"error": deny_message("schools.read")}), 403
+    return jsonify({"schools": schools_api.list_schools()})
+
+
+@app.post("/api/admin/schools")
+def admin_create_school():
+    admin = require_perm("schools.write")
+    if admin is None:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    if admin is False:
+        return jsonify({"error": deny_message("schools.write")}), 403
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    location = str(payload.get("location", "") or "").strip() or None
+    if len(name) < 2:
+        return jsonify({"error": "Номи мактаб лозим аст."}), 400
+    try:
+        school = schools_api.create_school(name, location)
+    except ValueError:
+        return jsonify({"error": "Ин мактаб аллакай вуҷуд дорад."}), 409
+    return jsonify({"school": school}), 201
+
+
+@app.delete("/api/admin/schools/<school_id>")
+def admin_delete_school(school_id: str):
+    admin = require_perm("schools.write")
+    if admin is None:
+        return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+    if admin is False:
+        return jsonify({"error": deny_message("schools.write")}), 403
+    if not schools_api.delete_school(school_id):
+        return jsonify({"error": "Мактаб ёфт нашуд."}), 404
+    return jsonify({"ok": True})

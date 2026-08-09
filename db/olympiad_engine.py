@@ -3,7 +3,7 @@ Phase 9–12 — Olympiad Engine
 - duration countdown from attempt start
 - one finished attempt per student per olympiad
 - autosave answers
-- server scoring (existing submit path enhanced)
+- server scoring
 - anti-cheat light: question shuffle, rate limit, session binding
 """
 from __future__ import annotations
@@ -13,20 +13,15 @@ import secrets
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Any
 
-from sqlalchemy import text
-
-from db.connection import get_session
-from db.repo import use_pg, find_olympiad, DATA_DIR, _load_json, _save_json, _utc_now
+from db.repo import find_olympiad, DATA_DIR, _load_json, _save_json, _utc_now, list_results, find_student_by_code, save_result
 from db.student_access import student_has_olympiad_access
 
 SESSIONS_FILE = DATA_DIR / "olympiad_sessions.json"
 
-# in-memory rate limit: key -> list of timestamps
 _RATE: dict[str, list[float]] = {}
 RATE_WINDOW = 60.0
-RATE_MAX = 30  # actions per minute per student+olympiad
+RATE_MAX = 30
 
 
 def _now() -> datetime:
@@ -44,9 +39,7 @@ def _rate_ok(key: str) -> bool:
 
 
 def _shuffle_indices(n: int, seed: str) -> list[int]:
-    """Deterministic shuffle from session seed (same order on resume)."""
     idxs = list(range(n))
-    # Fisher–Yates with seeded RNG from hash
     h = hashlib.sha256(seed.encode()).digest()
     state = int.from_bytes(h[:8], "big")
 
@@ -70,28 +63,6 @@ def _save_sessions(items: list) -> None:
 
 
 def has_finished_attempt(olympiad_id: str, student_code: str) -> bool:
-    if use_pg():
-        with get_session() as s:
-            # results may be in attempts table or legacy results via repo
-            n = s.execute(
-                text(
-                    "SELECT COUNT(*) FROM attempts "
-                    "WHERE kind = 'olympiad' AND olympiad_id::text = :oid "
-                    "AND student_name IS NOT NULL "
-                    "AND status IN ('passed','failed','submitted','disqualified') "
-                    "AND ("
-                    "  student_id IN (SELECT id FROM students WHERE student_code = :code) "
-                    "  OR meta->>'studentCode' = :code"
-                    ")"
-                ),
-                {"oid": olympiad_id, "code": student_code},
-            ).scalar()
-            # meta column may not exist — fallback simpler check below
-            if n and int(n) > 0:
-                return True
-    # JSON results
-    from db.repo import list_results
-
     for r in list_results(olympiad_id):
         if r.get("studentId") == student_code and r.get("status") in (
             "passed",
@@ -100,13 +71,17 @@ def has_finished_attempt(olympiad_id: str, student_code: str) -> bool:
             "disqualified",
         ):
             return True
+    for s in _load_sessions():
+        if (
+            s.get("olympiadId") == olympiad_id
+            and s.get("studentCode") == student_code
+            and s.get("status") == "submitted"
+        ):
+            return True
     return False
 
 
 def get_open_session(olympiad_id: str, student_code: str) -> dict | None:
-    if use_pg():
-        # sessions stored as in_progress attempts with session_token in student_name field abuse avoided — use JSON sidecar always for session state
-        pass
     for s in _load_sessions():
         if (
             s.get("olympiadId") == olympiad_id
@@ -124,10 +99,6 @@ def start_exam(
     user_id: str | None = None,
     client_fingerprint: str | None = None,
 ) -> dict:
-    """
-    Start or resume olympiad attempt.
-    Access must already be validated by caller.
-    """
     rate_key = f"start:{olympiad_id}:{student_code}"
     if not _rate_ok(rate_key):
         raise ValueError("rate_limited")
@@ -145,7 +116,6 @@ def start_exam(
 
     existing = get_open_session(olympiad_id, student_code)
     if existing:
-        # resume — same order, same token
         return _public_session(existing, olympiad, include_answers=False)
 
     questions = olympiad.get("questions") or []
@@ -157,7 +127,6 @@ def start_exam(
     session_token = secrets.token_urlsafe(24)
     started = _now()
 
-    # duration: prefer durationSec, else endTime - now, else None
     duration = olympiad.get("durationSec") or olympiad.get("duration_sec")
     ends_at = None
     if duration:
@@ -183,7 +152,7 @@ def start_exam(
         "userId": user_id,
         "seed": seed,
         "order": order,
-        "answers": {},  # str(orig_index) -> selected
+        "answers": {},
         "status": "in_progress",
         "startedAt": started.isoformat(),
         "endsAt": ends_at.isoformat() if ends_at else None,
@@ -212,16 +181,13 @@ def _public_session(session: dict, olympiad: dict, include_answers: bool) -> dic
             "text": q.get("text"),
             "options": list(q.get("options") or []),
         }
-        # shuffle options lightly with seed+index
         opt_order = _shuffle_indices(len(item["options"]), session["seed"] + f":opt:{orig_i}")
         item["options"] = [item["options"][j] for j in opt_order]
         item["optionOrder"] = opt_order
         if include_answers:
             item["answer"] = q.get("answer")
-        # restore saved selection mapped to shuffled options
         saved = session.get("answers", {}).get(str(orig_i))
-        if saved is not None and "optionOrder" in item:
-            # saved is original option index; map to display index
+        if saved is not None:
             try:
                 item["selected"] = item["optionOrder"].index(int(saved))
             except (ValueError, TypeError):
@@ -245,15 +211,6 @@ def _public_session(session: dict, olympiad: dict, include_answers: bool) -> dic
     }
 
 
-def _find_session(session_id: str, session_token: str) -> dict | None:
-    for s in _load_sessions():
-        if s.get("id") == session_id and secrets.compare_digest(
-            str(s.get("sessionToken") or ""), str(session_token or "")
-        ):
-            return s
-    return None
-
-
 def autosave(
     session_id: str,
     session_token: str,
@@ -261,7 +218,6 @@ def autosave(
     *,
     fingerprint: str | None = None,
 ) -> dict:
-    """answers: { originalIndex or questionId: selectedDisplayIndex } — we store original option idx."""
     rate_key = f"save:{session_id}"
     if not _rate_ok(rate_key):
         raise ValueError("rate_limited")
@@ -279,9 +235,7 @@ def autosave(
     if session.get("status") != "in_progress":
         raise ValueError("not_in_progress")
 
-    # optional binding check (soft — warn only if both set and mismatch)
     if fingerprint and session.get("fingerprint") and session["fingerprint"] != fingerprint[:64]:
-        # still allow save but mark
         session["fingerprintMismatch"] = True
 
     olympiad = find_olympiad(session["olympiadId"])
@@ -289,12 +243,10 @@ def autosave(
         raise ValueError("not_found")
 
     questions = olympiad.get("questions") or []
-    order = session.get("order") or []
     saved = dict(session.get("answers") or {})
 
     for key, disp_sel in (answers or {}).items():
         try:
-            # key may be originalIndex
             orig_i = int(key)
         except (TypeError, ValueError):
             continue
@@ -305,8 +257,7 @@ def autosave(
             session["seed"] + f":opt:{orig_i}",
         )
         try:
-            disp_sel_i = int(disp_sel)
-            orig_opt = opt_order[disp_sel_i]
+            orig_opt = opt_order[int(disp_sel)]
         except (TypeError, ValueError, IndexError):
             continue
         saved[str(orig_i)] = orig_opt
@@ -346,7 +297,6 @@ def submit_exam(
     if has_finished_attempt(session["olympiadId"], session["studentCode"]):
         raise ValueError("already_submitted")
 
-    # merge final answers
     if answers:
         autosave(session_id, session_token, answers, fingerprint=fingerprint)
         items = _load_sessions()
@@ -390,7 +340,6 @@ def submit_exam(
     status = "passed" if score >= pass_score else "failed"
     finished = _utc_now()
 
-    student = session
     result = {
         "id": str(uuid.uuid4()),
         "studentId": session["studentCode"],
@@ -409,8 +358,6 @@ def submit_exam(
         "sessionId": session_id,
         "finishedAt": finished,
     }
-    # enrich class/school from student record
-    from db.repo import find_student_by_code, save_result
 
     st = find_student_by_code(session["studentCode"])
     if st:

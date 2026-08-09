@@ -16,10 +16,20 @@
   try { student = JSON.parse(localStorage.getItem(STUDENT_KEY) || 'null'); } catch { student = null; }
 
   let currentOlympiad = null;
+  let examSession = null;
   const answers = new Map();
+  let examTimerId = null;
+  let autosaveTimer = null;
+
+  let FP = localStorage.getItem('geo_fp');
+  if (!FP) {
+    FP = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('geo_fp', FP);
+  }
 
   async function api(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (options.headers) Object.assign(headers, options.headers);
     const res = await fetch(API + path, { ...options, headers });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Хато');
@@ -44,6 +54,7 @@
   }
 
   function showList() {
+    stopExamTimers();
     listView.classList.remove('hidden');
     examView.classList.add('hidden');
     resultView.classList.add('hidden');
@@ -87,15 +98,15 @@
       box.innerHTML = list.map((o) => `
         <div class="oly-card">
           <h3>${esc(o.title)}</h3>
-          <p class="muted">${o.type === 'quiz' ? 'Викторина' : 'Олимпиада'} · ${o.questionCount} савол · ҳадди гузаштан ${o.passScore}%</p>
+          <p class="muted">${o.type === 'quiz' ? 'Викторина' : 'Олимпиада'} · ${o.questionCount} савол · ҳад ${o.passScore}%</p>
           <button type="button" class="btn primary" data-start="${esc(o.id)}">Оғоз</button>
         </div>
       `).join('');
 
       box.querySelectorAll('[data-start]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           const oly = list.find((x) => x.id === btn.dataset.start);
-          if (oly) startExam(oly);
+          if (oly) await startExam(oly);
         });
       });
     } catch (err) {
@@ -103,78 +114,173 @@
     }
   }
 
-  function startExam(oly) {
-    currentOlympiad = oly;
-    answers.clear();
-    listView.classList.add('hidden');
-    resultView.classList.add('hidden');
-    examView.classList.remove('hidden');
-    document.getElementById('examTitle').textContent = oly.title;
-    document.getElementById('examMsg').classList.add('hidden');
+  function stopExamTimers() {
+    if (examTimerId) { clearInterval(examTimerId); examTimerId = null; }
+    if (autosaveTimer) { clearInterval(autosaveTimer); autosaveTimer = null; }
+  }
 
+  function tickExamTimer() {
+    const el = document.getElementById('examTimer');
+    if (!el) return;
+    if (!examSession || !examSession.endsAt) {
+      el.textContent = '—';
+      return;
+    }
+    const ms = new Date(examSession.endsAt) - Date.now();
+    if (ms <= 0) {
+      el.textContent = '00:00';
+      stopExamTimers();
+      submitExam(true);
+      return;
+    }
+    const sec = Math.ceil(ms / 1000);
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    el.textContent = m + ':' + s;
+  }
+
+  async function doAutosave() {
+    if (!examSession || !currentOlympiad) return;
+    const payload = {};
+    (examSession.questions || []).forEach((q) => {
+      if (answers.has(q.id)) payload[String(q.originalIndex)] = answers.get(q.id);
+    });
+    try {
+      await api('/api/olympiads/' + currentOlympiad.id + '/autosave', {
+        method: 'POST',
+        headers: { 'X-Client-Fingerprint': FP },
+        body: JSON.stringify({
+          sessionId: examSession.sessionId,
+          sessionToken: examSession.sessionToken,
+          answers: payload,
+        }),
+      });
+    } catch (e) { /* silent */ }
+  }
+
+  async function startExam(oly) {
+    try {
+      const data = await api('/api/olympiads/' + oly.id + '/start', {
+        method: 'POST',
+        headers: { 'X-Client-Fingerprint': FP },
+        body: JSON.stringify({ studentId: student.id }),
+      });
+      examSession = data;
+      currentOlympiad = {
+        ...oly,
+        id: data.olympiadId || oly.id,
+        questions: data.questions || [],
+        title: data.title || oly.title,
+        passScore: data.passScore,
+      };
+      answers.clear();
+      (data.questions || []).forEach((q) => {
+        if (q.selected != null && q.selected !== undefined) answers.set(q.id, q.selected);
+      });
+      listView.classList.add('hidden');
+      resultView.classList.add('hidden');
+      examView.classList.remove('hidden');
+      document.getElementById('examTitle').textContent = currentOlympiad.title;
+      const msg = document.getElementById('examMsg');
+      if (msg) msg.classList.add('hidden');
+      renderExamQuestions();
+      stopExamTimers();
+      tickExamTimer();
+      examTimerId = setInterval(tickExamTimer, 500);
+      autosaveTimer = setInterval(doAutosave, 15000);
+    } catch (err) {
+      alert(err.message || 'Хато');
+    }
+  }
+
+  function renderExamQuestions() {
     const box = document.getElementById('examQuestions');
-    box.innerHTML = (oly.questions || []).map((q, idx) => `
-      <div class="exam-q" data-qid="${q.id}">
+    const qs = currentOlympiad.questions || [];
+    box.innerHTML = qs.map((q, idx) => `
+      <div class="exam-q" data-qid="${esc(String(q.id))}">
         <h4>${idx + 1}. ${esc(q.text)}</h4>
-        ${(q.options || []).map((opt, oi) => `
-          <button type="button" class="exam-opt" data-qid="${q.id}" data-oi="${oi}">${esc(opt)}</button>
-        `).join('')}
+        <div class="exam-opts">
+          ${(q.options || []).map((opt, oi) => `
+            <label class="exam-opt">
+              <input type="radio" name="q-${esc(String(q.id))}" value="${oi}" ${answers.get(q.id) === oi ? 'checked' : ''} />
+              <span>${esc(opt)}</span>
+            </label>
+          `).join('')}
+        </div>
       </div>
     `).join('');
-
-    updateProgress();
-
-    box.querySelectorAll('.exam-opt').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const qid = Number(btn.dataset.qid);
-        const oi = Number(btn.dataset.oi);
-        answers.set(qid, oi);
-        box.querySelectorAll(`.exam-opt[data-qid="${qid}"]`).forEach((b) => b.classList.remove('selected'));
-        btn.classList.add('selected');
+    box.querySelectorAll('input[type=radio]').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const qid = inp.name.replace(/^q-/, '');
+        const num = Number(qid);
+        const key = Number.isNaN(num) ? qid : num;
+        answers.set(key, Number(inp.value));
+        if (key !== qid) answers.set(qid, Number(inp.value));
         updateProgress();
+        doAutosave();
       });
     });
+    updateProgress();
   }
 
   function updateProgress() {
-    const total = currentOlympiad?.questions?.length || 0;
-    document.getElementById('examProgress').textContent = `${answers.size}/${total}`;
+    const total = (currentOlympiad.questions || []).length;
+    const el = document.getElementById('examProgress');
+    if (el) el.textContent = `${answers.size}/${total}`;
+  }
+
+  async function submitExam(auto) {
+    if (!examSession || !currentOlympiad) return;
+    stopExamTimers();
+    const payload = {};
+    (examSession.questions || []).forEach((q) => {
+      let sel = answers.has(q.id) ? answers.get(q.id) : null;
+      if (sel == null && answers.has(String(q.id))) sel = answers.get(String(q.id));
+      if (sel != null) payload[String(q.originalIndex)] = sel;
+    });
+    try {
+      const data = await api('/api/olympiads/' + currentOlympiad.id + '/exam-submit', {
+        method: 'POST',
+        headers: { 'X-Client-Fingerprint': FP },
+        body: JSON.stringify({
+          sessionId: examSession.sessionId,
+          sessionToken: examSession.sessionToken,
+          answers: payload,
+        }),
+      });
+      const r = data.result || {};
+      examView.classList.add('hidden');
+      resultView.classList.remove('hidden');
+      document.getElementById('resultScore').textContent = (r.score ?? '—') + '%';
+      document.getElementById('resultDetail').textContent =
+        `Дуруст: ${r.correct} аз ${r.total} · ҳад: ${r.passScore}%` +
+        (r.timedOut ? ' · вақт тамом' : '') +
+        (auto ? ' · худкор' : '');
+      const st = document.getElementById('resultStatus');
+      if (st) {
+        st.textContent = r.status === 'passed' ? 'Гузашт' : 'Нагузашт';
+        st.className = 'badge' + (r.status === 'passed' ? '' : ' fail');
+      }
+      examSession = null;
+    } catch (err) {
+      const msg = document.getElementById('examMsg');
+      if (msg) {
+        msg.textContent = err.message;
+        msg.classList.remove('hidden');
+        msg.classList.add('error');
+      } else {
+        alert(err.message);
+      }
+    }
   }
 
   document.getElementById('submitExamBtn').addEventListener('click', async () => {
-    const msg = document.getElementById('examMsg');
-    msg.classList.add('hidden');
-    if (!currentOlympiad) return;
-
-    const total = currentOlympiad.questions.length;
+    if (!examSession || !currentOlympiad) return;
+    const total = (currentOlympiad.questions || []).length;
     if (answers.size < total) {
       if (!confirm('Баъзе саволҳо ҷавоб надоранд. Ба ҳар ҳол супоред?')) return;
     }
-
-    const payloadAnswers = currentOlympiad.questions.map((q) => ({
-      questionId: q.id,
-      selected: answers.has(q.id) ? answers.get(q.id) : -1,
-    }));
-
-    try {
-      const data = await api('/api/olympiads/' + currentOlympiad.id + '/submit', {
-        method: 'POST',
-        body: JSON.stringify({ studentId: student.id, answers: payloadAnswers }),
-      });
-      const r = data.result;
-      examView.classList.add('hidden');
-      resultView.classList.remove('hidden');
-      document.getElementById('resultScore').textContent = r.score + '%';
-      document.getElementById('resultDetail').textContent =
-        `Дуруст: ${r.correct} аз ${r.total} · ҳадди гузаштан: ${r.passScore}%`;
-      const st = document.getElementById('resultStatus');
-      st.textContent = r.status === 'passed' ? 'Гузашт' : 'Нагузашт';
-      st.className = 'badge' + (r.status === 'passed' ? '' : ' fail');
-    } catch (err) {
-      msg.textContent = err.message;
-      msg.classList.remove('hidden');
-      msg.classList.add('error');
-    }
+    await submitExam(false);
   });
 
   function esc(s) {
@@ -183,5 +289,5 @@
     }[c]));
   }
 
-  if (student?.id) showApp();
+  if (student && student.id) showApp();
 })();

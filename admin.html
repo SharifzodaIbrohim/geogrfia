@@ -1,1 +1,228 @@
-SEE_FILE
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Панели админ — География</title>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <div id="loginView" class="auth-shell">
+    <form id="adminLoginForm" class="auth-card">
+      <h1>Панели админ</h1>
+      <p class="muted">Танҳо барои администраторон</p>
+      <label>Логин</label>
+      <input id="adminLogin" type="text" autocomplete="username" required />
+      <label>Парол</label>
+      <input id="adminPassword" type="password" autocomplete="current-password" required />
+      <button type="submit" class="btn primary">Ворид шудан</button>
+      <p id="loginError" class="error hidden"></p>
+    </form>
+  </div>
+  <div id="appView" class="hidden">
+    <header class="topbar">
+      <div>
+        <strong>Панели админ</strong>
+        <span id="adminName" class="muted"></span>
+        <span id="adminRoleBadge" class="badge" style="margin-left:0.5rem"></span>
+      </div>
+      <div class="topbar-actions">
+        <a href="/" class="btn ghost">Сайт</a>
+        <button id="logoutBtn" type="button" class="btn">Баромадан</button>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button type="button" class="tab active" data-tab="monitor">Dashboard</button>
+      <button type="button" class="tab" data-tab="students">Хонандагон</button>
+      <button type="button" class="tab" data-tab="olympiads">Олимпиада / Викторина</button>
+      <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
+      <button type="button" class="tab" data-tab="schools">Мактабҳо</button>
+      <button type="button" class="tab" data-tab="admins">Админҳо</button>
+    </nav>
+    <main class="panel">
+      <section id="tab-monitor" class="tab-panel">
+        <h2>Dashboard / Мониторинг</h2>
+        <div class="stats" id="statsGrid"></div>
+        <h3>Натиҷаҳои охирин</h3>
+        <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Мактаб / Синф</th><th>Олимпиада</th><th>Бал</th><th>Ҳолат</th><th>Вақт</th></tr></thead><tbody id="recentResultsBody"></tbody></table></div>
+      </section>
+      <section id="tab-students" class="tab-panel hidden">
+        <div class="row-between"><h2>Хонандагон</h2><button type="button" id="exportStudentsBtn" class="btn primary">⬇ Excel (CSV)</button></div>
+        <form id="studentForm" class="card form-grid">
+          <h3>Сабти хонандаи нав + ID</h3>
+          <label>Ному насаб</label><input id="fullName" required />
+          <label>Синф</label><input id="className" required />
+          <label>Мактаб</label><input id="school" required />
+          <button type="submit" class="btn primary">Сохтани ID</button>
+          <p id="studentFormMsg" class="msg hidden"></p>
+        </form>
+        <div id="newIdBox" class="card highlight hidden">
+          <h3>ID-и нав</h3>
+          <p><strong>Ном:</strong> <span id="newIdName"></span></p>
+          <p><strong>ID:</strong> <code id="newIdValue"></code> <button type="button" id="copyIdBtn" class="btn small">Нусха</button></p>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th><th></th></tr></thead><tbody id="studentsBody"></tbody></table></div>
+      </section>
+      <section id="tab-olympiads" class="tab-panel hidden">
+        <h2>Олимпиада / Викторина</h2>
+        <form id="olympiadForm" class="card form-grid">
+          <h3>Сохтани нав</h3>
+          <label>Унвон</label><input id="olyTitle" required />
+          <label>Навъ</label><select id="olyType"><option value="olympiad">Олимпиада</option><option value="quiz">Викторина</option></select>
+          <label>Ҳадди гузаштан (%)</label><input id="olyPass" type="number" min="0" max="100" value="70" />
+          <label>Оғоз</label><input id="olyStart" type="datetime-local" />
+          <label>Анҷом</label><input id="olyEnd" type="datetime-local" />
+          <label><input id="olyActive" type="checkbox" /> Фавран фаъол</label>
+          <div class="questions-block"><div class="row-between"><h3>Саволҳо</h3><button type="button" id="addQuestionBtn" class="btn small">+ Савол</button></div><div id="questionsList"></div></div>
+          <button type="submit" class="btn primary">Сабт</button>
+          <p id="olyFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>Унвон</th><th>Навъ</th><th>Саволҳо</th><th>Ҳад</th><th>Вақт</th><th>Ҳолат</th><th></th></tr></thead><tbody id="olympiadsBody"></tbody></table></div>
+      </section>
+      <section id="tab-results" class="tab-panel hidden">
+        <h2>Натиҷаҳо</h2>
+        <label>Олимпиада</label><select id="resultOlympiadSelect"></select>
+        <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Дуруст</th><th>Ҳолат</th><th>Вақт</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+      </section>
+      <section id="tab-schools" class="tab-panel hidden">
+        <h2>Мактабҳо</h2>
+        <form id="schoolForm" class="card form-grid">
+          <h3>Мактаби нав</h3>
+          <label>Ном</label><input id="schoolName" required />
+          <label>Ҷойгиршавӣ</label><input id="schoolLocation" />
+          <button type="submit" class="btn primary">Илова</button>
+          <p id="schoolFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Ҷой</th><th>Хонандагон</th><th></th></tr></thead><tbody id="schoolsBody"></tbody></table></div>
+        <h3>Омор аз рӯи мактаб</h3>
+        <div class="table-wrap"><table><thead><tr><th>Мактаб</th><th>Хонанда</th><th>Натиҷа</th><th>Гузашт</th></tr></thead><tbody id="schoolStatsBody"></tbody></table></div>
+      </section>
+      <section id="tab-admins" class="tab-panel hidden">
+        <h2>Админҳо</h2>
+        <form id="adminForm" class="card form-grid">
+          <h3>Админи нав</h3>
+          <label>Ном</label><input id="newAdminName" required />
+          <label>Логин</label><input id="newAdminLogin" required autocomplete="off" />
+          <label>Парол</label><input id="newAdminPassword" type="password" required minlength="6" autocomplete="new-password" />
+          <label>Нақш (RBAC)</label>
+          <select id="newAdminRole">
+            <option value="olympiad_admin">olympiad_admin</option>
+            <option value="user_admin">user_admin</option>
+            <option value="quiz_admin">quiz_admin</option>
+            <option value="monitor">monitor</option>
+            <option value="content_admin">content_admin</option>
+            <option value="super_admin">super_admin</option>
+          </select>
+          <button type="submit" class="btn primary">Илова</button>
+          <p id="adminFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Логин</th><th>Нақш</th><th>Сохтааст</th><th>Сана</th><th></th></tr></thead><tbody id="adminsBody"></tbody></table></div>
+      </section>
+    </main>
+  </div>
+  <script src="js/admin.js"></script>
+  <script>
+  (function(){
+    function paintRole(){
+      try {
+        var admin = JSON.parse(localStorage.getItem('geo_admin_user') || 'null');
+        var badge = document.getElementById('adminRoleBadge');
+        if (badge && admin && admin.role) { badge.textContent = admin.role; badge.style.display = 'inline-block'; }
+      } catch(e){}
+    }
+    setInterval(paintRole, 1000); paintRole();
+    async function api(path, options){
+      options = options || {};
+      var token = localStorage.getItem('geo_admin_token') || '';
+      var headers = Object.assign({'Content-Type':'application/json'}, options.headers || {});
+      if (token) headers['X-Admin-Token'] = token;
+      var res = await fetch(path, Object.assign({}, options, {headers: headers}));
+      var data = await res.json().catch(function(){return {};});
+      if (!res.ok) throw new Error(data.error || 'Хато');
+      return data;
+    }
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
+    async function enhanceDashboard(){
+      try {
+        var data = await api('/api/admin/dashboard');
+        var s = data.stats || {};
+        var grid = document.getElementById('statsGrid');
+        if (!grid) return;
+        grid.innerHTML =
+          '<div class="stat"><b>'+(s.students||0)+'</b><span>Хонандагон</span></div>'+
+          '<div class="stat"><b>'+(s.schools||0)+'</b><span>Мактабҳо</span></div>'+
+          '<div class="stat"><b>'+(s.olympiads||0)+'</b><span>Олимпиадаҳо</span></div>'+
+          '<div class="stat"><b>'+(s.activeOlympiads||0)+'</b><span>Кушода ҳоло</span></div>'+
+          '<div class="stat"><b>'+(s.results||0)+'</b><span>Натиҷаҳо</span></div>'+
+          '<div class="stat"><b>'+(s.passed||0)+'</b><span>Гузаштанд</span></div>'+
+          '<div class="stat"><b>'+(s.failed||0)+'</b><span>Нагузаштанд</span></div>'+
+          '<div class="stat"><b>'+(s.avgScore||0)+'%</b><span>Миёнаи бал</span></div>';
+      } catch(e){}
+    }
+    async function loadSchools(){
+      var body = document.getElementById('schoolsBody');
+      if (!body) return;
+      try {
+        var data = await api('/api/admin/schools');
+        var rows = data.schools || [];
+        body.innerHTML = rows.length ? rows.map(function(s){
+          return '<tr><td>'+esc(s.name)+'</td><td>'+esc(s.location||'—')+'</td><td>'+(s.studentCount||0)+'</td><td><button type="button" class="btn small danger" data-del-school="'+esc(s.id)+'">Нест</button></td></tr>';
+        }).join('') : '<tr><td colspan="4">Мактаб нест</td></tr>';
+        body.querySelectorAll('[data-del-school]').forEach(function(btn){
+          btn.addEventListener('click', async function(){
+            if (!confirm('Нест кунем?')) return;
+            try { await api('/api/admin/schools/'+btn.getAttribute('data-del-school'), {method:'DELETE'}); loadSchools(); } catch(err){ alert(err.message); }
+          });
+        });
+      } catch(e){ body.innerHTML = '<tr><td colspan="4">'+esc(e.message)+'</td></tr>'; }
+    }
+    async function loadSchoolStats(){
+      var body = document.getElementById('schoolStatsBody');
+      if (!body) return;
+      try {
+        var data = await api('/api/admin/dashboard');
+        var rows = data.bySchool || [];
+        body.innerHTML = rows.length ? rows.map(function(r){
+          return '<tr><td>'+esc(r.school)+'</td><td>'+(r.students||0)+'</td><td>'+(r.results||0)+'</td><td>'+(r.passed||0)+'</td></tr>';
+        }).join('') : '<tr><td colspan="4">—</td></tr>';
+      } catch(e){}
+    }
+    document.querySelectorAll('.tab').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (btn.dataset.tab === 'schools') { loadSchools(); loadSchoolStats(); }
+        if (btn.dataset.tab === 'monitor') enhanceDashboard();
+      });
+    });
+    var schoolForm = document.getElementById('schoolForm');
+    if (schoolForm) {
+      schoolForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        var msg = document.getElementById('schoolFormMsg');
+        try {
+          await api('/api/admin/schools', { method:'POST', body: JSON.stringify({ name: document.getElementById('schoolName').value.trim(), location: document.getElementById('schoolLocation').value.trim() }) });
+          schoolForm.reset();
+          if (msg){ msg.textContent='Сабт шуд'; msg.classList.remove('hidden'); }
+          loadSchools();
+        } catch(err){ if (msg){ msg.textContent=err.message; msg.classList.remove('hidden'); } }
+      });
+    }
+    var adminForm = document.getElementById('adminForm');
+    if (adminForm) {
+      adminForm.addEventListener('submit', function(){
+        var roleEl = document.getElementById('newAdminRole');
+        if (!roleEl) return;
+        var _fetch = window.fetch;
+        window.fetch = function(url, opts){
+          if (typeof url === 'string' && url.indexOf('/api/admin/admins') >= 0 && opts && opts.method === 'POST' && opts.body){
+            try { var body = JSON.parse(opts.body); body.role = roleEl.value; opts = Object.assign({}, opts, {body: JSON.stringify(body)}); } catch(err){}
+          }
+          return _fetch.call(this, url, opts);
+        };
+        setTimeout(function(){ window.fetch = _fetch; }, 3000);
+      }, true);
+    }
+    if (localStorage.getItem('geo_admin_token')) setTimeout(enhanceDashboard, 1200);
+  })();
+  </script>
+</body>
+</html>

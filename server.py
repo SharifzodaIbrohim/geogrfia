@@ -37,6 +37,7 @@ try:
         "quiz.html",
         "css/quiz.css",
         "js/quiz-platform.js",
+        "js/admin-audit.js",
     })
 except Exception:
     pass
@@ -121,7 +122,6 @@ def _audit_admin_mutations(response):
             return response
         if response.status_code >= 400:
             return response
-        # skip noisy/read-like
         if request.path.endswith("/notifications/test"):
             return response
         admin = require_admin()
@@ -136,7 +136,6 @@ def _audit_admin_mutations(response):
             meta={"status": response.status_code},
             ip=request.headers.get("X-Forwarded-For", request.remote_addr),
         )
-        # domain notifications for key creates
         if request.method == "POST" and "/olympiads" in request.path and "leaderboard" not in request.path:
             try:
                 data = response.get_json(silent=True) or {}

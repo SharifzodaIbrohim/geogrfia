@@ -1,4 +1,4 @@
-"""Geografia server — dual-mode core + Phase 2–16 hooks."""
+"""Geografia server — dual-mode core + Phase 2–18 hooks."""
 from __future__ import annotations
 
 import urllib.request
@@ -26,6 +26,9 @@ from db import schools_api  # noqa: E402
 from db.quiz_routes import register_quiz_routes  # noqa: E402
 from db.olympiad_routes import register_olympiad_engine_routes  # noqa: E402
 from db.reports_routes import register_reports_routes  # noqa: E402
+from db.audit_routes import register_audit_routes  # noqa: E402
+from db import audit  # noqa: E402
+from db import notifications  # noqa: E402
 import hashlib  # noqa: E402
 import secrets  # noqa: E402
 
@@ -87,7 +90,16 @@ def submit_olympiad(olympiad_id: str):
                 else "Дастрасӣ рад шуд."
             )
             return jsonify({"error": msg, "reason": reason}), 403
-    return _orig_submit(olympiad_id)
+    resp = _orig_submit(olympiad_id)
+    try:
+        if getattr(resp, "status_code", 500) < 400:
+            data = resp.get_json() or {}
+            result = data.get("result") or data
+            if result.get("score") is not None:
+                notifications.notify_result(result)
+    except Exception:
+        pass
+    return resp
 
 
 globals()["submit_olympiad"] = submit_olympiad
@@ -97,6 +109,58 @@ register_routes(app, public_student, public_user, olympiad_window_status)
 register_quiz_routes(app, _jwt_require_user, require_perm)
 register_olympiad_engine_routes(app, _jwt_require_user, olympiad_window_status)
 register_reports_routes(app, require_perm, require_admin)
+register_audit_routes(app, require_perm, require_admin)
+
+
+@app.after_request
+def _audit_admin_mutations(response):
+    try:
+        if not request.path.startswith("/api/admin/"):
+            return response
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return response
+        if response.status_code >= 400:
+            return response
+        # skip noisy/read-like
+        if request.path.endswith("/notifications/test"):
+            return response
+        admin = require_admin()
+        if not admin:
+            return response
+        action = f"{request.method} {request.path}"
+        audit.log_action(
+            action=action,
+            admin=admin,
+            target_type="api",
+            target_id=request.path,
+            meta={"status": response.status_code},
+            ip=request.headers.get("X-Forwarded-For", request.remote_addr),
+        )
+        # domain notifications for key creates
+        if request.method == "POST" and "/olympiads" in request.path and "leaderboard" not in request.path:
+            try:
+                data = response.get_json(silent=True) or {}
+                oly = data.get("olympiad") or data
+                if oly.get("title") or oly.get("id"):
+                    notifications.notify_olympiad_event("created", oly)
+            except Exception:
+                pass
+        if request.method == "POST" and "/quizzes" in request.path:
+            try:
+                data = response.get_json(silent=True) or {}
+                q = data.get("quiz") or {}
+                if q.get("title"):
+                    notifications.create_notification(
+                        title="Викторинаи нав",
+                        body=q.get("title"),
+                        link="/quiz",
+                        audience="admin",
+                    )
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return response
 
 
 @app.route("/quiz")
@@ -150,6 +214,16 @@ def admin_login():
                     "createdBy": full.get("createdBy"),
                 }
                 data["permissions"] = sorted(role_permissions(full.get("role")))
+                try:
+                    audit.log_action(
+                        action="admin.login",
+                        admin=full,
+                        target_type="admin",
+                        target_id=full.get("id"),
+                        ip=request.headers.get("X-Forwarded-For", request.remote_addr),
+                    )
+                except Exception:
+                    pass
                 return jsonify(data)
     except Exception:
         pass

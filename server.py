@@ -1,4 +1,4 @@
-"""Geografia server — dual-mode core + Phase 2–12 hooks."""
+"""Geografia server — dual-mode core + Phase 2–16 hooks."""
 from __future__ import annotations
 
 import urllib.request
@@ -25,6 +25,7 @@ from db.auth_tokens import issue_admin_token  # noqa: E402
 from db import schools_api  # noqa: E402
 from db.quiz_routes import register_quiz_routes  # noqa: E402
 from db.olympiad_routes import register_olympiad_engine_routes  # noqa: E402
+from db.reports_routes import register_reports_routes  # noqa: E402
 import hashlib  # noqa: E402
 import secrets  # noqa: E402
 
@@ -95,6 +96,7 @@ app.view_functions["submit_olympiad"] = submit_olympiad
 register_routes(app, public_student, public_user, olympiad_window_status)
 register_quiz_routes(app, _jwt_require_user, require_perm)
 register_olympiad_engine_routes(app, _jwt_require_user, olympiad_window_status)
+register_reports_routes(app, require_perm, require_admin)
 
 
 @app.route("/quiz")

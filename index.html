@@ -15,98 +15,51 @@
       <a href="/countries">Countries</a>
       <a href="/quiz">Quizzes</a>
       <a href="/student">Olympiads</a>
-      <a href="/countries#resources">Resources</a>
       <a href="/#leaderboard">Leaderboard</a>
-      <a href="/#profile">Profile</a>
+      <a href="/profile">Profile</a>
     </nav>
     <div class="pf-actions">
       <button type="button" class="pf-icon-btn" id="pfNotif" title="Огоҳӣ">🔔</button>
       <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
-      <a class="pf-avatar" id="pfAvatar" href="/countries" title="Профил">G</a>
+      <a class="pf-avatar" id="pfAvatar" href="/profile" title="Профил">G</a>
     </div>
   </header>
   <div id="pfNotifDrawer" class="pf-drawer hidden">
     <h3>Огоҳиҳо</h3>
     <div class="pf-drawer-item">Хуш омадед ба платформаи Geografia</div>
   </div>
-
-  <!-- Home = Live Dashboard only -->
   <main id="pfHome" class="pf-dash">
     <p class="pf-kicker">Platform activity</p>
     <h1 class="pf-dash-title">Live Dashboard</h1>
-
     <div class="pf-metrics">
-      <div>
-        <span class="pf-metric-label">Кишварҳо</span>
-        <span class="pf-metric-value" id="pfMCountries">195+</span>
-      </div>
-      <div>
-        <span class="pf-metric-label">Викторинаҳо</span>
-        <span class="pf-metric-value" id="pfMQuizzes">—</span>
-      </div>
-      <div>
-        <span class="pf-metric-label">Хонандагон</span>
-        <span class="pf-metric-value" id="pfMStudents">—</span>
-      </div>
-      <div>
-        <span class="pf-metric-label">Олимпиадаҳо</span>
-        <span class="pf-metric-value" id="pfMOlympiads">—</span>
-      </div>
+      <div><span class="pf-metric-label">Кишварҳо</span><span class="pf-metric-value" id="pfMCountries">195+</span></div>
+      <div><span class="pf-metric-label">Викторинаҳо</span><span class="pf-metric-value" id="pfMQuizzes">—</span></div>
+      <div><span class="pf-metric-label">Хонандагон</span><span class="pf-metric-value" id="pfMStudents">—</span></div>
+      <div><span class="pf-metric-label">Олимпиадаҳо</span><span class="pf-metric-value" id="pfMOlympiads">—</span></div>
     </div>
-
     <div class="pf-workspace">
       <div class="pf-panel">
         <div class="pf-panel-head">
-          <div class="pf-panel-title">
-            <span class="pf-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            results.log
-            <span class="pf-live-badge">live</span>
-          </div>
-          <span style="color:var(--pf-faint);font-size:0.75rem">навсозӣ</span>
+          <div class="pf-panel-title"><span class="pf-dots" aria-hidden="true"><i></i><i></i><i></i></span> results.log <span class="pf-live-badge">live</span></div>
         </div>
-        <div class="pf-panel-body" id="pfActivityFeed">
-          <div class="pf-empty"><div class="ico">📡</div>Фаъолият ҳоло нест</div>
-        </div>
+        <div class="pf-panel-body" id="pfActivityFeed"><div class="pf-empty"><div class="ico">📡</div>Фаъолият ҳоло нест</div></div>
       </div>
-
       <div class="pf-side">
         <div class="pf-panel">
-          <div class="pf-panel-head">
-            <h2>🏅 Олимпиадаҳо</h2>
-            <a href="/student">Ҳама →</a>
-          </div>
-          <div class="pf-panel-body" id="pfUpcomingBox">
-            <div class="pf-empty"><div class="ico">🏆</div>Фаъол нест<br /><a href="/student">Воридшавии хонанда</a></div>
-          </div>
+          <div class="pf-panel-head"><h2>🏅 Олимпиадаҳо</h2><a href="/student">Ҳама →</a></div>
+          <div class="pf-panel-body" id="pfUpcomingBox"><div class="pf-empty"><div class="ico">🏆</div>Фаъол нест</div></div>
         </div>
         <div class="pf-panel" id="leaderboard">
-          <div class="pf-panel-head">
-            <h2>Leaderboard · Top Rated</h2>
-            <a href="/quiz">View</a>
-          </div>
-          <div class="pf-panel-body" id="pfLeaderPreview">
-            <div class="pf-empty"><div class="ico">⭐</div>Натиҷаҳо баъд аз супориш</div>
-          </div>
+          <div class="pf-panel-head"><h2>Leaderboard · Top Rated</h2><a href="/quiz">View</a></div>
+          <div class="pf-panel-body" id="pfLeaderPreview"><div class="pf-empty"><div class="ico">⭐</div>Натиҷаҳо баъд аз супориш</div></div>
         </div>
       </div>
     </div>
-
     <div class="pf-feat-wrap">
-      <div class="pf-section-head">
-        <h2>Викторинаҳои пешниҳодшуда</h2>
-        <a class="more" href="/quiz">Ҳама →</a>
-      </div>
+      <div class="pf-section-head"><h2>Викторинаҳои пешниҳодшуда</h2><a class="more" href="/quiz">Ҳама →</a></div>
       <div class="pf-feat-grid" id="pfFeaturedQuizzes"></div>
     </div>
-
-    <div id="profile" class="pf-feat-wrap" style="margin-top:1.25rem">
-      <div class="pf-card">
-        <h3>Profile</h3>
-        <p>Хонанда: <a href="/student" style="color:var(--pf-accent)">/student</a> · Админ: <a href="/admin" style="color:var(--pf-muted)">/admin</a> · Кишварҳо: <a href="/countries" style="color:var(--pf-accent)">/countries</a></p>
-      </div>
-    </div>
   </main>
-
   <script src="js/platform.js"></script>
   <script src="js/platform-home.js"></script>
 </body>

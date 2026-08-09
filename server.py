@@ -1,4 +1,4 @@
-"""Geografia server — dual-mode core + Phase 2/3/4-5/6-7 hooks."""
+"""Geografia server — dual-mode core + Phase 2–8 hooks."""
 from __future__ import annotations
 
 import urllib.request
@@ -23,6 +23,7 @@ from db.admin_role import enrich_admin, create_admin_with_role, update_admin_rol
 from db.rbac import admin_can, deny_message, role_permissions, normalize_role, VALID_ROLES  # noqa: E402
 from db.auth_tokens import issue_admin_token  # noqa: E402
 from db import schools_api  # noqa: E402
+from db.quiz_routes import register_quiz_routes  # noqa: E402
 import hashlib  # noqa: E402
 import secrets  # noqa: E402
 
@@ -82,6 +83,7 @@ globals()["submit_olympiad"] = submit_olympiad
 app.view_functions["submit_olympiad"] = submit_olympiad
 
 register_routes(app, public_student, public_user, olympiad_window_status)
+register_quiz_routes(app, _jwt_require_user, require_perm)
 
 
 def admin_me():
@@ -231,8 +233,6 @@ def admin_list_roles():
         ]
     })
 
-
-# ---------- Phase 6–7: Schools + Dashboard ----------
 
 @app.get("/api/admin/dashboard")
 def admin_dashboard():

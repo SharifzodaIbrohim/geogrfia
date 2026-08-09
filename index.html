@@ -10,48 +10,33 @@
 </head>
 <body>
 <header class="pf-topbar">
-<a class="pf-brand" href="/" data-pf="home"><span class="pf-brand-mark">Г</span> Geografia</a>
+<a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
 <nav class="pf-nav">
-<a href="#" data-pf="home" class="active">Home</a>
-<a href="#" data-pf="courses">Courses</a>
-<a href="#" data-pf="countries">Countries</a>
-<a href="#" data-pf="resources">Resources</a>
-<a href="/quiz" data-pf="quizzes">Quizzes</a>
+<a href="/" class="active">Home</a>
+<a href="#courses">Courses</a>
+<a href="#countries">Countries</a>
+<a href="#resources">Resources</a>
+<a href="/quiz">Quizzes</a>
 <a href="/student">Olympiads</a>
-<a href="#" data-pf="leaderboard">Leaderboard</a>
-<a href="#" data-pf="profile">Profile</a>
+<a href="#leaderboard">Leaderboard</a>
+<a href="#profile">Profile</a>
 </nav>
 <div class="pf-actions">
 <button type="button" class="pf-icon-btn" id="pfNotif" title="Огоҳӣ">🔔</button>
 <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
-<a href="#" class="pf-avatar" id="pfAvatar" data-pf="profile">G</a>
+<a href="#" class="pf-avatar" id="pfAvatar" title="Профил">G</a>
 </div>
 </header>
 <div id="pfNotifDrawer" class="pf-drawer hidden"><h3>Огоҳиҳо</h3><div class="pf-drawer-item">Хуш омадед ба платформа</div></div>
-<section class="pf-view active" data-view="home" id="pfHome">
-<div class="pf-hero"><h1>Ҷуғрофияи ҷаҳон</h1>
-<p>Кишварҳо · Викторинаҳо · Олимпиадаҳо — бренди сабзи Geografia</p>
-<div class="pf-hero-actions">
-<a class="pf-btn pf-btn-primary" href="/quiz">Викторинаҳо</a>
-<a class="pf-btn pf-btn-ghost" href="/student">Олимпиада</a>
-<a class="pf-btn pf-btn-ghost" href="#" data-pf="countries">Кишварҳо</a>
-</div></div>
-<div class="pf-stats">
-<div class="pf-stat"><b>195+</b><span>Кишварҳо</span></div>
-<div class="pf-stat"><b id="pfStatQuizzes">—</b><span>Викторинаҳо</span></div>
-<div class="pf-stat"><b id="pfStatOlympiads">—</b><span>Олимпиада</span></div>
-<div class="pf-stat"><b>3</b><span>Забон</span></div>
-</div>
-<div class="pf-section"><div class="pf-section-head"><h2>Викторинаҳо</h2><a href="/quiz">Ҳама →</a></div>
-<div class="pf-grid cols-3" id="pfFeaturedQuizzes"></div></div>
-<div class="pf-section"><div class="pf-section-head"><h2>Олимпиадаҳо</h2><a href="/student">Кушодан →</a></div>
-<div class="pf-grid cols-3" id="pfUpcomingOly"></div></div>
-</section>
-<section class="pf-view" data-view="courses"><div class="pf-section"><div class="pf-card"><h3>Courses</h3><p>Ба зудӣ.</p></div></div></section>
-<section class="pf-view" data-view="resources"><div class="pf-section"><div class="pf-card"><h3>Resources</h3><p>Китобҳо аз 📚</p></div></div></section>
-<section class="pf-view" data-view="leaderboard"><div class="pf-section"><div class="pf-card"><h3>Leaderboard</h3><p>API leaderboard — public/private аз админ.</p></div></div></section>
-<section class="pf-view" data-view="profile"><div class="pf-section"><div class="pf-card"><h3>Profile</h3><p><a href="/student" style="color:var(--accent)">Хонанда</a> · <a href="/admin" style="color:var(--muted)">Админ</a></p></div></div></section>
-<section class="pf-view" data-view="countries">
+
+<section class="pf-view active" data-view="home" id="pfHome"></section>
+
+<section class="pf-view" data-view="courses" id="courses"><div class="pf-section" style="margin:1rem"><div class="pf-card"><h3>Courses</h3><p>Дарсҳо — қадами навбатии Phase 19–25.</p></div></div></section>
+<section class="pf-view" data-view="resources" id="resources"><div class="pf-section" style="margin:1rem"><div class="pf-card"><h3>Resources</h3><p>Китобҳо аз тугмаи 📚</p></div></div></section>
+<section class="pf-view" data-view="leaderboard" id="leaderboard"><div class="pf-section" style="margin:1rem"><div class="pf-card"><h3>Leaderboard</h3><p>Preview дар Home; пурра баъдтар.</p></div></div></section>
+<section class="pf-view" data-view="profile" id="profile"><div class="pf-section" style="margin:1rem"><div class="pf-card"><h3>Profile</h3><p><a href="/student" style="color:#70db97">Хонанда</a> · <a href="/admin" style="color:#8b968c">Админ</a></p></div></div></section>
+
+<section class="pf-view" data-view="countries" id="countries">
 <header class="app-header">
 <div class="app-header-text">
 <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
@@ -97,12 +82,14 @@
 <div id="alertBox" class="alert hidden"></div>
 <main><div id="results" class="results-grid"></div></main></div>
 </section>
+
 <nav class="bottom-nav">
 <button type="button" class="nav-item active" id="navCountries"><span class="nav-icon">🌐</span><span>Кишварҳо</span></button>
 <button type="button" class="nav-item" id="navBooks"><span class="nav-icon">📖</span><span>Китобҳо</span></button>
 <a href="/quiz" class="nav-item" id="navQuiz" style="text-decoration:none;color:inherit"><span class="nav-icon">?</span><span>Викторина</span></a>
 <button type="button" class="nav-item" id="navAuth"><span class="nav-icon">👤</span><span>Ҳисоб</span></button>
 </nav>
+
 <div id="detailModal" class="modal"><div class="modal-window">
 <button id="closeModal" class="close-button">×</button>
 <div class="modal-header"><div><h2 id="modalTitle"></h2><p id="modalSubtitle"></p></div>
@@ -115,7 +102,7 @@
 <div class="modal-body books-body"><div id="booksList" class="books-list"></div><div id="bookDetails" class="book-details"></div></div></div></div>
 <div id="quizModal" class="modal"><div class="modal-window quiz-window">
 <button id="closeQuizModal" class="close-button">×</button>
-<div class="modal-header"><div><h2 data-i18n="quizTitle">Викторина</h2><p id="quizSubtitle" data-i18n="quizSubtitle">Худсанҷӣ</p></div>
+<div class="modal-header"><div><h2 data-i18n="quizTitle">Викторина</h2><p data-i18n="quizSubtitle">Худсанҷӣ</p></div>
 <div class="modal-badge">Quiz</div></div>
 <div class="modal-body quiz-body">
 <div id="quizLocked" class="quiz-locked hidden"><h3>Аввал ворид шавед</h3>
@@ -165,17 +152,12 @@
 <h3 id="authUserName"></h3><p id="authUserEmail"></p>
 <p style="margin:0.75rem 0"><a href="/quiz" style="color:var(--accent);font-weight:600">Викторинаҳо ва таърих →</a></p>
 <button id="logoutBtn" class="button-secondary" type="button">Баромадан</button></div></div></div></div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>(function(){var o=window.fetch;window.fetch=function(i,n){if(typeof i==='string'&&i.indexOf('http://127.0.0.1:5000')===0)i=i.replace('http://127.0.0.1:5000','');return o.call(this,i,n);};})();</script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script defer src="js/app.js"></script>
 <script src="js/platform.js"></script>
-<nav class="pf-bottom">
-<a href="#" data-pf="home" class="active"><span>🏠</span>Home</a>
-<a href="#" data-pf="countries"><span>🌐</span>Countries</a>
-<a href="/quiz"><span>✓</span>Quizzes</a>
-<a href="/student"><span>🏅</span>Olympiad</a>
-<a href="#" data-pf="profile"><span>👤</span>Profile</a>
-</nav>
+<script src="js/platform-home.js"></script>
 </body>
 </html>

@@ -35,10 +35,12 @@ import secrets  # noqa: E402
 try:
     PUBLIC_PATHS.update({
         "quiz.html",
+        "countries.html",
         "css/quiz.css",
         "css/platform.css",
         "js/quiz-platform.js",
         "js/platform.js",
+        "js/platform-home.js",
         "js/admin-audit.js",
     })
 except Exception:
@@ -168,6 +170,12 @@ def _audit_admin_mutations(response):
 @app.route("/quiz.html")
 def quiz_page():
     return send_from_directory(BASE_DIR, "quiz.html")
+
+
+@app.route("/countries")
+@app.route("/countries.html")
+def countries_page():
+    return send_from_directory(BASE_DIR, "countries.html")
 
 
 def admin_me():

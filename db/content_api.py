@@ -1,11 +1,32 @@
-"""Courses / books / articles content store (JSON + optional PG later)."""
+"""Courses / books / articles content store — self-contained (no hard repo deps)."""
 from __future__ import annotations
 
+import json
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-from db.repo import DATA_DIR, _load_json, _save_json, _utc_now
 
+def _data_dir() -> Path:
+    candidates = [
+        Path(__file__).resolve().parent.parent / "data",
+        Path.cwd() / "data",
+        Path("/opt/render/project/src/data"),
+        Path("/app/data"),
+    ]
+    for p in candidates:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        except Exception:
+            continue
+    p = Path.cwd() / "data"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+DATA_DIR = _data_dir()
 CONTENT_FILE = DATA_DIR / "content_items.json"
 
 DEFAULT_BOOKS = [
@@ -15,6 +36,27 @@ DEFAULT_BOOKS = [
     {"title": "География 10", "url": "/books/kitobkhon-net-geografiya-10.pdf", "type": "book", "lang": "tg"},
     {"title": "География 11 (2015)", "url": "/books/kitobkhon-net-11.-geografiya-2015.pdf", "type": "book", "lang": "tg"},
 ]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _load_json(path: Path) -> Any:
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return []
+
+
+def _save_json(path: Path, data: Any) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def _items() -> list[dict]:

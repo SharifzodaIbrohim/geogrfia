@@ -12,59 +12,30 @@
   <header class="pf-topbar">
     <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
     <nav class="pf-nav">
-      <a href="/">Home</a>
-      <a href="/countries" class="active">Countries</a>
-      <a href="/quiz">Quizzes</a>
-      <a href="/student">Olympiads</a>
+      <a href="/" data-i18n="navHome">Home</a>
+      <a href="/countries" class="active" data-i18n="navCountries">Countries</a>
+      <a href="/courses" data-i18n="navCourses">Courses</a>
+      <a href="/quiz" data-i18n="navQuizzes">Quizzes</a>
+      <a href="/student" data-i18n="navOlympiads">Olympiads</a>
       <a href="/#leaderboard">Leaderboard</a>
-      <a href="/#profile">Profile</a>
+      <a href="/profile" data-i18n="navProfile">Profile</a>
     </nav>
     <div class="pf-actions">
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
       <button type="button" class="pf-icon-btn" id="pfNotif" title="Огоҳӣ">🔔</button>
       <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
       <button type="button" class="pf-avatar" id="pfAvatar" title="Профил">G</button>
     </div>
   </header>
 
-  <header class="app-header">
-    <div class="app-header-text">
-      <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
-      <p data-i18n="heroText">Сайти интерактивӣ бо ҳамаи кишварҳо, маълумоти муфассал ва харита.</p>
-    </div>
-    <div class="header-actions">
-      <a href="/student" class="header-icon-btn" title="Олимпиада" style="text-decoration:none"><span>🏅</span></a>
-      <button id="booksToggle" class="header-icon-btn" type="button" title="Китобҳо"><span>📚</span></button>
-      <a href="/quiz" class="header-icon-btn" title="Викторина" style="text-decoration:none"><span>?</span></a>
-      <button id="quizToggle" class="header-icon-btn" type="button" title="Викторина" style="display:none"><span>?</span></button>
-      <button id="authToggle" class="header-icon-btn" type="button" title="Ҳисоб"><span id="authToggleIcon">👤</span><span id="authToggleText" class="sr-only">Ҳисоб</span></button>
-      <aside class="settings-panel">
-        <button id="settingsToggle" class="header-icon-btn settings-toggle" type="button" title="Танзимот"><span>☰</span></button>
-        <div id="settingsDrawer" class="settings-drawer">
-          <h2 data-i18n="settingsTitle">Настройка</h2>
-          <div class="settings-group">
-            <span class="settings-label">Ранг</span>
-            <div class="segmented-control">
-              <button class="settings-option" type="button" data-theme-option="dark">Торик</button>
-              <button class="settings-option" type="button" data-theme-option="light">Равшан</button>
-            </div>
-          </div>
-          <div class="settings-group">
-            <label class="settings-label" for="languageSelect">Забон</label>
-            <select id="languageSelect">
-              <option value="tg">Тоҷикӣ</option>
-              <option value="ru">Русский</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div class="settings-group">
-            <a href="/quiz" style="color:var(--accent);font-weight:600">Викторинаҳо</a>
-            <a href="/student" style="color:var(--accent);font-weight:600">Олимпиада</a>
-            <a href="/admin" style="color:var(--muted);font-size:0.85rem">Админ</a>
-          </div>
-        </div>
-      </aside>
-    </div>
-  </header>
+  <div class="countries-hero">
+    <h1 data-i18n="heroTitle">Ҷуғрофияи Ҷаҳон</h1>
+    <p data-i18n="heroText">Сайти интерактивӣ бо ҳамаи кишварҳо, маълумоти муфассал ва харита.</p>
+  </div>
 
   <div class="app-content">
     <div class="search-wrap">
@@ -90,14 +61,6 @@
     <div id="alertBox" class="alert hidden"></div>
     <main><div id="results" class="results-grid"></div></main>
   </div>
-
-  <nav class="bottom-nav">
-    <a href="/" class="nav-item" style="text-decoration:none;color:inherit"><span class="nav-icon">🏠</span><span>Home</span></a>
-    <button type="button" class="nav-item active" id="navCountries"><span class="nav-icon">🌐</span><span>Кишварҳо</span></button>
-    <button type="button" class="nav-item" id="navBooks"><span class="nav-icon">📖</span><span>Китобҳо</span></button>
-    <a href="/quiz" class="nav-item" id="navQuiz" style="text-decoration:none;color:inherit"><span class="nav-icon">?</span><span>Викторина</span></a>
-    <button type="button" class="nav-item" id="navAuth"><span class="nav-icon">👤</span><span>Ҳисоб</span></button>
-  </nav>
 
   <div id="detailModal" class="modal"><div class="modal-window">
     <button id="closeModal" class="close-button">×</button>
@@ -183,6 +146,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script defer src="js/app.js"></script>
   <script src="js/platform.js"></script>
+  <script src="js/i18n.js"></script>
   <script>
   (function(){
     function showMsg(t,e){var el=document.getElementById('authMessage');if(!el)return;el.textContent=t;el.className='auth-message'+(e?' error':'');el.classList.remove('hidden');}
@@ -216,10 +180,8 @@
     }
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
     document.addEventListener('DOMContentLoaded',function(){
-      function bridge(navId,targetId){var nav=document.getElementById(navId);var target=document.getElementById(targetId);if(nav&&target)nav.addEventListener('click',function(){target.click();});}
-      bridge('navBooks','booksToggle');bridge('navAuth','authToggle');
       var av=document.getElementById('pfAvatar');
-      if(av)av.addEventListener('click',function(){document.getElementById('authToggle')&&document.getElementById('authToggle').click();});
+      if(av)av.addEventListener('click',function(){var a=document.getElementById('authToggle');if(a)a.click();else location.href='/profile';});
     });
   })();
   </script>

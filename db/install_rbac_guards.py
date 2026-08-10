@@ -1,66 +1,117 @@
 """
 P0.7 / P0.8 boot install:
-  - Patch repo role defaults (no super_admin invent)
-  - Override admin delete / role-change view functions with guarded versions
+  - Replace list/find admin so missing role ≠ super_admin
+  - Guarded admin delete + role change with audit
 """
 from __future__ import annotations
 
 import logging
 
 from flask import jsonify, request
+from sqlalchemy import text
 
 log = logging.getLogger("geografia.rbac_guards")
 
 
 def install(app) -> None:
-    _patch_repo_defaults()
+    _patch_repo_admin_lookups()
     _patch_admin_views(app)
     log.info("RBAC guards installed")
 
 
-def _patch_repo_defaults() -> None:
+def _patch_repo_admin_lookups() -> None:
+    """P0.7: never default missing role to super_admin."""
     try:
         from db import repo
-
-        _orig_list = repo.list_admins
-        _orig_find = repo.find_admin_by_login
+        from db.connection import get_session
+        from db.rbac import normalize_role
 
         def list_admins():
-            items = _orig_list()
-            for a in items:
-                # Do not invent privileges for missing role
-                if not a.get("role"):
-                    a["role"] = None
-            return items
+            if repo.use_pg():
+                with get_session() as s:
+                    rows = s.execute(text(
+                        "SELECT id::text, login, name, role::text, created_by, created_at "
+                        "FROM admins WHERE status = 'active' OR status IS NULL "
+                        "ORDER BY created_at"
+                    )).mappings().all()
+                    return [{
+                        "id": r["id"],
+                        "login": r["login"],
+                        "name": r["name"],
+                        "role": normalize_role(r.get("role")),  # None if invalid
+                        "createdBy": r.get("created_by"),
+                        "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
+                    } for r in rows]
+            out = []
+            for a in repo._load_json(repo.ADMINS_FILE):
+                out.append({
+                    "id": a.get("id"),
+                    "login": a.get("login"),
+                    "name": a.get("name"),
+                    "role": normalize_role(a.get("role")),
+                    "createdBy": a.get("createdBy"),
+                    "createdAt": a.get("createdAt"),
+                })
+            return out
 
         def find_admin_by_login(login: str):
-            a = _orig_find(login)
-            if a and not a.get("role"):
-                # leave empty → normalize_role → None → deny
-                a["role"] = a.get("role") or None
-            # Strip accidental string 'super_admin' only when it was our old default
-            # for missing DB value — if PG returned real role, keep it.
-            return a
+            login_l = (login or "").strip().lower()
+            if not login_l:
+                return None
+            if repo.use_pg():
+                try:
+                    with get_session() as s:
+                        r = s.execute(text(
+                            "SELECT id::text, login, name, role::text, salt, password_hash, "
+                            "created_by, created_at, status::text "
+                            "FROM admins WHERE lower(login) = :login LIMIT 1"
+                        ), {"login": login_l}).mappings().first()
+                        if not r:
+                            return None
+                        if r.get("status") and str(r["status"]) not in ("active", "Active"):
+                            return None
+                        return {
+                            "id": r["id"],
+                            "login": r["login"],
+                            "name": r["name"],
+                            "role": normalize_role(r.get("role")),
+                            "salt": r.get("salt") or "",
+                            "passwordHash": r.get("password_hash") or "",
+                            "createdBy": r.get("created_by"),
+                            "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                except Exception as e:
+                    log.error("find_admin_by_login: %s", e)
+                    return None
+            for a in repo._load_json(repo.ADMINS_FILE):
+                if (a.get("login") or "").lower() == login_l:
+                    return {
+                        "id": a.get("id"),
+                        "login": a.get("login"),
+                        "name": a.get("name"),
+                        "role": normalize_role(a.get("role")),
+                        "salt": a.get("salt") or "",
+                        "passwordHash": a.get("passwordHash") or a.get("password_hash") or "",
+                        "createdBy": a.get("createdBy"),
+                        "createdAt": a.get("createdAt"),
+                    }
+            return None
 
         repo.list_admins = list_admins
         repo.find_admin_by_login = find_admin_by_login
     except Exception as e:
-        log.warning("repo patch: %s", e)
+        log.warning("repo admin lookup patch: %s", e)
 
 
 def _patch_admin_views(app) -> None:
-    from db.rbac import normalize_role, is_super_admin, deny_message
+    from db.rbac import normalize_role
     from db.admin_role import (
         enrich_admin,
         update_admin_role,
         delete_admin_safe,
-        disable_admin_safe,
-        create_admin_with_role,
     )
-    from db import admin_guards
 
     def _actor():
-        # Prefer JWT/enriched path used by app
         try:
             from db.auth_tokens import admin_from_token
             token = request.headers.get("X-Admin-Token") or ""
@@ -69,21 +120,20 @@ def _patch_admin_views(app) -> None:
                 return admin
         except Exception:
             pass
-        # Fallback in-memory tokens from core
         try:
-            token = request.headers.get("X-Admin-Token") or ""
-            raw = app.view_functions  # noqa: keep reference
-            # ADMIN_TOKENS may live in globals of server core
             import sys
-            mod = sys.modules.get("server_12d7430") or sys.modules.get("__main__")
-            tokens = getattr(mod, "ADMIN_TOKENS", None) if mod else None
-            if tokens and token in tokens:
-                return enrich_admin(dict(tokens[token]))
+            token = request.headers.get("X-Admin-Token") or ""
+            for modname in ("server_12d7430", "server_core_remote", "__main__"):
+                mod = sys.modules.get(modname)
+                if not mod:
+                    continue
+                tokens = getattr(mod, "ADMIN_TOKENS", None)
+                if tokens and token in tokens:
+                    return enrich_admin(dict(tokens[token]))
         except Exception:
             pass
         return None
 
-    # --- DELETE admin ---
     def admin_delete_admin(admin_id: str):
         actor = _actor()
         if not actor:
@@ -110,7 +160,6 @@ def _patch_admin_views(app) -> None:
                 return jsonify({"error": "Ёфт нашуд."}), 404
             return jsonify({"error": str(e)}), 400
 
-    # --- PATCH role ---
     def admin_patch_role(admin_id: str):
         actor = _actor()
         if not actor:
@@ -143,29 +192,14 @@ def _patch_admin_views(app) -> None:
             status = 404 if code == "not_found" else 400
             return jsonify({"error": msgs.get(code, code), "reason": code}), status
 
-    # Bind over existing endpoints if present
-    for name, fn in [
-        ("admin_delete_admin", admin_delete_admin),
-        ("admin_patch_role", admin_patch_role),
+    for name, fn, rule, methods in [
+        ("admin_delete_admin", admin_delete_admin, "/api/admin/admins/<admin_id>", ["DELETE"]),
+        ("admin_patch_role", admin_patch_role, "/api/admin/admins/<admin_id>/role", ["PATCH"]),
     ]:
         if name in app.view_functions:
             app.view_functions[name] = fn
         else:
-            # ensure routes exist
             try:
-                if name == "admin_delete_admin":
-                    app.add_url_rule(
-                        "/api/admin/admins/<admin_id>",
-                        name,
-                        fn,
-                        methods=["DELETE"],
-                    )
-                elif name == "admin_patch_role":
-                    app.add_url_rule(
-                        "/api/admin/admins/<admin_id>/role",
-                        name,
-                        fn,
-                        methods=["PATCH"],
-                    )
+                app.add_url_rule(rule, name, fn, methods=methods)
             except AssertionError:
                 app.view_functions[name] = fn

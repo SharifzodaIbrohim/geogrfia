@@ -39,11 +39,12 @@ def olympiad_as_quiz(o: dict) -> dict:
 def list_bridged_quizzes(include_inactive: bool = False) -> list[dict]:
     out = []
     for o in list_olympiads():
-        if (o.get("type") or "olympiad") != "quiz":
-            continue
+        # Bridge quiz AND olympiad so Gmail users see them on /quiz
         if not include_inactive and not o.get("isActive"):
             continue
-        out.append(olympiad_as_quiz(o))
+        item = olympiad_as_quiz(o)
+        item["accessMode"] = "google"
+        out.append(item)
     return out
 
 
@@ -51,9 +52,8 @@ def get_bridged_quiz(quiz_id: str, include_answers: bool = False) -> dict | None
     o = find_olympiad(quiz_id)
     if not o:
         return None
-    if (o.get("type") or "olympiad") != "quiz":
-        return None
     item = olympiad_as_quiz(o)
+    item["accessMode"] = "google"
     if include_answers:
         qs = o.get("questions") or []
         item["questions"] = [

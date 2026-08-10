@@ -37,12 +37,13 @@
   };
 
   function show(name) {
-    Object.values(views).forEach((v) => v.classList.add('hidden'));
-    views[name].classList.remove('hidden');
+    Object.values(views).forEach((v) => v && v.classList.add('hidden'));
+    if (views[name]) views[name].classList.remove('hidden');
   }
 
   function paintAuthBtn() {
     const btn = $('btnAuth');
+    if (!btn) return;
     if (user) btn.textContent = user.name ? user.name.split(' ')[0] : 'Профил';
     else if (studentId) btn.textContent = 'ID ✓';
     else btn.textContent = 'Ворид';
@@ -50,7 +51,10 @@
 
   async function api(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    if (token) headers['X-User-Token'] = token;
+    if (token) {
+      headers['X-User-Token'] = token;
+      headers['Authorization'] = 'Bearer ' + token;
+    }
     if (studentId) headers['X-Student-Id'] = studentId;
     headers['X-Client-Fingerprint'] = FP;
     const res = await fetch(API + path, { ...options, headers });
@@ -62,17 +66,18 @@
   async function loadList() {
     const err = $('listError');
     const empty = $('listEmpty');
-    err.classList.add('hidden');
+    if (err) err.classList.add('hidden');
     try {
       const data = await api('/api/quizzes');
       quizzes = data.quizzes || [];
       const box = $('quizList');
+      if (!box) return;
       if (!quizzes.length) {
         box.innerHTML = '';
-        empty.classList.remove('hidden');
+        if (empty) empty.classList.remove('hidden');
         return;
       }
-      empty.classList.add('hidden');
+      if (empty) empty.classList.add('hidden');
       box.innerHTML = quizzes.map((q) => `
         <article class="q-quiz-item">
           <h3>${esc(q.title)}</h3>
@@ -93,8 +98,10 @@
         btn.addEventListener('click', () => startQuiz(btn.dataset.start));
       });
     } catch (e) {
-      err.textContent = e.message;
-      err.classList.remove('hidden');
+      if (err) {
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      }
     }
   }
 
@@ -116,14 +123,14 @@
       answers = {};
       qIndex = 0;
       endsAt = data.endsAt ? new Date(data.endsAt) : null;
-      $('takeTitle').textContent = data.title || 'Викторина';
-      $('takeMeta').textContent = `${currentQuiz.questions.length} савол · ҳад ${data.passScore}%`;
+      if ($('takeTitle')) $('takeTitle').textContent = data.title || 'Викторина';
+      if ($('takeMeta')) $('takeMeta').textContent = `${currentQuiz.questions.length} савол · ҳад ${data.passScore}%`;
       renderQuestion();
       startTimer();
       show('take');
     } catch (e) {
       const msg = String(e.message || '');
-      if (/Google|google|рад|Student|ID|хонанда/i.test(msg)) openAuth(msg);
+      if (/Google|google|рад|Student|ID|хонанда|ворид/i.test(msg)) openAuth(msg);
       else alert(msg);
     }
   }
@@ -134,17 +141,19 @@
     if (!q) return;
     const qid = String(q.id || qIndex + 1);
     const selected = answers[qid];
-    $('qProgress').textContent = `${qIndex + 1} / ${qs.length}`;
-    $('btnPrev').disabled = qIndex === 0;
-    $('btnNext').disabled = qIndex >= qs.length - 1;
-    $('questionBox').innerHTML = `
+    if ($('qProgress')) $('qProgress').textContent = `${qIndex + 1} / ${qs.length}`;
+    if ($('btnPrev')) $('btnPrev').disabled = qIndex === 0;
+    if ($('btnNext')) $('btnNext').disabled = qIndex >= qs.length - 1;
+    const box = $('questionBox');
+    if (!box) return;
+    box.innerHTML = `
       <p><strong>Савол ${qIndex + 1}</strong></p>
       <p>${esc(q.text)}</p>
       ${(q.options || []).map((opt, i) => `
         <button type="button" class="q-option ${selected === i ? 'selected' : ''}" data-opt="${i}">${esc(opt)}</button>
       `).join('')}
     `;
-    $('questionBox').querySelectorAll('[data-opt]').forEach((btn) => {
+    box.querySelectorAll('[data-opt]').forEach((btn) => {
       btn.addEventListener('click', () => {
         answers[qid] = Number(btn.dataset.opt);
         renderQuestion();
@@ -155,6 +164,7 @@
   function startTimer() {
     stopTimer();
     const box = $('timerBox');
+    if (!box) return;
     if (!endsAt) {
       box.textContent = 'бе маҳдудият';
       box.className = 'q-timer';
@@ -213,11 +223,14 @@
         }),
       });
       const r = data.result || {};
-      $('resultScore').textContent = (r.score ?? '—') + '%';
+      if ($('resultScore')) $('resultScore').textContent = (r.score ?? '—') + '%';
       const st = $('resultStatus');
-      st.textContent = r.status === 'passed' ? 'Гузашт' : 'Нагузашт';
-      st.className = 'q-badge ' + (r.status === 'passed' ? 'ok' : 'fail');
-      $('resultDetail').textContent =
+      if (st) {
+        st.textContent = r.status === 'passed' ? 'Гузашт' : 'Нагузашт';
+        st.className = 'q-badge ' + (r.status === 'passed' ? 'ok' : 'fail');
+      }
+      const rd = $('resultDetail');
+      if (rd) rd.textContent =
         `${r.correct}/${r.total} дуруст · ҳад ${r.passScore}%` +
         (r.timedOut ? ' · вақт тамом' : '') +
         (auto ? ' · худкор' : '');
@@ -231,15 +244,15 @@
     const list = $('historyList');
     const hint = $('historyHint');
     if (!token) {
-      hint.textContent = 'Барои таърих бо Google ворид шавед.';
-      list.innerHTML = '';
+      if (hint) hint.textContent = 'Барои таърих бо Google ворид шавед.';
+      if (list) list.innerHTML = '';
       return;
     }
     try {
       const data = await api('/api/me/quiz-history');
       const rows = data.history || [];
-      hint.textContent = rows.length ? 'Натиҷаҳои охирин:' : 'Ҳанӯз натиҷа нест.';
-      list.innerHTML = rows.map((h) => `
+      if (hint) hint.textContent = rows.length ? 'Натиҷаҳои охирин:' : 'Ҳанӯз натиҷа нест.';
+      if (list) list.innerHTML = rows.map((h) => `
         <div class="q-hist">
           <div>
             <strong>${esc(h.title || h.quizId)}</strong>
@@ -249,30 +262,37 @@
         </div>
       `).join('');
     } catch (e) {
-      hint.textContent = e.message;
-      list.innerHTML = '';
+      if (hint) hint.textContent = e.message;
+      if (list) list.innerHTML = '';
     }
   }
 
   function openAuth(msg) {
-    $('authOverlay').classList.remove('hidden');
+    const ov = $('authOverlay');
+    if (!ov) return;
+    ov.classList.remove('hidden');
     const am = $('authMsg');
-    if (msg) { am.textContent = msg; am.classList.remove('hidden'); }
-    else am.classList.add('hidden');
+    if (am) {
+      if (msg) { am.textContent = msg; am.classList.remove('hidden'); }
+      else am.classList.add('hidden');
+    }
     if (user) {
-      $('authProfile').classList.remove('hidden');
-      $('googleBtnWrap').classList.add('hidden');
-      $('authName').textContent = user.name || '';
-      $('authEmail').textContent = user.email || '';
+      if ($('authProfile')) $('authProfile').classList.remove('hidden');
+      if ($('googleBtnWrap')) $('googleBtnWrap').classList.add('hidden');
+      if ($('authName')) $('authName').textContent = user.name || '';
+      if ($('authEmail')) $('authEmail').textContent = user.email || '';
     } else {
-      $('authProfile').classList.add('hidden');
-      $('googleBtnWrap').classList.remove('hidden');
+      if ($('authProfile')) $('authProfile').classList.add('hidden');
+      if ($('googleBtnWrap')) $('googleBtnWrap').classList.remove('hidden');
       initGoogle();
     }
-    $('studentIdInput').value = studentId;
+    if ($('studentIdInput')) $('studentIdInput').value = studentId;
   }
 
-  function closeAuth() { $('authOverlay').classList.add('hidden'); }
+  function closeAuth() {
+    const ov = $('authOverlay');
+    if (ov) ov.classList.add('hidden');
+  }
 
   async function initGoogle() {
     try {
@@ -296,12 +316,15 @@
             paintAuthBtn();
             closeAuth();
           } catch (e) {
-            $('authMsg').textContent = e.message;
-            $('authMsg').classList.remove('hidden');
+            if ($('authMsg')) {
+              $('authMsg').textContent = e.message;
+              $('authMsg').classList.remove('hidden');
+            }
           }
         },
       });
       const el = $('googleSignInBtn');
+      if (!el) return;
       el.innerHTML = '';
       window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 280 });
     } catch (e) { console.warn(e); }
@@ -312,22 +335,28 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  $('btnBackList').addEventListener('click', () => { stopTimer(); show('list'); });
-  $('btnPrev').addEventListener('click', () => { if (qIndex > 0) { qIndex--; renderQuestion(); } });
-  $('btnNext').addEventListener('click', () => {
-    if (qIndex < currentQuiz.questions.length - 1) { qIndex++; renderQuestion(); }
+  function on(id, evt, fn) {
+    const el = $(id);
+    if (el) el.addEventListener(evt, fn);
+  }
+
+  on('btnBackList', 'click', () => { stopTimer(); show('list'); });
+  on('btnPrev', 'click', () => { if (qIndex > 0) { qIndex--; renderQuestion(); } });
+  on('btnNext', 'click', () => {
+    if (currentQuiz && qIndex < currentQuiz.questions.length - 1) { qIndex++; renderQuestion(); }
   });
-  $('btnSubmit').addEventListener('click', () => {
+  on('btnSubmit', 'click', () => {
     if (!confirm('Супоред?')) return;
     submitQuiz(false);
   });
-  $('btnAgain').addEventListener('click', () => { show('list'); loadList(); });
-  $('btnToHistory').addEventListener('click', () => { show('history'); loadHistory(); });
-  $('btnHistory').addEventListener('click', () => { show('history'); loadHistory(); });
-  $('btnBackFromHistory').addEventListener('click', () => show('list'));
-  $('btnAuth').addEventListener('click', () => openAuth());
-  $('authClose').addEventListener('click', closeAuth);
-  $('btnLogout').addEventListener('click', () => {
+  on('btnAgain', 'click', () => { show('list'); loadList(); });
+  on('btnBackFromResult', 'click', () => { show('list'); loadList(); });
+  on('btnToHistory', 'click', () => { show('history'); loadHistory(); });
+  on('btnHistory', 'click', () => { show('history'); loadHistory(); });
+  on('btnBackFromHistory', 'click', () => show('list'));
+  on('btnAuth', 'click', () => openAuth());
+  on('authClose', 'click', closeAuth);
+  on('btnLogout', 'click', () => {
     token = ''; user = null;
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(USER_OBJ);
@@ -335,12 +364,16 @@
     localStorage.removeItem('currentUser');
     paintAuthBtn(); closeAuth();
   });
-  $('btnSaveStudent').addEventListener('click', () => {
-    studentId = $('studentIdInput').value.trim();
+  function saveStudentId() {
+    const input = $('studentIdInput');
+    if (!input) return;
+    studentId = input.value.trim();
     if (studentId) localStorage.setItem(STUDENT_KEY, studentId);
     else localStorage.removeItem(STUDENT_KEY);
     paintAuthBtn(); closeAuth();
-  });
+  }
+  on('btnSaveStudent', 'click', saveStudentId);
+  on('btnSaveStudentId', 'click', saveStudentId);
 
   paintAuthBtn();
   loadList();

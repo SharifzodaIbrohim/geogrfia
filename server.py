@@ -11,6 +11,16 @@ _url = (
 _src = urllib.request.urlopen(_url, timeout=90).read()
 exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
+# P0.6: apply pending SQL migrations (idempotent; no-op if already applied)
+try:
+    import os as _os
+    if _os.environ.get("DATABASE_URL"):
+        from db.migrate import run_migrations as _run_migrations
+        _mig = _run_migrations()
+        print("[boot] migrations:", _mig)
+except Exception as _e:
+    print("[boot] migrations failed:", _e)
+
 try:
     PUBLIC_PATHS.update({
         "profile.html", "courses.html", "leaderboard.html",

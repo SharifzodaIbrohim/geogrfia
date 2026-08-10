@@ -1,9 +1,8 @@
 """Map olympiad events into Phase 8 quiz list/API shape.
 
-Public /quiz rules (P0.3 fix):
-  - type=olympiad  → NEVER listed on public /api/quizzes (Student portal / assigned only)
-  - type=quiz      → may appear on /quiz, but start requires Student ID (no Gmail open)
-  - Admin list can still see all via list_bridged_quizzes(include_inactive=True, for_admin=True)
+Public /api/quizzes must NEVER list olympiad-sourced events.
+Student portal uses /api/olympiads/active for olympiads.
+Admin can still see bridges via list_bridged_quizzes(include_inactive=True).
 """
 from __future__ import annotations
 
@@ -15,16 +14,12 @@ def _event_type(o: dict) -> str:
 
 
 def olympiad_as_quiz(o: dict) -> dict:
-    """Public shape — never include answer keys."""
     qs = o.get("questions") or []
     duration = o.get("durationSec") or o.get("duration_sec")
     if not duration and o.get("startTime") and o.get("endTime"):
         duration = None
     oly_type = _event_type(o)
-    if oly_type == "olympiad":
-        access_mode = "olympiad"
-    else:
-        access_mode = "school"  # Student ID; not google
+    access_mode = "olympiad" if oly_type == "olympiad" else "school"
     return {
         "id": o["id"],
         "title": o.get("title"),
@@ -59,11 +54,14 @@ def list_bridged_quizzes(
     public_only: bool = True,
 ) -> list[dict]:
     """
-    Public /quiz never lists any olympiad-sourced events (hard empty list).
-    Admin: for_admin=True, public_only=False → full list.
+    Public (include_inactive=False, for_admin=False): always [].
+    Admin (include_inactive=True or for_admin=True): full list.
     """
-    if public_only and not for_admin:
+    # Public /api/quizzes calls list_bridged_quizzes(include_inactive=False)
+    # → never expose olympiads to ordinary users on /quiz
+    if not for_admin and not include_inactive:
         return []
+
     out = []
     for o in list_olympiads():
         if not include_inactive and not o.get("isActive"):

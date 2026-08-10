@@ -15,7 +15,7 @@ def olympiad_as_quiz(o: dict) -> dict:
         "description": o.get("description") or "",
         "passScore": o.get("passScore") or 70,
         "timeLimitSec": duration,
-        "accessMode": "school",  # student ID path
+        "accessMode": "google",  # Gmail or Student ID
         "schoolName": None,
         "status": "published" if o.get("isActive") else "draft",
         "questionCount": o.get("questionCount") or len(qs),

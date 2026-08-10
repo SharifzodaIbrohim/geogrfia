@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Courses — Geografia</title>
+  <link rel="stylesheet" href="css/platform.css" />
+  <link rel="stylesheet" href="css/profile.css" />
+  <style>
+    .cs-wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    .cs-hero h1 { margin: 0 0 0.35rem; font-size: 1.6rem; }
+    .cs-hero p { color: var(--pf-muted, #8b968c); margin: 0 0 1.25rem; }
+    .cs-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .cs-tab {
+      background: var(--pf-panel, #1a211d); border: 1px solid var(--pf-line, rgba(255,255,255,.08));
+      color: var(--pf-text, #eef3ef); padding: 0.55rem 0.95rem; border-radius: 999px;
+      cursor: pointer; font-weight: 600; font-size: 0.9rem;
+    }
+    .cs-tab.active { background: #70db97; color: #0a120e; border-color: transparent; }
+    .cs-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.9rem;
+    }
+    .cs-card {
+      background: var(--pf-panel, #1a211d); border: 1px solid var(--pf-line, rgba(255,255,255,.06));
+      border-radius: 14px; padding: 1rem; display: flex; flex-direction: column; gap: 0.45rem;
+    }
+    .cs-card .kind {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: #70db97; font-weight: 700;
+    }
+    .cs-card h3 { margin: 0; font-size: 1rem; }
+    .cs-card p { margin: 0; color: var(--pf-muted, #8b968c); font-size: 0.85rem; flex: 1; }
+    .cs-card a {
+      display: inline-block; margin-top: 0.4rem; color: #0a120e; background: #70db97;
+      text-decoration: none; font-weight: 700; font-size: 0.85rem;
+      padding: 0.45rem 0.75rem; border-radius: 8px; width: fit-content;
+    }
+    .cs-empty { color: var(--pf-muted, #8b968c); padding: 2rem 0; text-align: center; }
+  </style>
+</head>
+<body class="pf-page-courses">
+  <header class="pf-topbar">
+    <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
+    <nav class="pf-nav">
+      <a href="/" data-i18n="navHome">Home</a>
+      <a href="/countries" data-i18n="navCountries">Countries</a>
+      <a href="/courses" class="active" data-i18n="navCourses">Courses</a>
+      <a href="/quiz" data-i18n="navQuizzes">Quizzes</a>
+      <a href="/student" data-i18n="navOlympiads">Olympiads</a>
+      <a href="/profile" data-i18n="navProfile">Profile</a>
+    </nav>
+    <div class="pf-actions">
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+      <button type="button" class="pf-icon-btn" id="pfNotif" title="Огоҳӣ">🔔</button>
+      <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
+      <a class="pf-avatar" id="pfAvatar" href="/profile">G</a>
+    </div>
+  </header>
+
+  <main class="cs-wrap">
+    <div class="cs-hero">
+      <h1 data-i18n="coursesTitle">Courses · Китобҳо ва маводҳо</h1>
+      <p data-i18n="coursesSub">Китобҳои ҷуғрофия, мақолаҳо ва маҷаллаҳо барои омӯзиш.</p>
+    </div>
+    <div class="cs-tabs">
+      <button type="button" class="cs-tab active" data-kind="all" data-i18n="all">Ҳама</button>
+      <button type="button" class="cs-tab" data-kind="book" data-i18n="books">Китобҳо</button>
+      <button type="button" class="cs-tab" data-kind="article" data-i18n="articles">Мақолаҳо</button>
+      <button type="button" class="cs-tab" data-kind="magazine" data-i18n="magazines">Маҷаллаҳо</button>
+      <button type="button" class="cs-tab" data-kind="link" data-i18n="links">Пайвандҳо</button>
+    </div>
+    <div id="csGrid" class="cs-grid"></div>
+    <p id="csEmpty" class="cs-empty hidden" data-i18n="emptyContent">Ҳоло мавод нест.</p>
+  </main>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/platform.js"></script>
+  <script>
+  (() => {
+    const kindLabel = { book: 'Китоб', article: 'Мақола', magazine: 'Маҷалла', link: 'Пайванд' };
+    let items = [];
+    let kind = 'all';
+    const grid = document.getElementById('csGrid');
+    const empty = document.getElementById('csEmpty');
+
+    function paint() {
+      const rows = kind === 'all' ? items : items.filter(i => i.type === kind);
+      if (!rows.length) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      grid.innerHTML = rows.map(i => {
+        const url = i.url || '#';
+        const open = url && url !== '#' ? `<a href="${url}" target="_blank" rel="noopener">Кушодан →</a>` : '';
+        return `<article class="cs-card">
+          <span class="kind">${kindLabel[i.type] || i.type}</span>
+          <h3>${esc(i.title)}</h3>
+          <p>${esc(i.description || '')}</p>
+          ${open}
+        </article>`;
+      }).join('');
+    }
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    document.querySelectorAll('.cs-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cs-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        kind = btn.dataset.kind;
+        paint();
+      });
+    });
+    fetch('/api/content').then(r => r.json()).then(d => {
+      items = d.items || [];
+      paint();
+    }).catch(() => { empty.classList.remove('hidden'); });
+  })();
+  </script>
+</body>
+</html>

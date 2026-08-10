@@ -50,7 +50,7 @@ def register_quiz_routes(app, require_user, require_perm):
                 "description": q.get("description"),
                 "passScore": q.get("passScore"),
                 "timeLimitSec": q.get("timeLimitSec"),
-                "accessMode": "school",
+                "accessMode": q.get("accessMode") or "google",
                 "schoolName": q.get("schoolName"),
                 "questionCount": q.get("questionCount") or 0,
                 "source": "olympiad",
@@ -71,12 +71,15 @@ def register_quiz_routes(app, require_user, require_perm):
         if user and not student:
             student = student_access.find_student_by_user_id(user["id"])
         if quiz.get("source") == "olympiad":
-            if not student:
+            code = (student or {}).get("id") if student else None
+            if not code and user:
+                code = "g:" + str(user["id"])[:40]
+            if not code:
                 return jsonify({
-                    "error": "Барои ин викторина Student ID лозим аст.",
-                    "reason": "student_required",
+                    "error": "Аввал бо Google ворид шавед ё Student ID ворид кунед.",
+                    "reason": "google_or_student_required",
                 }), 403
-            access = student_access.student_has_olympiad_access(quiz_id, student["id"])
+            access = student_access.student_has_olympiad_access(quiz_id, code)
             if not access.get("allowed"):
                 return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
         else:
@@ -115,13 +118,15 @@ def register_quiz_routes(app, require_user, require_perm):
 
         fp = request.headers.get("X-Client-Fingerprint", "")[:64]
 
-        # Bridged olympiad → olympiad engine
         if quiz.get("source") == "olympiad":
             if not student_code:
-                return jsonify({
-                    "error": "Student ID лозим аст (дар Ворид → ID-и хонанда).",
-                    "reason": "student_required",
-                }), 403
+                if user and user.get("id"):
+                    student_code = "g:" + str(user["id"])[:40]
+                else:
+                    return jsonify({
+                        "error": "Аввал бо Google ворид шавед ё Student ID ворид кунед.",
+                        "reason": "google_or_student_required",
+                    }), 403
             try:
                 session = olympiad_engine.start_exam(
                     quiz_id,
@@ -139,7 +144,6 @@ def register_quiz_routes(app, require_user, require_perm):
                     "not_found": "Ёфт нашуд.",
                 }
                 return jsonify({"error": msgs.get(code, code), "reason": code}), 403
-            # Adapt shape for quiz-platform.js
             return jsonify({
                 "attemptId": session["sessionId"],
                 "sessionId": session["sessionId"],
@@ -184,7 +188,6 @@ def register_quiz_routes(app, require_user, require_perm):
         if quiz and quiz.get("source") == "olympiad":
             if not session_token:
                 return jsonify({"error": "sessionToken лозим аст."}), 400
-            # convert list answers to dict by originalIndex if present
             ans_map = {}
             if isinstance(answers, dict):
                 ans_map = answers

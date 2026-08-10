@@ -1,11 +1,19 @@
-"""Phase 2–3 auth hooks: admin/user tokens, student link, olympiad access."""
+"""Phase 2 JWT + Phase 3 student link/access — applied onto Flask app."""
 from __future__ import annotations
 
 from flask import jsonify, request
 
-from db.auth_tokens import admin_from_token, user_from_token, create_user_token
 from db import student_access
+from db.auth_tokens import issue_user_token, issue_admin_token, user_from_token, admin_from_token
 from db import repo
+
+
+def create_admin_token(admin: dict) -> str:
+    return issue_admin_token(admin)
+
+
+def create_user_token(user: dict) -> str:
+    return issue_user_token(user)
 
 
 def require_admin():

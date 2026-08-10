@@ -156,3 +156,9 @@ try:
     _install_one_attempt()
 except Exception:
     pass
+
+try:
+    from db.install_rbac_guards import install as _install_rbac
+    _install_rbac(app)
+except Exception as _e:
+    print("[boot] rbac guards:", _e)

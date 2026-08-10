@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Хонанда — Олимпиада</title>
+  <title>Хонанда — Олимпиада ва викторина</title>
   <link rel="stylesheet" href="css/admin.css" />
 </head>
 <body>
@@ -18,7 +18,6 @@
       <p class="muted center"><a href="/">Бозгашт ба сайт</a></p>
     </form>
   </div>
-
   <div id="appView" class="hidden">
     <header class="topbar">
       <div>
@@ -30,14 +29,15 @@
         <button id="logoutBtn" type="button" class="btn">Баромадан</button>
       </div>
     </header>
-
     <main class="panel">
       <section id="listView">
         <h2>Олимпиадаҳои фаъол</h2>
         <div id="olympiadList" class="cards"></div>
         <p id="emptyOly" class="muted hidden">Ҳоло олимпиадаи фаъол нест.</p>
+        <h2 style="margin-top:1.5rem">Викторинаҳо</h2>
+        <div id="quizList" class="cards"></div>
+        <p id="emptyQuiz" class="muted hidden">Ҳоло викторина нест.</p>
       </section>
-
       <section id="examView" class="hidden">
         <div class="row-between">
           <h2 id="examTitle">—</h2>
@@ -50,7 +50,6 @@
         <button id="submitExamBtn" type="button" class="btn primary">Супоридан</button>
         <p id="examMsg" class="msg hidden"></p>
       </section>
-
       <section id="resultView" class="hidden">
         <div class="card highlight center">
           <h2>Натиҷа</h2>
@@ -62,7 +61,6 @@
       </section>
     </main>
   </div>
-
   <script src="js/student.js"></script>
 </body>
 </html>

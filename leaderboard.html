@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leaderboard — Geografia</title>
+  <link rel="stylesheet" href="css/platform.css" />
+  <style>
+    .lb-wrap { max-width: 920px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    .lb-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .lb-head h1 { margin: 0; font-size: 1.55rem; }
+    .lb-head p { margin: 0.25rem 0 0; color: var(--pf-muted, #8b968c); }
+    .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem; align-items: end; }
+    .pod { background: var(--pf-panel, #1a211d); border: 1px solid var(--pf-line, rgba(255,255,255,.08)); border-radius: 16px; padding: 1rem 0.75rem; text-align: center; position: relative; }
+    .pod.p1 { order: 2; transform: translateY(-10px); border-color: rgba(112,219,151,.45); box-shadow: 0 8px 28px rgba(112,219,151,.12); }
+    .pod.p2 { order: 1; }
+    .pod.p3 { order: 3; }
+    .pod .medal { font-size: 1.6rem; margin-bottom: 0.35rem; }
+    .pod .name { font-weight: 700; font-size: 0.98rem; margin: 0.2rem 0; }
+    .pod .meta { color: var(--pf-muted, #8b968c); font-size: 0.8rem; }
+    .pod .score { margin-top: 0.45rem; font-weight: 800; color: #70db97; font-size: 1.15rem; }
+    .pod .place { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #70db97; color: #0a120e; font-weight: 800; font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 999px; }
+    .lb-table { width: 100%; border-collapse: collapse; }
+    .lb-table th, .lb-table td { text-align: left; padding: 0.7rem 0.55rem; border-bottom: 1px solid var(--pf-line, rgba(255,255,255,.06)); }
+    .lb-table th { color: var(--pf-muted, #8b968c); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+    .lb-rank { font-weight: 800; color: #70db97; width: 3rem; }
+    .lb-empty { text-align: center; color: var(--pf-muted, #8b968c); padding: 2.5rem 1rem; }
+    @media (max-width: 640px) { .podium { grid-template-columns: 1fr; } .pod.p1, .pod.p2, .pod.p3 { order: 0; transform: none; } }
+  </style>
+</head>
+<body class="pf-page-leaderboard">
+  <header class="pf-topbar">
+    <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
+    <nav class="pf-nav">
+      <a href="/">Home</a>
+      <a href="/countries">Countries</a>
+      <a href="/courses">Courses</a>
+      <a href="/quiz">Quizzes</a>
+      <a href="/student">Olympiads</a>
+      <a href="/leaderboard" class="active">Leaderboard</a>
+      <a href="/profile">Profile</a>
+    </nav>
+    <div class="pf-actions">
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+      <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
+      <a class="pf-avatar" id="pfAvatar" href="/profile">G</a>
+    </div>
+  </header>
+  <div class="lb-wrap">
+    <div class="lb-head">
+      <div>
+        <h1 id="lbTitle">Leaderboard · Top Rated</h1>
+        <p id="lbSub">Рейтинги ҳамаи иштирокчиён</p>
+      </div>
+      <a href="/" style="color:#70db97;font-weight:600;text-decoration:none">← Home</a>
+    </div>
+    <div id="podium" class="podium"></div>
+    <div id="lbBody"></div>
+  </div>
+  <script src="js/i18n.js"></script>
+  <script src="js/platform.js"></script>
+  <script>
+  (() => {
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+    }
+    function medal(rank) {
+      if (rank === 1) return '🥇';
+      if (rank === 2) return '🥈';
+      if (rank === 3) return '🥉';
+      return '#' + rank;
+    }
+    async function load() {
+      const podium = document.getElementById('podium');
+      const body = document.getElementById('lbBody');
+      try {
+        const res = await fetch('/api/leaderboard?limit=100');
+        const data = await res.json();
+        if (data.title) document.getElementById('lbTitle').textContent = data.title;
+        if (data.public === false) {
+          podium.innerHTML = '';
+          body.innerHTML = '<div class="lb-empty">' + esc(data.message || 'Leaderboard пӯшида аст.') + '</div>';
+          return;
+        }
+        const entries = data.entries || [];
+        document.getElementById('lbSub').textContent =
+          (data.total || entries.length) + ' иштирокчӣ · навсозӣ автоматӣ';
+        const top = entries.slice(0, 3);
+        let pods = '';
+        [2, 1, 3].forEach((place) => {
+          const e = top.find((x) => x.rank === place) || top[place - 1];
+          if (!e) {
+            pods += '<div class="pod p' + place + '"><div class="place">' + place + '</div><div class="medal">' + medal(place) + '</div><div class="name">—</div><div class="meta">—</div><div class="score">—</div></div>';
+            return;
+          }
+          const meta = [e.school, e.className].filter(Boolean).join(' · ') || '—';
+          pods += '<div class="pod p' + place + '">' +
+            '<div class="place">' + place + '</div>' +
+            '<div class="medal">' + medal(place) + '</div>' +
+            '<div class="name">' + esc(e.name) + '</div>' +
+            '<div class="meta">' + esc(meta) + '</div>' +
+            '<div class="score">' + esc(e.rating) + '</div></div>';
+        });
+        podium.innerHTML = pods;
+        if (!entries.length) {
+          body.innerHTML = '<div class="lb-empty">Ҳоло натиҷа нест. Викторина супоред!</div>';
+          return;
+        }
+        let rows = entries.map((e) => {
+          const meta = [e.school, e.className].filter(Boolean).join(' · ');
+          return '<tr>' +
+            '<td class="lb-rank">' + (e.rank <= 3 ? medal(e.rank) : '#' + e.rank) + '</td>' +
+            '<td><strong>' + esc(e.name) + '</strong>' +
+            (meta ? '<div style="color:var(--pf-muted);font-size:.82rem;margin-top:.15rem">' + esc(meta) + '</div>' : '') +
+            '</td>' +
+            '<td style="font-weight:700">' + esc(e.rating) + '</td>' +
+            '<td>' + esc(e.solved || 0) + '</td>' +
+            '<td>' + esc(e.contests || 0) + '</td>' +
+            '</tr>';
+        }).join('');
+        body.innerHTML =
+          '<table class="lb-table"><thead><tr>' +
+          '<th>Ҷой</th><th>Иштирокчӣ</th><th>Рейтинг</th><th>Ҳал</th><th>Мусобиқа</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>';
+      } catch (e) {
+        body.innerHTML = '<div class="lb-empty">Хато: ' + esc(e.message) + '</div>';
+      }
+    }
+    load();
+  })();
+  </script>
+</body>
+</html>

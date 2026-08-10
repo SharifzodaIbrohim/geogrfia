@@ -1,12 +1,12 @@
 """
 Phase 4–5 — Super Admin + RBAC
 Roles match schema admin_role enum.
+Unknown role = zero privileges (never escalate to super_admin).
 """
 from __future__ import annotations
 
 from typing import Iterable
 
-# permission keys used by API gates
 PERMISSIONS = {
     "admins.read",
     "admins.write",
@@ -62,13 +62,18 @@ ROLE_PERMISSIONS: dict[str, set[str] | str] = {
 VALID_ROLES = tuple(ROLE_PERMISSIONS.keys())
 
 
-def normalize_role(role: str | None) -> str:
-    r = (role or "super_admin").strip().lower()
-    return r if r in ROLE_PERMISSIONS else "super_admin"
+def normalize_role(role: str | None) -> str | None:
+    """Unknown role = None (zero privileges). Never escalate to super_admin."""
+    if not role:
+        return None
+    r = str(role).strip().lower()
+    return r if r in ROLE_PERMISSIONS else None
 
 
 def role_permissions(role: str | None) -> set[str]:
     r = normalize_role(role)
+    if not r:
+        return set()
     perms = ROLE_PERMISSIONS[r]
     if perms == "*":
         return set(PERMISSIONS)
@@ -79,6 +84,8 @@ def admin_can(admin: dict | None, permission: str) -> bool:
     if not admin:
         return False
     role = normalize_role(admin.get("role"))
+    if not role:
+        return False
     if ROLE_PERMISSIONS.get(role) == "*":
         return True
     return permission in role_permissions(role)

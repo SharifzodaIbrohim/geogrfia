@@ -1,0 +1,2 @@
+-- 001_initial: applied from db/schema.sql baseline
+-- Tracked in schema_migrations table

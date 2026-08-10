@@ -10,12 +10,10 @@ from db.repo import find_student_by_code
 
 
 def _resolve_quiz(quiz_id: str, include_answers: bool = False):
-    """Standalone quiz first; bridged olympiad only if explicitly requested by id."""
     quiz = quiz_api.get_quiz(quiz_id, include_answers=include_answers)
     if quiz and (not quiz.get("status") or quiz.get("status") == "published"):
         quiz["source"] = quiz.get("source") or "quiz"
         return quiz
-    # Bridged for direct ID access (student portal / known links) — not for public list
     try:
         bridged = quiz_bridge.get_bridged_quiz(quiz_id, include_answers=include_answers)
         if bridged and (bridged.get("status") == "published" or bridged.get("isActive")):
@@ -25,55 +23,24 @@ def _resolve_quiz(quiz_id: str, include_answers: bool = False):
     return None
 
 
-def _safe_get(app, rule: str, endpoint: str, view_func, **options):
-    """Register GET or override existing endpoint without AssertionError."""
-    if endpoint in app.view_functions:
-        app.view_functions[endpoint] = view_func
-        return
-    # Check if rule already mapped under another endpoint name
-    for r in app.url_map.iter_rules():
-        if r.rule == rule and "GET" in (r.methods or set()):
+def _ensure_rule(app, rule: str, endpoint: str, view_func, methods):
+    """Add URL rule or rebind existing rule — never leave orphan view_functions."""
+    app.view_functions[endpoint] = view_func
+    found = False
+    for r in list(app.url_map.iter_rules()):
+        if r.rule == rule and set(methods) & (r.methods or set()):
             app.view_functions[r.endpoint] = view_func
-            return
-    app.add_url_rule(rule, endpoint, view_func, methods=["GET"], **options)
-
-
-def _safe_post(app, rule: str, endpoint: str, view_func, **options):
-    if endpoint in app.view_functions:
-        app.view_functions[endpoint] = view_func
-        return
-    for r in app.url_map.iter_rules():
-        if r.rule == rule and "POST" in (r.methods or set()):
-            app.view_functions[r.endpoint] = view_func
-            return
-    app.add_url_rule(rule, endpoint, view_func, methods=["POST"], **options)
-
-
-def _safe_delete(app, rule: str, endpoint: str, view_func, **options):
-    if endpoint in app.view_functions:
-        app.view_functions[endpoint] = view_func
-        return
-    for r in app.url_map.iter_rules():
-        if r.rule == rule and "DELETE" in (r.methods or set()):
-            app.view_functions[r.endpoint] = view_func
-            return
-    app.add_url_rule(rule, endpoint, view_func, methods=["DELETE"], **options)
-
-
-def _safe_patch(app, rule: str, endpoint: str, view_func, **options):
-    if endpoint in app.view_functions:
-        app.view_functions[endpoint] = view_func
-        return
-    for r in app.url_map.iter_rules():
-        if r.rule == rule and "PATCH" in (r.methods or set()):
-            app.view_functions[r.endpoint] = view_func
-            return
-    app.add_url_rule(rule, endpoint, view_func, methods=["PATCH"], **options)
+            found = True
+    if not found:
+        try:
+            app.add_url_rule(rule, endpoint, view_func, methods=methods)
+        except AssertionError:
+            # Endpoint already registered under this name with a different rule
+            app.view_functions[endpoint] = view_func
 
 
 def register_quiz_routes(app, require_user, require_perm):
     def public_list_quizzes():
-        # STRICT: public /quiz and /api/quizzes = standalone quizzes only
         items = quiz_api.list_quizzes(include_draft=False)
         safe = []
         for q in items:
@@ -96,7 +63,6 @@ def register_quiz_routes(app, require_user, require_perm):
         quiz = _resolve_quiz(quiz_id, include_answers=False)
         if not quiz:
             return jsonify({"error": "Викторина ёфт нашуд."}), 404
-        # Strip answers if any leaked
         qs = []
         for item in (quiz.get("questions") or []):
             qs.append({
@@ -122,7 +88,6 @@ def register_quiz_routes(app, require_user, require_perm):
         quiz = _resolve_quiz(quiz_id, include_answers=False)
         if not quiz:
             return jsonify({"error": "Викторина ёфт нашуд."}), 404
-        # Block olympiad source on public quiz start — use /student
         if quiz.get("source") == "olympiad" or quiz.get("type") == "olympiad":
             return jsonify({
                 "error": "Ин олимпиада аст. Ба /student бо Student ID ворид шавед.",
@@ -142,9 +107,7 @@ def register_quiz_routes(app, require_user, require_perm):
         try:
             uid = (user or {}).get("id") if isinstance(user, dict) else None
             session = quiz_api.start_attempt(
-                quiz_id,
-                user_id=uid,
-                student_id=student_code or None,
+                quiz_id, user_id=uid, student_id=student_code or None,
             )
             return jsonify({"session": session})
         except ValueError as e:
@@ -164,9 +127,7 @@ def register_quiz_routes(app, require_user, require_perm):
             user = None
         uid = (user or {}).get("id") if isinstance(user, dict) else None
         try:
-            result = quiz_api.submit_attempt(
-                quiz_id, attempt_id, answers, user_id=uid
-            )
+            result = quiz_api.submit_attempt(quiz_id, attempt_id, answers, user_id=uid)
             return jsonify({"result": result})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -254,12 +215,12 @@ def register_quiz_routes(app, require_user, require_perm):
             return jsonify({"quiz": quiz})
         return jsonify({"error": "Ҳеҷ тағйир нест."}), 400
 
-    _safe_get(app, "/api/quizzes", "public_list_quizzes", public_list_quizzes)
-    _safe_get(app, "/api/quizzes/<quiz_id>", "public_get_quiz", public_get_quiz)
-    _safe_post(app, "/api/quizzes/<quiz_id>/start", "public_start_quiz", public_start_quiz)
-    _safe_post(app, "/api/quizzes/<quiz_id>/submit", "public_submit_quiz", public_submit_quiz)
-    _safe_get(app, "/api/me/quiz-history", "me_quiz_history", me_quiz_history)
-    _safe_get(app, "/api/admin/quizzes", "admin_list_quizzes", admin_list_quizzes)
-    _safe_post(app, "/api/admin/quizzes", "admin_create_quiz", admin_create_quiz)
-    _safe_delete(app, "/api/admin/quizzes/<quiz_id>", "admin_delete_quiz", admin_delete_quiz)
-    _safe_patch(app, "/api/admin/quizzes/<quiz_id>", "admin_patch_quiz", admin_patch_quiz)
+    _ensure_rule(app, "/api/quizzes", "public_list_quizzes", public_list_quizzes, ["GET"])
+    _ensure_rule(app, "/api/quizzes/<quiz_id>", "public_get_quiz", public_get_quiz, ["GET"])
+    _ensure_rule(app, "/api/quizzes/<quiz_id>/start", "public_start_quiz", public_start_quiz, ["POST"])
+    _ensure_rule(app, "/api/quizzes/<quiz_id>/submit", "public_submit_quiz", public_submit_quiz, ["POST"])
+    _ensure_rule(app, "/api/me/quiz-history", "me_quiz_history", me_quiz_history, ["GET"])
+    _ensure_rule(app, "/api/admin/quizzes", "admin_list_quizzes", admin_list_quizzes, ["GET"])
+    _ensure_rule(app, "/api/admin/quizzes", "admin_create_quiz", admin_create_quiz, ["POST"])
+    _ensure_rule(app, "/api/admin/quizzes/<quiz_id>", "admin_delete_quiz", admin_delete_quiz, ["DELETE"])
+    _ensure_rule(app, "/api/admin/quizzes/<quiz_id>", "admin_patch_quiz", admin_patch_quiz, ["PATCH"])

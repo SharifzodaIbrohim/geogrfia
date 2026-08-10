@@ -1,19 +1,11 @@
-"""Phase 2 JWT + Phase 3 student link/access — applied onto Flask app."""
+"""Phase 2–3 auth hooks: admin/user tokens, student link, olympiad access."""
 from __future__ import annotations
 
 from flask import jsonify, request
 
+from db.auth_tokens import admin_from_token, user_from_token, create_user_token
 from db import student_access
-from db.auth_tokens import issue_user_token, issue_admin_token, user_from_token, admin_from_token
 from db import repo
-
-
-def create_admin_token(admin: dict) -> str:
-    return issue_admin_token(admin)
-
-
-def create_user_token(user: dict) -> str:
-    return issue_user_token(user)
 
 
 def require_admin():
@@ -21,7 +13,16 @@ def require_admin():
 
 
 def require_user():
-    return user_from_token(request.headers.get("X-User-Token", ""))
+    tok = (
+        request.headers.get("X-User-Token")
+        or request.headers.get("X-User-Token".lower())
+        or ""
+    )
+    if not tok:
+        auth = request.headers.get("Authorization") or ""
+        if auth.lower().startswith("bearer "):
+            tok = auth[7:].strip()
+    return user_from_token(tok)
 
 
 def register_routes(app, public_student, public_user, olympiad_window_status):
@@ -36,8 +37,8 @@ def register_routes(app, public_student, public_user, olympiad_window_status):
             return jsonify({"error": "Student ID лозим аст."}), 400
         linked = student_access.link_student_to_user(student_id, user["id"])
         if not linked:
-            return jsonify({"error": "ID нодуруст аст ё хонанда ёфт нашуд."}), 404
-        return jsonify({"student": public_student(linked), "user": user})
+            return jsonify({"error": "ID нодуруст ё аллакай пайваст."}), 400
+        return jsonify({"ok": True, "student": public_student(linked)})
 
     @app.get("/api/student/me")
     def student_me():

@@ -58,10 +58,12 @@ def backend_name() -> str:
 
 
 def list_admins() -> list[dict]:
+    """Public list — never includes password fields."""
     if use_pg():
         with get_session() as s:
             rows = s.execute(text(
-                "SELECT id::text, login, name, role, created_by, created_at FROM admins ORDER BY created_at"
+                "SELECT id::text, login, name, role, created_by, created_at FROM admins "
+                "WHERE status = 'active' OR status IS NULL ORDER BY created_at"
             )).mappings().all()
             return [{
                 "id": r["id"], "login": r["login"], "name": r["name"],
@@ -69,15 +71,84 @@ def list_admins() -> list[dict]:
                 "createdBy": r.get("created_by"),
                 "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
             } for r in rows]
-    return _load_json(ADMINS_FILE)
+    out = []
+    for a in _load_json(ADMINS_FILE):
+        out.append({
+            "id": a.get("id"), "login": a.get("login"), "name": a.get("name"),
+            "role": a.get("role") or "super_admin",
+            "createdBy": a.get("createdBy"), "createdAt": a.get("createdAt"),
+        })
+    return out
 
 
 def find_admin_by_login(login: str) -> dict | None:
-    login = (login or "").strip().lower()
-    for a in list_admins():
-        if (a.get("login") or "").lower() == login:
-            return a
+    """Full admin row including salt/passwordHash for login verification."""
+    login_l = (login or "").strip().lower()
+    if not login_l:
+        return None
+    if use_pg():
+        try:
+            with get_session() as s:
+                r = s.execute(text(
+                    "SELECT id::text, login, name, role, salt, password_hash, "
+                    "created_by, created_at, status "
+                    "FROM admins WHERE lower(login) = :login LIMIT 1"
+                ), {"login": login_l}).mappings().first()
+                if not r:
+                    return None
+                if r.get("status") and str(r["status"]) not in ("active", "Active"):
+                    return None
+                return {
+                    "id": r["id"],
+                    "login": r["login"],
+                    "name": r["name"],
+                    "role": r.get("role") or "super_admin",
+                    "salt": r.get("salt") or "",
+                    "passwordHash": r.get("password_hash") or "",
+                    "createdBy": r.get("created_by"),
+                    "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
+                }
+        except Exception as e:
+            log.error("find_admin_by_login PG: %s", e)
+            return None
+    for a in _load_json(ADMINS_FILE):
+        if (a.get("login") or "").lower() == login_l:
+            return {
+                "id": a.get("id"),
+                "login": a.get("login"),
+                "name": a.get("name"),
+                "role": a.get("role") or "super_admin",
+                "salt": a.get("salt") or "",
+                "passwordHash": a.get("passwordHash") or a.get("password_hash") or "",
+                "createdBy": a.get("createdBy"),
+                "createdAt": a.get("createdAt"),
+            }
     return None
+
+
+def create_admin(login: str, name: str, salt: str, password_hash: str, created_by: str, role: str = "super_admin") -> dict:
+    aid = str(uuid.uuid4())
+    if use_pg():
+        with get_session() as s:
+            s.execute(text(
+                "INSERT INTO admins (id, login, name, salt, password_hash, role, status, created_by) "
+                "VALUES (:id, :login, :name, :salt, :ph, :role, 'active', :cb)"
+            ), {
+                "id": aid, "login": login, "name": name, "salt": salt,
+                "ph": password_hash, "role": role or "super_admin", "cb": created_by,
+            })
+        return find_admin_by_login(login) or {
+            "id": aid, "login": login, "name": name, "role": role,
+        }
+    row = {
+        "id": aid, "login": login, "name": name, "salt": salt,
+        "passwordHash": password_hash, "role": role, "createdBy": created_by,
+        "createdAt": _utc_now(),
+    }
+    items = _load_json(ADMINS_FILE)
+    items.append(row)
+    _save_json(ADMINS_FILE, items)
+    return row
 
 
 def list_students() -> list[dict]:
@@ -214,7 +285,6 @@ def find_olympiad(olympiad_id: str) -> dict | None:
 
 
 def create_olympiad(data: dict) -> dict:
-    """data: title, type, passScore, isActive, startTime, endTime, questions[{text,options,answer}]"""
     oid = str(uuid.uuid4())
     created = _utc_now()
     questions = data.get("questions") or []
@@ -234,14 +304,8 @@ def create_olympiad(data: dict) -> dict:
                 "(id, title, type, pass_score, is_active, start_at, end_at, duration_sec, status) "
                 "VALUES (:id, :title, :type, :ps, :active, :st, :et, :dur, 'published')"
             ), {
-                "id": oid,
-                "title": title,
-                "type": oly_type,
-                "ps": pass_score,
-                "active": is_active,
-                "st": start_time,
-                "et": end_time,
-                "dur": duration,
+                "id": oid, "title": title, "type": oly_type, "ps": pass_score,
+                "active": is_active, "st": start_time, "et": end_time, "dur": duration,
             })
             for i, q in enumerate(questions):
                 qid = str(uuid.uuid4())
@@ -256,29 +320,18 @@ def create_olympiad(data: dict) -> dict:
                         "(id, question_id, sort_order, text, is_correct) "
                         "VALUES (:id, :qid, :ord, :text, :ok)"
                     ), {
-                        "id": str(uuid.uuid4()),
-                        "qid": qid,
-                        "ord": j,
-                        "text": str(opt),
-                        "ok": j == ans,
+                        "id": str(uuid.uuid4()), "qid": qid, "ord": j,
+                        "text": str(opt), "ok": j == ans,
                     })
         found = find_olympiad(oid)
         if found:
             return found
 
     row = {
-        "id": oid,
-        "title": title,
-        "type": oly_type,
-        "passScore": pass_score,
-        "isActive": is_active,
-        "startTime": start_time,
-        "endTime": end_time,
-        "durationSec": duration,
-        "questions": questions,
-        "questionCount": len(questions),
-        "createdAt": created,
-        "createdBy": data.get("createdBy"),
+        "id": oid, "title": title, "type": oly_type, "passScore": pass_score,
+        "isActive": is_active, "startTime": start_time, "endTime": end_time,
+        "durationSec": duration, "questions": questions, "questionCount": len(questions),
+        "createdAt": created, "createdBy": data.get("createdBy"),
     }
     items = _load_json(OLYMPIADS_FILE)
     items.append(row)
@@ -291,14 +344,9 @@ def update_olympiad(olympiad_id: str, patch: dict) -> dict | None:
         fields = []
         params = {"id": str(olympiad_id)}
         mapping = {
-            "title": "title",
-            "type": "type",
-            "passScore": "pass_score",
-            "isActive": "is_active",
-            "startTime": "start_at",
-            "endTime": "end_at",
-            "durationSec": "duration_sec",
-            "status": "status",
+            "title": "title", "type": "type", "passScore": "pass_score",
+            "isActive": "is_active", "startTime": "start_at", "endTime": "end_at",
+            "durationSec": "duration_sec", "status": "status",
         }
         for k, col in mapping.items():
             if k in patch:
@@ -334,41 +382,37 @@ def delete_olympiad(olympiad_id: str) -> bool:
 
 def list_results(olympiad_id: str | None = None) -> list[dict]:
     if use_pg():
-        with get_session() as s:
-            if olympiad_id:
-                rows = s.execute(text(
-                    "SELECT id::text, olympiad_id::text, student_code, score, status, finished_at "
-                    "FROM results WHERE olympiad_id::text = :oid ORDER BY finished_at DESC NULLS LAST"
-                ), {"oid": str(olympiad_id)}).mappings().all()
-            else:
-                rows = s.execute(text(
-                    "SELECT id::text, olympiad_id::text, student_code, score, status, finished_at "
-                    "FROM results ORDER BY finished_at DESC NULLS LAST LIMIT 2000"
-                )).mappings().all()
-            return [{
-                "id": r["id"], "olympiadId": r["olympiad_id"], "studentId": r.get("student_code"),
-                "score": r.get("score"), "status": r.get("status"),
-                "finishedAt": r["finished_at"].isoformat() if r.get("finished_at") else None,
-            } for r in rows]
-    items = _load_json(RESULTS_FILE)
-    if olympiad_id:
-        items = [r for r in items if str(r.get("olympiadId")) == str(olympiad_id)]
-    return items
+        try:
+            with get_session() as s:
+                if olympiad_id:
+                    rows = s.execute(text(
+                        "SELECT id::text, olympiad_id::text, student_name, student_class, "
+                        "student_school, score, status, finished_at "
+                        "FROM attempts WHERE kind = 'olympiad' AND olympiad_id::text = :oid "
+                        "ORDER BY finished_at DESC NULLS LAST"
+                    ), {"oid": str(olympiad_id)}).mappings().all()
+                else:
+                    rows = s.execute(text(
+                        "SELECT id::text, olympiad_id::text, student_name, student_class, "
+                        "student_school, score, status, finished_at "
+                        "FROM attempts WHERE status IN ('passed','failed','submitted') "
+                        "ORDER BY finished_at DESC NULLS LAST LIMIT 2000"
+                    )).mappings().all()
+                return [{
+                    "id": r["id"], "olympiadId": r.get("olympiad_id"),
+                    "studentName": r.get("student_name"),
+                    "className": r.get("student_class"),
+                    "school": r.get("student_school"),
+                    "score": r.get("score"), "status": r.get("status"),
+                    "finishedAt": r["finished_at"].isoformat() if r.get("finished_at") else None,
+                } for r in rows]
+        except Exception as e:
+            log.warning("list_results: %s", e)
+            return []
+    return _load_json(RESULTS_FILE)
 
 
 def save_result(result: dict) -> dict:
-    if use_pg():
-        with get_session() as s:
-            rid = result.get("id") or str(uuid.uuid4())
-            s.execute(text(
-                "INSERT INTO results (id, olympiad_id, student_code, score, status, finished_at) "
-                "VALUES (:id, :oid, :sc, :score, :st, NOW())"
-            ), {
-                "id": rid, "oid": result.get("olympiadId"), "sc": result.get("studentId"),
-                "score": result.get("score"), "st": result.get("status"),
-            })
-            result["id"] = rid
-            return result
     items = _load_json(RESULTS_FILE)
     if not result.get("id"):
         result["id"] = str(uuid.uuid4())

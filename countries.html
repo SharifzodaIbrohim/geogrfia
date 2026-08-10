@@ -62,6 +62,26 @@
     <main><div id="results" class="results-grid"></div></main>
   </div>
 
+  <!-- Hidden stubs required by js/app.js (do not remove) -->
+  <div class="settings-panel" style="display:none !important" aria-hidden="true">
+    <button id="settingsToggle" type="button" style="display:none"></button>
+    <div id="settingsDrawer" class="settings-drawer">
+      <select id="languageSelect">
+        <option value="tg">Тоҷикӣ</option>
+        <option value="ru">Русский</option>
+        <option value="en">English</option>
+      </select>
+      <button type="button" data-theme-option="dark" class="settings-option"></button>
+      <button type="button" data-theme-option="light" class="settings-option"></button>
+    </div>
+  </div>
+  <button id="booksToggle" type="button" style="display:none" aria-hidden="true"></button>
+  <button id="quizToggle" type="button" style="display:none" aria-hidden="true"></button>
+  <button id="authToggle" type="button" style="display:none" aria-hidden="true">
+    <span id="authToggleIcon">👤</span>
+    <span id="authToggleText" class="sr-only">Ҳисоб</span>
+  </button>
+
   <div id="detailModal" class="modal"><div class="modal-window">
     <button id="closeModal" class="close-button">×</button>
     <div class="modal-header"><div><h2 id="modalTitle"></h2><p id="modalSubtitle"></p></div>
@@ -183,6 +203,20 @@
       var av=document.getElementById('pfAvatar');
       if(av)av.addEventListener('click',function(){var a=document.getElementById('authToggle');if(a)a.click();else location.href='/profile';});
     });
+  })();
+  </script>
+  <script>
+  (function(){
+    var pf = document.getElementById('pfLang');
+    var ls = document.getElementById('languageSelect');
+    if (pf && ls) {
+      pf.addEventListener('change', function(){ ls.value = pf.value; ls.dispatchEvent(new Event('change')); });
+      ls.addEventListener('change', function(){ pf.value = ls.value; });
+      try {
+        var lang = localStorage.getItem('geo_lang') || localStorage.getItem('language') || 'tg';
+        if (lang) { pf.value = lang; ls.value = lang; }
+      } catch(e) {}
+    }
   })();
   </script>
 </body>

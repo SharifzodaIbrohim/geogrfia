@@ -1,27 +1,38 @@
-"""Phase 9–12 — Olympiad exam routes."""
+"""Phase 9–12 — Olympiad exam routes (no uncaught 500)."""
 from __future__ import annotations
+
+import logging
 
 from flask import jsonify, request
 
 from db import olympiad_engine
 from db.repo import find_olympiad
-from db.student_access import student_has_olympiad_access
-from db import repo
+
+log = logging.getLogger("geografia.olympiad_routes")
 
 
 def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
     @app.post("/api/olympiads/<olympiad_id>/start")
     def olympiad_start(olympiad_id: str):
         payload = request.get_json(silent=True) or {}
-        student_id = str(payload.get("studentId") or request.headers.get("X-Student-Id") or "").strip()
+        student_id = str(
+            payload.get("studentId")
+            or request.headers.get("X-Student-Id")
+            or ""
+        ).strip()
         if not student_id:
-            return jsonify({"error": "studentId лозим аст."}), 400
+            return jsonify({"error": "studentId лозим аст.", "reason": "student_id_required"}), 400
 
         olympiad = find_olympiad(olympiad_id)
         if not olympiad:
             return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
 
-        window = olympiad_window_status(olympiad)
+        try:
+            window = olympiad_window_status(olympiad)
+        except Exception as e:
+            log.warning("window status: %s", e)
+            window = "open" if olympiad.get("isActive") else "inactive"
+
         if window != "open":
             msgs = {
                 "inactive": "Олимпиада фаъол нест.",
@@ -30,17 +41,21 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
             }
             return jsonify({"error": msgs.get(window, window), "windowStatus": window}), 403
 
-        user = require_user()
-        # Optional: require Google if linked policy later
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
+        user = None
+        try:
+            user = require_user()
+        except Exception:
+            user = None
 
+        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
         try:
             session = olympiad_engine.start_exam(
                 olympiad_id,
                 student_id,
-                user_id=user["id"] if user else None,
+                user_id=(user or {}).get("id") if isinstance(user, dict) else None,
                 client_fingerprint=fp or None,
             )
+            return jsonify(session)
         except ValueError as e:
             code = str(e)
             messages = {
@@ -48,12 +63,16 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
                 "already_submitted": "Шумо аллакай супоридаед (як маротиба).",
                 "not_assigned": "Шумо ба ин олимпиада таъин нашудаед.",
                 "student_not_found": "ID нодуруст аст.",
+                "student_id_required": "Student ID лозим аст.",
                 "no_questions": "Саволҳо нестанд.",
                 "not_found": "Олимпиада ёфт нашуд.",
+                "session_save_failed": "Сессия захира нашуд — бори дигар кӯшиш кунед.",
             }
-            return jsonify({"error": messages.get(code, code), "reason": code}), 403 if code != "not_found" else 404
-
-        return jsonify(session)
+            status = 404 if code == "not_found" else 403
+            return jsonify({"error": messages.get(code, code), "reason": code}), status
+        except Exception as e:
+            log.exception("olympiad start failed")
+            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
 
     @app.post("/api/olympiads/<olympiad_id>/autosave")
     def olympiad_autosave(olympiad_id: str):
@@ -68,10 +87,12 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
             result = olympiad_engine.autosave(
                 session_id, session_token, answers, fingerprint=fp or None
             )
+            return jsonify(result)
         except ValueError as e:
-            code = str(e)
-            return jsonify({"error": code}), 400
-        return jsonify(result)
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            log.exception("autosave failed")
+            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
 
     @app.post("/api/olympiads/<olympiad_id>/exam-submit")
     def olympiad_exam_submit(olympiad_id: str):
@@ -89,25 +110,27 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
                 answers if isinstance(answers, dict) else None,
                 fingerprint=fp or None,
             )
+            return jsonify(result)
         except ValueError as e:
             code = str(e)
             messages = {
-                "rate_limited": "Зиёд дархост.",
-                "invalid_session": "Сессия нодуруст аст.",
                 "already_submitted": "Аллакай супорида шудааст.",
+                "session_not_found": "Сессия ёфт нашуд.",
                 "not_found": "Ёфт нашуд.",
             }
-            return jsonify({"error": messages.get(code, code)}), 400
-        return jsonify({"result": result})
+            return jsonify({"error": messages.get(code, code), "reason": code}), 400
+        except Exception as e:
+            log.exception("exam submit failed")
+            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
 
     @app.patch("/api/admin/olympiads/<olympiad_id>/duration")
     def admin_set_duration(olympiad_id: str):
-        # lightweight: store durationSec via update_olympiad if supported
-        token = request.headers.get("X-Admin-Token", "")
         from db.auth_tokens import admin_from_token
         from db.admin_role import enrich_admin
         from db.rbac import admin_can, deny_message
+        from db.repo import update_olympiad
 
+        token = request.headers.get("X-Admin-Token") or ""
         admin = enrich_admin(admin_from_token(token))
         if not admin:
             return jsonify({"error": "Дастрасӣ рад шуд."}), 401
@@ -115,39 +138,10 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
             return jsonify({"error": deny_message("olympiads.write")}), 403
         payload = request.get_json(silent=True) or {}
         try:
-            duration = int(payload.get("durationSec"))
+            duration = int(payload.get("durationSec") or 0) or None
         except (TypeError, ValueError):
-            return jsonify({"error": "durationSec рақам бошад."}), 400
-        if duration < 60 or duration > 86400:
-            return jsonify({"error": "durationSec: 60–86400."}), 400
-        # JSON/PG patch: use update if field exists; else store in memory via olympiad update title no-op
-        olympiad = repo.update_olympiad(olympiad_id, {})
-        if not olympiad:
+            return jsonify({"error": "durationSec нодуруст."}), 400
+        oly = update_olympiad(olympiad_id, {"durationSec": duration})
+        if not oly:
             return jsonify({"error": "Ёфт нашуд."}), 404
-        # attach duration on JSON file manually
-        if not repo.use_pg():
-            items = repo._load_json(repo.OLYMPIADS_FILE)
-            for o in items:
-                if o.get("id") == olympiad_id:
-                    o["durationSec"] = duration
-                    repo._save_json(repo.OLYMPIADS_FILE, items)
-                    olympiad = o
-                    break
-        else:
-            # column may not exist — try alter + update
-            try:
-                from db.connection import get_session
-                from sqlalchemy import text
-
-                with get_session() as s:
-                    s.execute(text(
-                        "ALTER TABLE olympiads ADD COLUMN IF NOT EXISTS duration_sec INT"
-                    ))
-                    s.execute(
-                        text("UPDATE olympiads SET duration_sec = :d WHERE id::text = :id"),
-                        {"d": duration, "id": olympiad_id},
-                    )
-            except Exception as e:
-                return jsonify({"error": f"DB: {e}"}), 500
-            olympiad = find_olympiad(olympiad_id)
-        return jsonify({"ok": True, "durationSec": duration, "olympiadId": olympiad_id})
+        return jsonify({"olympiad": oly})

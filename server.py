@@ -46,10 +46,12 @@ except Exception:
 def _profile_page():
     return send_from_directory(BASE_DIR, "profile.html")
 
+
 @app.route("/courses")
 @app.route("/courses.html")
 def _courses_page():
     return send_from_directory(BASE_DIR, "courses.html")
+
 
 try:
     @app.route("/books/<path:filename>")
@@ -173,5 +175,75 @@ try:
         return jsonify(attempt)
 
     app.view_functions["quiz_start"] = _patched_quiz_start
+except Exception:
+    pass
+
+# ---- Hard fallback for /api/content (always available) ----
+try:
+    from flask import jsonify as _jfy, request as _rq_c
+    import uuid as _uuid
+    from datetime import datetime, timezone as _tz
+    from pathlib import Path as _P
+
+    _DEFAULT_BOOKS = [
+        {"title": "География 7", "url": "/books/kitobkhon-net-geografiya-7.pdf", "type": "book", "lang": "tg"},
+        {"title": "География 8 (2014)", "url": "/books/kitobkhon-net-8.-geografiya-2014.pdf", "type": "book", "lang": "tg"},
+        {"title": "География 9 (2013)", "url": "/books/kitobkhon-net-9.-geografiya-2013.pdf", "type": "book", "lang": "tg"},
+        {"title": "География 10", "url": "/books/kitobkhon-net-geografiya-10.pdf", "type": "book", "lang": "tg"},
+        {"title": "География 11 (2015)", "url": "/books/kitobkhon-net-11.-geografiya-2015.pdf", "type": "book", "lang": "tg"},
+    ]
+
+    def _content_items():
+        try:
+            from db import content_api as _ca
+            return _ca.list_content()
+        except Exception:
+            pass
+        data_dir = None
+        for cand in [BASE_DIR / "data", _P.cwd() / "data"]:
+            try:
+                cand.mkdir(parents=True, exist_ok=True)
+                data_dir = cand
+                break
+            except Exception:
+                continue
+        path = (data_dir or _P.cwd()) / "content_items.json"
+        items = []
+        try:
+            import json as _json
+            if path.exists():
+                items = _json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(items, list):
+                    items = []
+        except Exception:
+            items = []
+        if not items:
+            now = datetime.now(_tz.utc).isoformat()
+            items = [{
+                "id": str(_uuid.uuid4()),
+                "type": b["type"],
+                "title": b["title"],
+                "description": "",
+                "url": b["url"],
+                "lang": b["lang"],
+                "createdAt": now,
+            } for b in _DEFAULT_BOOKS]
+            try:
+                import json as _json
+                path.write_text(_json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+        return items
+
+    @app.get("/api/content")
+    def _public_content_safe():
+        kind = _rq_c.args.get("type") or None
+        lang = _rq_c.args.get("lang") or None
+        items = _content_items()
+        if kind:
+            items = [i for i in items if i.get("type") == kind]
+        if lang:
+            items = [i for i in items if i.get("lang") == lang or not i.get("lang")]
+        return _jfy({"items": items, "count": len(items)})
 except Exception:
     pass

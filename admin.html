@@ -40,6 +40,7 @@
       <button type="button" class="tab" data-tab="admins">Админҳо</button>
       <button type="button" class="tab" data-tab="gmail">Gmail корбарон</button>
       <button type="button" class="tab" data-tab="content">Контент / Courses</button>
+      <button type="button" class="tab" data-tab="leaderboard">Leaderboard public</button>
     </nav>
     <main class="panel">
       <section id="tab-monitor" class="tab-panel">
@@ -54,7 +55,7 @@
         <div class="table-wrap"><table><thead><tr>
           <th>Унвон</th><th>Навъ</th><th>Дар ҷараён</th><th>Супорида</th><th>Гузашт</th><th>Нагузашт</th>
         </tr></thead><tbody id="liveActiveBody"></tbody></table></div>
-        <h3>Натиҷаҳои охирин</h3>
+        <h3>Натиҷаҳои охирин <button type="button" class="btn small" id="clearRecentResultsBtn">Пок кардан</button></h3>
         <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Мактаб / Синф</th><th>Олимпиада</th><th>Бал</th><th>Ҳолат</th><th>Вақт</th></tr></thead><tbody id="recentResultsBody"></tbody></table></div>
       </section>
       <section id="tab-students" class="tab-panel hidden">
@@ -92,6 +93,7 @@
       </section>
       <section id="tab-results" class="tab-panel hidden">
         <h2>Натиҷаҳо / Leaderboard / Export</h2>
+        <p class="muted">Ин ҷо танҳо хонандагони ID. Натиҷаҳои Gmail → таби «Gmail корбарон».</p>
         <div style="display:grid;gap:0.5rem;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:0.75rem">
           <div><label>Олимпиада</label><select id="resultOlympiadSelect"></select></div>
           <div><label>Мактаб</label><input id="filterSchool" placeholder="мактаб" /></div>
@@ -114,6 +116,7 @@
             <input type="checkbox" id="leaderboardPublicChk" checked /> Leaderboard public
           </label>
           <button type="button" class="btn" id="saveLbVisBtn">Нигоҳ доштан</button>
+          <button type="button" class="btn danger" id="clearAllResultsBtn">Пок кардани ҳама натиҷаҳо</button>
         </div>
         <div class="table-wrap"><table><thead><tr>
           <th>Хонанда</th><th>Синф</th><th>Мактаб</th><th>Бал</th><th>Дуруст</th><th>Ҳолат</th><th>Вақт</th>
@@ -159,7 +162,7 @@
       </section>
       <section id="tab-gmail" class="tab-panel hidden">
         <h2>Мониторинги корбарони Gmail (оддӣ)</h2>
-        <p class="muted">Аз хонандагони ID ҷудо. Филтр: мактаб / минтақа / ҷинс</p>
+        <p class="muted">Аз хонандагони ID ҷудо. Натиҷаҳои оддӣ ин ҷо.</p>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.5rem 0">
           <input id="gmSchool" placeholder="Мактаб" />
           <input id="gmRegion" placeholder="Минтақа" />
@@ -189,15 +192,46 @@
           <th>Навъ</th><th>Унвон</th><th>Забон</th><th>URL</th><th></th>
         </tr></thead><tbody id="contentBody"></tbody></table></div>
       </section>
+      <section id="tab-leaderboard" class="tab-panel hidden">
+        <h2>Leaderboard public · Рейтинги умумӣ</h2>
+        <p class="muted">Топ-рейтинги Home ва /leaderboard.</p>
+        <div class="card" style="margin-bottom:1rem;padding:1rem">
+          <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+            <input type="checkbox" id="lbPublicToggle" checked /> Leaderboard public (оммавӣ)
+          </label>
+          <label>Унвон
+            <input id="lbTitleInput" type="text" style="width:100%;margin-top:.25rem" placeholder="Leaderboard · Top Rated" />
+          </label>
+          <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="button" class="btn primary" id="lbSaveSettings">Нигоҳ доштан</button>
+            <button type="button" class="btn" id="lbRefresh">Навсозӣ</button>
+          </div>
+          <p id="lbMsg" class="muted" style="margin-top:.5rem"></p>
+        </div>
+        <h3>Рейтинг</h3>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Ҷой</th><th>Ном</th><th>Мактаб</th><th>Синф</th><th>Рейтинг</th><th>Ҳал</th><th>Мусобиқа</th>
+        </tr></thead><tbody id="lbGlobalBody"></tbody></table></div>
+        <h3 style="margin-top:1.25rem">Pinned ranks</h3>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+          <input id="pinUserId" placeholder="userId" style="min-width:160px" />
+          <input id="pinRank" type="number" min="1" placeholder="rank" style="width:80px" />
+          <input id="pinName" placeholder="ном (ихтиёрӣ)" />
+          <button type="button" class="btn" id="pinAdd">Илова</button>
+        </div>
+        <div id="pinList" class="muted">—</div>
+      </section>
     </main>
   </div>
   <script src="js/admin.js"></script>
   <script src="js/admin-audit.js"></script>
   <script src="js/admin-gmail.js"></script>
   <script src="js/admin-content.js"></script>
+  <script src="js/admin-leaderboard.js"></script>
+  <script src="js/admin-fixes.js"></script>
   <script>
   (function(){
-    document.querySelectorAll('.tab[data-tab="gmail"], .tab[data-tab="content"]').forEach(function(btn){
+    document.querySelectorAll('.tab[data-tab="gmail"], .tab[data-tab="content"], .tab[data-tab="leaderboard"]').forEach(function(btn){
       btn.addEventListener('click', function(){
         document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
         document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.add('hidden'); });

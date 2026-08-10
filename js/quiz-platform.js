@@ -102,6 +102,7 @@
         err.textContent = e.message;
         err.classList.remove('hidden');
       }
+      console.error('loadList', e);
     }
   }
 
@@ -374,6 +375,7 @@
   }
   on('btnSaveStudent', 'click', saveStudentId);
   on('btnSaveStudentId', 'click', saveStudentId);
+  on('btnGuestLogin', 'click', () => openAuth());
 
   paintAuthBtn();
   loadList();

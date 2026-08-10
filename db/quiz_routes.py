@@ -1,35 +1,84 @@
-"""Phase 8 quiz routes + bridge to olympiad type=quiz."""
+"""Phase 8 quiz routes. Public /api/quizzes = standalone quizzes only (no olympiads)."""
 from __future__ import annotations
 
 from flask import jsonify, request
 
 from db import quiz_api
 from db import quiz_bridge
-from db import student_access
-from db import olympiad_engine
 from db.rbac import deny_message
 from db.repo import find_student_by_code
 
 
 def _resolve_quiz(quiz_id: str, include_answers: bool = False):
+    """Standalone quiz first; bridged olympiad only if explicitly requested by id."""
     quiz = quiz_api.get_quiz(quiz_id, include_answers=include_answers)
     if quiz and (not quiz.get("status") or quiz.get("status") == "published"):
         quiz["source"] = quiz.get("source") or "quiz"
         return quiz
-    bridged = quiz_bridge.get_bridged_quiz(quiz_id, include_answers=include_answers)
-    if bridged and (bridged.get("status") == "published" or bridged.get("isActive")):
-        return bridged
+    # Bridged for direct ID access (student portal / known links) — not for public list
+    try:
+        bridged = quiz_bridge.get_bridged_quiz(quiz_id, include_answers=include_answers)
+        if bridged and (bridged.get("status") == "published" or bridged.get("isActive")):
+            return bridged
+    except Exception:
+        pass
     return None
 
 
+def _safe_get(app, rule: str, endpoint: str, view_func, **options):
+    """Register GET or override existing endpoint without AssertionError."""
+    if endpoint in app.view_functions:
+        app.view_functions[endpoint] = view_func
+        return
+    # Check if rule already mapped under another endpoint name
+    for r in app.url_map.iter_rules():
+        if r.rule == rule and "GET" in (r.methods or set()):
+            app.view_functions[r.endpoint] = view_func
+            return
+    app.add_url_rule(rule, endpoint, view_func, methods=["GET"], **options)
+
+
+def _safe_post(app, rule: str, endpoint: str, view_func, **options):
+    if endpoint in app.view_functions:
+        app.view_functions[endpoint] = view_func
+        return
+    for r in app.url_map.iter_rules():
+        if r.rule == rule and "POST" in (r.methods or set()):
+            app.view_functions[r.endpoint] = view_func
+            return
+    app.add_url_rule(rule, endpoint, view_func, methods=["POST"], **options)
+
+
+def _safe_delete(app, rule: str, endpoint: str, view_func, **options):
+    if endpoint in app.view_functions:
+        app.view_functions[endpoint] = view_func
+        return
+    for r in app.url_map.iter_rules():
+        if r.rule == rule and "DELETE" in (r.methods or set()):
+            app.view_functions[r.endpoint] = view_func
+            return
+    app.add_url_rule(rule, endpoint, view_func, methods=["DELETE"], **options)
+
+
+def _safe_patch(app, rule: str, endpoint: str, view_func, **options):
+    if endpoint in app.view_functions:
+        app.view_functions[endpoint] = view_func
+        return
+    for r in app.url_map.iter_rules():
+        if r.rule == rule and "PATCH" in (r.methods or set()):
+            app.view_functions[r.endpoint] = view_func
+            return
+    app.add_url_rule(rule, endpoint, view_func, methods=["PATCH"], **options)
+
+
 def register_quiz_routes(app, require_user, require_perm):
-    @app.get("/api/quizzes")
     def public_list_quizzes():
+        # STRICT: public /quiz and /api/quizzes = standalone quizzes only
         items = quiz_api.list_quizzes(include_draft=False)
         safe = []
-        seen = set()
         for q in items:
-            seen.add(q["id"])
+            if q.get("source") == "olympiad":
+                continue
             safe.append({
                 "id": q["id"],
                 "title": q.get("title"),
@@ -41,212 +90,105 @@ def register_quiz_routes(app, require_user, require_perm):
                 "questionCount": q.get("questionCount") or 0,
                 "source": "quiz",
             })
-        for q in quiz_bridge.list_bridged_quizzes(include_inactive=False):
-            if q["id"] in seen:
-                continue
-            safe.append({
-                "id": q["id"],
-                "title": q.get("title"),
-                "description": q.get("description"),
-                "passScore": q.get("passScore"),
-                "timeLimitSec": q.get("timeLimitSec"),
-                "accessMode": q.get("accessMode") or "google",
-                "schoolName": q.get("schoolName"),
-                "questionCount": q.get("questionCount") or 0,
-                "source": "olympiad",
-                "windowStatus": q.get("windowStatus"),
-            })
         return jsonify({"quizzes": safe})
 
-    @app.get("/api/quizzes/<quiz_id>")
     def public_get_quiz(quiz_id: str):
         quiz = _resolve_quiz(quiz_id, include_answers=False)
         if not quiz:
             return jsonify({"error": "Викторина ёфт нашуд."}), 404
-        user = require_user()
-        student = None
-        student_id = request.headers.get("X-Student-Id", "").strip()
-        if student_id:
-            student = find_student_by_code(student_id)
-        if user and not student:
-            student = student_access.find_student_by_user_id(user["id"])
-        if quiz.get("source") == "olympiad":
-            code = (student or {}).get("id") if student else None
-            if not code and user:
-                code = "g:" + str(user["id"])[:40]
-            if not code:
-                return jsonify({
-                    "error": "Аввал бо Google ворид шавед ё Student ID ворид кунед.",
-                    "reason": "google_or_student_required",
-                }), 403
-            access = student_access.student_has_olympiad_access(quiz_id, code)
-            if not access.get("allowed"):
-                return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
-        else:
-            access = quiz_api.check_access(quiz, user, student)
-            if not access.get("allowed"):
-                return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
-        return jsonify({
-            "quiz": {
-                "id": quiz["id"],
-                "title": quiz.get("title"),
-                "description": quiz.get("description"),
-                "passScore": quiz.get("passScore"),
-                "timeLimitSec": quiz.get("timeLimitSec"),
-                "accessMode": quiz.get("accessMode"),
-                "questionCount": quiz.get("questionCount"),
-                "source": quiz.get("source"),
-                "questions": quiz.get("questions") or [],
-            }
-        })
+        # Strip answers if any leaked
+        qs = []
+        for item in (quiz.get("questions") or []):
+            qs.append({
+                "id": item.get("id"),
+                "text": item.get("text"),
+                "options": list(item.get("options") or []),
+            })
+        out = {
+            "id": quiz.get("id"),
+            "title": quiz.get("title"),
+            "description": quiz.get("description"),
+            "passScore": quiz.get("passScore"),
+            "timeLimitSec": quiz.get("timeLimitSec"),
+            "accessMode": quiz.get("accessMode") or "public",
+            "schoolName": quiz.get("schoolName"),
+            "questionCount": len(qs),
+            "source": quiz.get("source") or "quiz",
+            "questions": qs,
+        }
+        return jsonify({"quiz": out})
 
-    @app.post("/api/quizzes/<quiz_id>/start")
-    def quiz_start(quiz_id: str):
+    def public_start_quiz(quiz_id: str):
         quiz = _resolve_quiz(quiz_id, include_answers=False)
         if not quiz:
             return jsonify({"error": "Викторина ёфт нашуд."}), 404
-        user = require_user()
-        payload = request.get_json(silent=True) or {}
-        student_code = str(
-            payload.get("studentId") or request.headers.get("X-Student-Id") or ""
-        ).strip() or None
-        student = find_student_by_code(student_code) if student_code else None
-        if user and not student:
-            student = student_access.find_student_by_user_id(user["id"])
-            if student:
-                student_code = student.get("id")
-
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
-
-        if quiz.get("source") == "olympiad":
-            if not student_code:
-                if user and user.get("id"):
-                    student_code = "g:" + str(user["id"])[:40]
-                else:
-                    return jsonify({
-                        "error": "Аввал бо Google ворид шавед ё Student ID ворид кунед.",
-                        "reason": "google_or_student_required",
-                    }), 403
-            try:
-                session = olympiad_engine.start_exam(
-                    quiz_id,
-                    student_code,
-                    user_id=user["id"] if user else None,
-                    client_fingerprint=fp or None,
-                )
-            except ValueError as e:
-                code = str(e)
-                msgs = {
-                    "rate_limited": "Зиёд дархост.",
-                    "already_submitted": "Аллакай супоридаед.",
-                    "not_assigned": "Ба ин викторина таъин нашудаед.",
-                    "student_not_found": "ID нодуруст.",
-                    "not_found": "Ёфт нашуд.",
-                }
-                return jsonify({"error": msgs.get(code, code), "reason": code}), 403
+        # Block olympiad source on public quiz start — use /student
+        if quiz.get("source") == "olympiad" or quiz.get("type") == "olympiad":
             return jsonify({
-                "attemptId": session["sessionId"],
-                "sessionId": session["sessionId"],
-                "sessionToken": session["sessionToken"],
-                "quizId": quiz_id,
-                "title": session.get("title"),
-                "startedAt": session.get("startedAt"),
-                "endsAt": session.get("endsAt"),
-                "timeLimitSec": quiz.get("timeLimitSec"),
-                "questionCount": session.get("questionCount"),
-                "questions": session.get("questions") or [],
-                "passScore": session.get("passScore"),
-                "source": "olympiad",
-            })
-
-        access = quiz_api.check_access(quiz, user, student)
+                "error": "Ин олимпиада аст. Ба /student бо Student ID ворид шавед.",
+                "reason": "olympiad_use_student_portal",
+            }), 403
+        payload = request.get_json(silent=True) or {}
+        student_code = (payload.get("studentId") or payload.get("student_code") or "").strip()
+        student = find_student_by_code(student_code) if student_code else None
+        user = None
+        try:
+            user = require_user()
+        except Exception:
+            user = None
+        access = quiz_api.check_access(quiz, user if isinstance(user, dict) else None, student)
         if not access.get("allowed"):
             return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
         try:
-            attempt = quiz_api.start_attempt(
+            uid = (user or {}).get("id") if isinstance(user, dict) else None
+            session = quiz_api.start_attempt(
                 quiz_id,
-                user_id=user["id"] if user else None,
-                student_id=student_code,
+                user_id=uid,
+                student_id=student_code or None,
             )
+            return jsonify({"session": session})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        attempt["source"] = "quiz"
-        return jsonify(attempt)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-    @app.post("/api/quizzes/<quiz_id>/submit")
-    def quiz_submit(quiz_id: str):
+    def public_submit_quiz(quiz_id: str):
         payload = request.get_json(silent=True) or {}
-        attempt_id = str(payload.get("attemptId") or payload.get("sessionId") or "").strip()
-        session_token = str(payload.get("sessionToken") or "").strip()
-        answers = payload.get("answers") or []
+        attempt_id = payload.get("attemptId") or payload.get("sessionId")
+        answers = payload.get("answers") or {}
         if not attempt_id:
             return jsonify({"error": "attemptId лозим аст."}), 400
-
-        quiz = _resolve_quiz(quiz_id, include_answers=False)
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
-
-        if quiz and quiz.get("source") == "olympiad":
-            if not session_token:
-                return jsonify({"error": "sessionToken лозим аст."}), 400
-            ans_map = {}
-            if isinstance(answers, dict):
-                ans_map = answers
-            elif isinstance(answers, list):
-                for i, a in enumerate(answers):
-                    if isinstance(a, dict):
-                        key = a.get("originalIndex", a.get("questionId", i))
-                        sel = a.get("selected")
-                        if sel is not None:
-                            ans_map[str(key)] = sel
-                    else:
-                        try:
-                            ans_map[str(i)] = int(a)
-                        except (TypeError, ValueError):
-                            pass
-            try:
-                result = olympiad_engine.submit_exam(
-                    attempt_id,
-                    session_token,
-                    ans_map,
-                    fingerprint=fp or None,
-                )
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 400
-            return jsonify({"result": result})
-
-        user = require_user()
+        try:
+            user = require_user()
+        except Exception:
+            user = None
+        uid = (user or {}).get("id") if isinstance(user, dict) else None
         try:
             result = quiz_api.submit_attempt(
-                quiz_id,
-                attempt_id,
-                answers,
-                user_id=user["id"] if user else None,
+                quiz_id, attempt_id, answers, user_id=uid
             )
+            return jsonify({"result": result})
         except ValueError as e:
-            code = str(e)
-            status = 404 if "not_found" in code else 400
-            return jsonify({"error": code}), status
-        return jsonify({"result": result})
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-    @app.get("/api/me/quiz-history")
-    def quiz_history():
+    def me_quiz_history():
         user = require_user()
         if not user:
-            return jsonify({"error": "Аввал бо Google ворид шавед."}), 401
-        return jsonify({"history": quiz_api.user_history(user["id"])})
+            return jsonify({"error": "Логин лозим аст."}), 401
+        hist = quiz_api.user_history(user.get("id") or "")
+        return jsonify({"history": hist})
 
-    @app.get("/api/admin/quizzes")
     def admin_list_quizzes():
-        admin = require_perm("quizzes.read", "quizzes.write")
+        admin = require_perm("quizzes.read")
         if admin is None:
             return jsonify({"error": "Дастрасӣ рад шуд."}), 401
         if admin is False:
             return jsonify({"error": deny_message("quizzes.read")}), 403
         items = quiz_api.list_quizzes(include_draft=True)
-        bridged = quiz_bridge.list_bridged_quizzes(include_inactive=True)
-        return jsonify({"quizzes": items, "fromOlympiads": bridged})
+        return jsonify({"quizzes": items})
 
-    @app.post("/api/admin/quizzes")
     def admin_create_quiz():
         admin = require_perm("quizzes.write")
         if admin is None:
@@ -254,11 +196,11 @@ def register_quiz_routes(app, require_user, require_perm):
         if admin is False:
             return jsonify({"error": deny_message("quizzes.write")}), 403
         payload = request.get_json(silent=True) or {}
-        title = str(payload.get("title", "")).strip()
-        raw_q = payload.get("questions") or []
+        title = str(payload.get("title") or "").strip()
         if not title:
             return jsonify({"error": "Унвон лозим аст."}), 400
-        if not isinstance(raw_q, list) or len(raw_q) < 1:
+        raw_q = payload.get("questions") or []
+        if len(raw_q) < 1:
             return jsonify({"error": "Камаш 1 савол лозим аст."}), 400
         questions = []
         for i, q in enumerate(raw_q):
@@ -288,7 +230,6 @@ def register_quiz_routes(app, require_user, require_perm):
         })
         return jsonify({"quiz": quiz}), 201
 
-    @app.delete("/api/admin/quizzes/<quiz_id>")
     def admin_delete_quiz(quiz_id: str):
         admin = require_perm("quizzes.write")
         if admin is None:
@@ -299,7 +240,6 @@ def register_quiz_routes(app, require_user, require_perm):
             return jsonify({"error": "Ёфт нашуд."}), 404
         return jsonify({"ok": True})
 
-    @app.patch("/api/admin/quizzes/<quiz_id>")
     def admin_patch_quiz(quiz_id: str):
         admin = require_perm("quizzes.write")
         if admin is None:
@@ -313,3 +253,13 @@ def register_quiz_routes(app, require_user, require_perm):
                 return jsonify({"error": "Ёфт нашуд."}), 404
             return jsonify({"quiz": quiz})
         return jsonify({"error": "Ҳеҷ тағйир нест."}), 400
+
+    _safe_get(app, "/api/quizzes", "public_list_quizzes", public_list_quizzes)
+    _safe_get(app, "/api/quizzes/<quiz_id>", "public_get_quiz", public_get_quiz)
+    _safe_post(app, "/api/quizzes/<quiz_id>/start", "public_start_quiz", public_start_quiz)
+    _safe_post(app, "/api/quizzes/<quiz_id>/submit", "public_submit_quiz", public_submit_quiz)
+    _safe_get(app, "/api/me/quiz-history", "me_quiz_history", me_quiz_history)
+    _safe_get(app, "/api/admin/quizzes", "admin_list_quizzes", admin_list_quizzes)
+    _safe_post(app, "/api/admin/quizzes", "admin_create_quiz", admin_create_quiz)
+    _safe_delete(app, "/api/admin/quizzes/<quiz_id>", "admin_delete_quiz", admin_delete_quiz)
+    _safe_patch(app, "/api/admin/quizzes/<quiz_id>", "admin_patch_quiz", admin_patch_quiz)

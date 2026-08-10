@@ -5,7 +5,6 @@ import urllib.request
 
 from flask import send_from_directory
 
-# Full working server from last good commit
 _url = (
     "https://raw.githubusercontent.com/SharifzodaIbrohim/geogrfia/"
     "12d743039abdc42c572a1f09d9d7f71572ee9035/server.py"
@@ -13,7 +12,6 @@ _url = (
 _src = urllib.request.urlopen(_url, timeout=90).read()
 exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
-# Extra public static assets
 try:
     PUBLIC_PATHS.update({
         "profile.html",
@@ -27,7 +25,6 @@ try:
 except Exception:
     pass
 
-# Profile API routes
 try:
     from db.profile_routes import register_profile_routes
     register_profile_routes(app, _jwt_require_user, require_perm, require_admin)
@@ -37,28 +34,23 @@ except Exception:
     except Exception:
         pass
 
-# Content / Courses API
 try:
     from db.content_routes import register_content_routes
     register_content_routes(app, require_perm, require_admin)
-except Exception as _e:
+except Exception:
     pass
 
-# Pages
 @app.route("/profile")
 @app.route("/profile.html")
 @app.route("/Profile")
 def _profile_page():
     return send_from_directory(BASE_DIR, "profile.html")
 
-
 @app.route("/courses")
 @app.route("/courses.html")
 def _courses_page():
     return send_from_directory(BASE_DIR, "courses.html")
 
-
-# Serve books PDFs if folder exists
 try:
     @app.route("/books/<path:filename>")
     def _books(filename):
@@ -66,12 +58,12 @@ try:
 except Exception:
     pass
 
-
-# --- Runtime patch: Gmail users can start open olympiad-quizzes ---
+# Gmail open-quiz access (no recursion)
 try:
     from db import student_access as _sa
     from db import quiz_bridge as _qb
     _orig_access = _sa.student_has_olympiad_access
+    _orig_as_quiz = _qb.olympiad_as_quiz
 
     def _gmail_access(olympiad_id, student_code):
         student = None
@@ -91,17 +83,16 @@ try:
             }
         return _orig_access(olympiad_id, student_code)
 
-    _sa.student_has_olympiad_access = _gmail_access
-
     def _olympiad_as_quiz_google(o):
-        item = _qb.olympiad_as_quiz(o)
+        item = _orig_as_quiz(o)
         item["accessMode"] = "google"
         return item
+
+    _sa.student_has_olympiad_access = _gmail_access
     _qb.olympiad_as_quiz = _olympiad_as_quiz_google
-except Exception as _patch_err:
+except Exception:
     pass
 
-# Re-bind quiz start to allow Gmail codes
 try:
     from flask import jsonify, request as _req
     from db import olympiad_engine as _oe

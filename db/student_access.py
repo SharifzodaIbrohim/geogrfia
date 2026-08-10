@@ -143,9 +143,27 @@ def set_olympiad_participants(olympiad_id: str, student_codes: list[str]) -> lis
 
 def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     student = find_student_by_code(student_code)
+    parts = list_olympiad_participants(olympiad_id)
+
+    # Gmail ordinary users: synthetic code g:<userId> — only when olympiad is open (no participant list)
+    if not student and student_code and (
+        student_code.startswith("g:") or student_code.startswith("gmail:")
+    ):
+        if parts:
+            return {"allowed": False, "reason": "not_assigned"}
+        return {
+            "allowed": True,
+            "reason": "gmail_open",
+            "student": {
+                "id": student_code,
+                "fullName": "Gmail user",
+                "className": "",
+                "school": "",
+            },
+        }
+
     if not student:
         return {"allowed": False, "reason": "student_not_found"}
-    parts = list_olympiad_participants(olympiad_id)
     if not parts:
         return {"allowed": True, "reason": "open_to_all_students", "student": student}
     ok = any(p.get("id") == student_code and p.get("status", "assigned") == "assigned" for p in parts)

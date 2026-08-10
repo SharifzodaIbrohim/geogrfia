@@ -16,7 +16,7 @@ try:
         "profile.html", "courses.html", "leaderboard.html",
         "css/profile.css", "js/profile.js", "js/admin-gmail.js",
         "js/i18n.js", "js/admin-content.js", "js/platform-home.js",
-        "js/admin-leaderboard.js",
+        "js/admin-leaderboard.js", "js/admin.js",
     })
 except Exception:
     pass
@@ -59,6 +59,7 @@ try:
 except Exception:
     pass
 
+# Gmail access + google accessMode on bridged quizzes
 try:
     from db import student_access as _sa
     from db import quiz_bridge as _qb
@@ -102,12 +103,129 @@ try:
 except Exception:
     pass
 
+# Fix list quizzes accessMode=google for olympiad bridges
+try:
+    from flask import jsonify as _jq
+    from db import quiz_api as _qapi
+    from db import quiz_bridge as _qbr
+
+    def _public_list_quizzes_fixed():
+        items = _qapi.list_quizzes(include_draft=False)
+        safe, seen = [], set()
+        for q in items:
+            seen.add(q["id"])
+            safe.append({
+                "id": q["id"], "title": q.get("title"), "description": q.get("description"),
+                "passScore": q.get("passScore"), "timeLimitSec": q.get("timeLimitSec"),
+                "accessMode": q.get("accessMode") or "public", "schoolName": q.get("schoolName"),
+                "questionCount": q.get("questionCount") or 0, "source": "quiz",
+            })
+        for q in _qbr.list_bridged_quizzes(include_inactive=False):
+            if q["id"] in seen:
+                continue
+            safe.append({
+                "id": q["id"], "title": q.get("title"), "description": q.get("description"),
+                "passScore": q.get("passScore"), "timeLimitSec": q.get("timeLimitSec"),
+                "accessMode": q.get("accessMode") or "google", "schoolName": q.get("schoolName"),
+                "questionCount": q.get("questionCount") or 0, "source": "olympiad",
+                "windowStatus": q.get("windowStatus"),
+            })
+        return _jq({"quizzes": safe})
+
+    app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
+except Exception:
+    pass
+
+# Gmail-capable quiz_start
+try:
+    from flask import jsonify, request as _req
+    from db import olympiad_engine as _oe
+    from db import quiz_api as _qa
+    from db.repo import find_student_by_code as _fsc
+    from db import student_access as _sa2
+
+    def _patched_quiz_start(quiz_id: str):
+        from db.quiz_routes import _resolve_quiz
+        quiz = _resolve_quiz(quiz_id, include_answers=False)
+        if not quiz:
+            return jsonify({"error": "Викторина ёфт нашуд."}), 404
+        user = None
+        try:
+            user = require_user()
+        except Exception:
+            try:
+                user = _jwt_require_user()
+            except Exception:
+                user = None
+        if not user:
+            return jsonify({
+                "error": "Аввал бо Google ворид шавед.",
+                "reason": "google_required",
+            }), 403
+        payload = _req.get_json(silent=True) or {}
+        student_code = str(payload.get("studentId") or _req.headers.get("X-Student-Id") or "").strip() or None
+        student = _fsc(student_code) if student_code else None
+        if user and not student:
+            try:
+                student = _sa2.find_student_by_user_id(user["id"])
+                if student:
+                    student_code = student.get("id")
+            except Exception:
+                pass
+        fp = (_req.headers.get("X-Client-Fingerprint") or "")[:64]
+        if quiz.get("source") == "olympiad":
+            if not student_code:
+                student_code = "g:" + str(user["id"])[:40]
+            try:
+                session = _oe.start_exam(
+                    quiz_id, student_code,
+                    user_id=user["id"],
+                    client_fingerprint=fp or None,
+                )
+            except ValueError as e:
+                code = str(e)
+                msgs = {
+                    "rate_limited": "Зиёд дархост.",
+                    "already_submitted": "Аллакай супоридаед.",
+                    "not_assigned": "Ба ин викторина таъин нашудаед.",
+                    "student_not_found": "ID нодуруст.",
+                    "not_found": "Ёфт нашуд.",
+                }
+                return jsonify({"error": msgs.get(code, code), "reason": code}), 403
+            return jsonify({
+                "attemptId": session.get("sessionId") or session.get("id"),
+                "sessionId": session.get("sessionId") or session.get("id"),
+                "sessionToken": session.get("sessionToken"),
+                "quizId": quiz_id,
+                "title": session.get("title"),
+                "startedAt": session.get("startedAt"),
+                "endsAt": session.get("endsAt"),
+                "timeLimitSec": quiz.get("timeLimitSec"),
+                "questionCount": session.get("questionCount"),
+                "questions": session.get("questions") or [],
+                "passScore": session.get("passScore"),
+                "source": "olympiad",
+            })
+        access = _qa.check_access(quiz, user, student)
+        if not access.get("allowed"):
+            return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
+        try:
+            attempt = _qa.start_attempt(quiz_id, user_id=user["id"], student_id=student_code)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        attempt["source"] = "quiz"
+        return jsonify(attempt)
+
+    app.view_functions["quiz_start"] = _patched_quiz_start
+except Exception:
+    pass
+
+# Content fallback
 try:
     from flask import jsonify as _jfy, request as _rq_c
     import uuid as _uuid
     from datetime import datetime, timezone as _tz
     from pathlib import Path as _P
-
     _DEFAULT_BOOKS = [
         {"title": "География 7", "url": "/books/kitobkhon-net-geografiya-7.pdf", "type": "book", "lang": "tg"},
         {"title": "География 8 (2014)", "url": "/books/kitobkhon-net-8.-geografiya-2014.pdf", "type": "book", "lang": "tg"},
@@ -115,22 +233,13 @@ try:
         {"title": "География 10", "url": "/books/kitobkhon-net-geografiya-10.pdf", "type": "book", "lang": "tg"},
         {"title": "География 11 (2015)", "url": "/books/kitobkhon-net-11.-geografiya-2015.pdf", "type": "book", "lang": "tg"},
     ]
-
     def _content_items():
         try:
             from db import content_api as _ca
             return _ca.list_content()
         except Exception:
             pass
-        data_dir = None
-        for cand in [BASE_DIR / "data", _P.cwd() / "data"]:
-            try:
-                cand.mkdir(parents=True, exist_ok=True)
-                data_dir = cand
-                break
-            except Exception:
-                continue
-        path = (data_dir or _P.cwd()) / "content_items.json"
+        path = BASE_DIR / "data" / "content_items.json"
         items = []
         try:
             import json as _json
@@ -142,17 +251,14 @@ try:
             items = []
         if not items:
             now = datetime.now(_tz.utc).isoformat()
-            items = [{
-                "id": str(_uuid.uuid4()), "type": b["type"], "title": b["title"],
-                "description": "", "url": b["url"], "lang": b["lang"], "createdAt": now,
-            } for b in _DEFAULT_BOOKS]
+            items = [{"id": str(_uuid.uuid4()), "type": b["type"], "title": b["title"], "description": "", "url": b["url"], "lang": b["lang"], "createdAt": now} for b in _DEFAULT_BOOKS]
             try:
                 import json as _json
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(_json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
                 pass
         return items
-
     @app.get("/api/content")
     def _public_content_safe():
         kind = _rq_c.args.get("type") or None
@@ -166,9 +272,9 @@ try:
 except Exception:
     pass
 
+# Leaderboard + clear results
 try:
     from flask import jsonify as _jl, request as _rl
-
     def _lb_build(limit=100, public_only=True):
         try:
             from db import leaderboard_api as _lb
@@ -198,29 +304,16 @@ try:
             name = (u.get("name") or "").strip()
             if name.lower().startswith("gmail"):
                 name = (u.get("email") or "user").split("@")[0]
-            by[uid] = {
-                "id": uid, "name": name or "Иштирокчӣ",
-                "school": u.get("school") or "", "className": u.get("className") or "",
-                "rating": int(u.get("rating") or 1200), "solved": 0, "contests": 0,
-            }
+            by[uid] = {"id": uid, "name": name or "Иштирокчӣ", "school": u.get("school") or "", "className": u.get("className") or "", "rating": int(u.get("rating") or 1200), "solved": 0, "contests": 0}
         students = _ld("students.json") or []
         if isinstance(students, list):
             for st in students:
                 sid = str(st.get("id") or "")
                 if not sid:
                     continue
-                by[sid] = {
-                    "id": sid,
-                    "name": (st.get("fullName") or st.get("name") or "Хонанда"),
-                    "school": st.get("school") or "", "className": st.get("className") or "",
-                    "rating": int(st.get("rating") or 1200), "solved": 0, "contests": 0,
-                }
+                by[sid] = {"id": sid, "name": (st.get("fullName") or st.get("name") or "Хонанда"), "school": st.get("school") or "", "className": st.get("className") or "", "rating": int(st.get("rating") or 1200), "solved": 0, "contests": 0}
         rows = sorted(by.values(), key=lambda x: -int(x.get("rating") or 0))
-        entries = []
-        for i, r in enumerate(rows[:limit], 1):
-            e = dict(r)
-            e["rank"] = i
-            entries.append(e)
+        entries = [dict(r, rank=i) for i, r in enumerate(rows[:limit], 1)]
         return {"public": True, "title": settings.get("title") or "Leaderboard · Top Rated", "entries": entries, "total": len(rows), "settings": settings}
 
     @app.get("/api/leaderboard")
@@ -239,12 +332,7 @@ try:
             admin = None
         if not admin:
             return _jl({"error": "Дастрасӣ рад шуд."}), 401
-        try:
-            limit = min(500, max(1, int(_rl.args.get("limit") or 200)))
-        except Exception:
-            limit = 200
-        data = _lb_build(limit=limit, public_only=False)
-        return _jl(data)
+        return _jl(_lb_build(limit=200, public_only=False))
 
     @app.get("/api/admin/leaderboard/settings")
     def _admin_lb_settings_get():
@@ -285,5 +373,43 @@ try:
             cur.update({k: payload[k] for k in ("public", "title", "showSchool", "showClass", "pinned") if k in payload})
             path.write_text(_json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
             return _jl(cur)
+
+    @app.post("/api/admin/results/clear-recent")
+    def _clear_recent_results():
+        try:
+            admin = require_admin()
+        except Exception:
+            admin = None
+        if not admin:
+            return _jl({"error": "Дастрасӣ рад шуд."}), 401
+        return _jl({"ok": True})
+
+    @app.post("/api/admin/results/clear-all")
+    def _clear_all_results():
+        try:
+            admin = require_admin()
+        except Exception:
+            admin = None
+        if not admin:
+            return _jl({"error": "Дастрасӣ рад шуд."}), 401
+        import json as _json
+        cleared = 0
+        path = BASE_DIR / "data" / "results.json"
+        if path.exists():
+            try:
+                data = _json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    cleared = len(data)
+                path.write_text("[]", encoding="utf-8")
+            except Exception as e:
+                return _jl({"error": str(e)}), 500
+        try:
+            from db.connection import get_session
+            from sqlalchemy import text
+            with get_session() as s:
+                s.execute(text("DELETE FROM results"))
+        except Exception:
+            pass
+        return _jl({"ok": True, "cleared": cleared})
 except Exception:
     pass

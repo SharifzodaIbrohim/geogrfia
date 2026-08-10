@@ -1,7 +1,9 @@
 """
-Phase 4–5 — Super Admin + RBAC
-Roles match schema admin_role enum.
-Unknown role = zero privileges (never escalate to super_admin).
+Phase 4–5 / P0.7 — Super Admin + RBAC
+
+SECURITY RULE:
+  Unknown role = zero privileges.
+  Never escalate unknown → super_admin.
 """
 from __future__ import annotations
 
@@ -60,14 +62,34 @@ ROLE_PERMISSIONS: dict[str, set[str] | str] = {
 }
 
 VALID_ROLES = tuple(ROLE_PERMISSIONS.keys())
+DEFAULT_NEW_ADMIN_ROLE = "olympiad_admin"  # never super_admin by default
 
 
 def normalize_role(role: str | None) -> str | None:
-    """Unknown role = None (zero privileges). Never escalate to super_admin."""
-    if not role:
+    """
+    Map role string to a known role key, or None.
+
+    P0.7: invalid / empty / garbage → None (deny all).
+    NEVER returns super_admin for unknown input.
+    """
+    if role is None:
         return None
     r = str(role).strip().lower()
-    return r if r in ROLE_PERMISSIONS else None
+    if not r or r in ("none", "null", "undefined", "invalid", "unknown"):
+        return None
+    if r not in ROLE_PERMISSIONS:
+        return None
+    return r
+
+
+def is_valid_role(role: str | None) -> bool:
+    return normalize_role(role) is not None
+
+
+def is_super_admin(admin: dict | None) -> bool:
+    if not admin:
+        return False
+    return normalize_role(admin.get("role")) == "super_admin"
 
 
 def role_permissions(role: str | None) -> set[str]:
@@ -85,7 +107,7 @@ def admin_can(admin: dict | None, permission: str) -> bool:
         return False
     role = normalize_role(admin.get("role"))
     if not role:
-        return False
+        return False  # unknown / missing role → zero privileges
     if ROLE_PERMISSIONS.get(role) == "*":
         return True
     return permission in role_permissions(role)
@@ -97,3 +119,11 @@ def admin_can_any(admin: dict | None, permissions: Iterable[str]) -> bool:
 
 def deny_message(permission: str) -> str:
     return f"Ҳуқуқи кофӣ нест ({permission})."
+
+
+def require_known_role(role: str | None) -> str:
+    """Raise ValueError if role is not a known RBAC role."""
+    r = normalize_role(role)
+    if not r:
+        raise ValueError("invalid_role")
+    return r

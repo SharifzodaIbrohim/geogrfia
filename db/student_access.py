@@ -145,18 +145,26 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     student = find_student_by_code(student_code)
     parts = list_olympiad_participants(olympiad_id)
 
-    # Gmail ordinary users: synthetic code g:<userId> — only when olympiad is open (no participant list)
     if not student and student_code and (
         student_code.startswith("g:") or student_code.startswith("gmail:")
     ):
         if parts:
             return {"allowed": False, "reason": "not_assigned"}
+        real_name = "Иштирокчӣ"
+        try:
+            uid = student_code.split(":", 1)[-1]
+            from db.profile_api import get_user_by_id
+            u = get_user_by_id(uid)
+            if u:
+                real_name = (u.get("name") or "").strip() or (u.get("email") or "").split("@")[0] or real_name
+        except Exception:
+            pass
         return {
             "allowed": True,
             "reason": "gmail_open",
             "student": {
                 "id": student_code,
-                "fullName": "Gmail user",
+                "fullName": real_name,
                 "className": "",
                 "school": "",
             },

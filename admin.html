@@ -38,6 +38,8 @@
       <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
       <button type="button" class="tab" data-tab="schools">Мактабҳо</button>
       <button type="button" class="tab" data-tab="admins">Админҳо</button>
+      <button type="button" class="tab" data-tab="gmail">Gmail корбарон</button>
+      <button type="button" class="tab" data-tab="content">Контент / Courses</button>
     </nav>
     <main class="panel">
       <section id="tab-monitor" class="tab-panel">
@@ -155,215 +157,56 @@
         </form>
         <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Логин</th><th>Нақш</th><th>Сохтааст</th><th>Сана</th><th></th></tr></thead><tbody id="adminsBody"></tbody></table></div>
       </section>
+      <section id="tab-gmail" class="tab-panel hidden">
+        <h2>Мониторинги корбарони Gmail (оддӣ)</h2>
+        <p class="muted">Аз хонандагони ID ҷудо. Филтр: мактаб / минтақа / ҷинс</p>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.5rem 0">
+          <input id="gmSchool" placeholder="Мактаб" />
+          <input id="gmRegion" placeholder="Минтақа" />
+          <select id="gmGender"><option value="">Ҷинс</option><option value="male">Писар</option><option value="female">Духтар</option></select>
+          <button type="button" class="btn primary" id="gmFilter">Филтр</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Ном</th><th>Email</th><th>Ҷинс</th><th>Синф</th><th>Мактаб</th><th>Минтақа</th><th>Rating</th>
+          <th>Супориш</th><th>Гузашт</th><th>Нагузашт</th>
+        </tr></thead><tbody id="gmBody"></tbody></table></div>
+      </section>
+      <section id="tab-content" class="tab-panel hidden">
+        <h2>Контент · Courses / Китобҳо / Мақолаҳо</h2>
+        <p class="muted">Китоб, мақола ё пайванд илова кунед. Дар /courses намоиш дода мешавад.</p>
+        <form id="contentForm" class="card form-grid">
+          <label>Навъ</label>
+          <select id="cType"><option value="book">Китоб</option><option value="article">Мақола</option><option value="magazine">Маҷалла</option><option value="link">Пайванд</option></select>
+          <label>Унвон</label><input id="cTitle" required />
+          <label>Тавсиф</label><textarea id="cDesc" rows="3"></textarea>
+          <label>URL / пайванд</label><input id="cUrl" placeholder="https://..." />
+          <label>Забон</label>
+          <select id="cLang"><option value="tg">Тоҷикӣ</option><option value="ru">Русӣ</option><option value="en">English</option></select>
+          <button type="submit" class="btn primary">Илова кардан</button>
+          <p id="cMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Навъ</th><th>Унвон</th><th>Забон</th><th>URL</th><th></th>
+        </tr></thead><tbody id="contentBody"></tbody></table></div>
+      </section>
     </main>
   </div>
   <script src="js/admin.js"></script>
   <script src="js/admin-audit.js"></script>
+  <script src="js/admin-gmail.js"></script>
+  <script src="js/admin-content.js"></script>
   <script>
   (function(){
-    function paintRole(){
-      try {
-        var admin = JSON.parse(localStorage.getItem('geo_admin_user') || 'null');
-        var badge = document.getElementById('adminRoleBadge');
-        if (badge && admin && admin.role) { badge.textContent = admin.role; badge.style.display = 'inline-block'; }
-      } catch(e){}
-    }
-    setInterval(paintRole, 1000); paintRole();
-    async function api(path, options){
-      options = options || {};
-      var token = localStorage.getItem('geo_admin_token') || '';
-      var headers = Object.assign({'Content-Type':'application/json'}, options.headers || {});
-      if (token) headers['X-Admin-Token'] = token;
-      var res = await fetch(path, Object.assign({}, options, {headers: headers}));
-      var data = await res.json().catch(function(){return {};});
-      if (!res.ok) throw new Error(data.error || 'Хато');
-      return data;
-    }
-    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]); }); }
-    async function enhanceDashboard(){
-      try {
-        var data = await api('/api/admin/dashboard');
-        var s = data.stats || {};
-        var grid = document.getElementById('statsGrid');
-        if (!grid) return;
-        grid.innerHTML =
-          '<div class="stat"><b>'+(s.students||0)+'</b><span>Хонандагон</span></div>'+
-          '<div class="stat"><b>'+(s.schools||0)+'</b><span>Мактабҳо</span></div>'+
-          '<div class="stat"><b>'+(s.olympiads||0)+'</b><span>Олимпиадаҳо</span></div>'+
-          '<div class="stat"><b>'+(s.activeOlympiads||0)+'</b><span>Кушода ҳоло</span></div>'+
-          '<div class="stat"><b>'+(s.results||0)+'</b><span>Натиҷаҳо</span></div>'+
-          '<div class="stat"><b>'+(s.passed||0)+'</b><span>Гузаштанд</span></div>'+
-          '<div class="stat"><b>'+(s.failed||0)+'</b><span>Нагузаштанд</span></div>'+
-          '<div class="stat"><b>'+(s.avgScore||0)+'%</b><span>Миёнаи бал</span></div>';
-      } catch(e){}
-    }
-    async function loadSchools(){
-      var body = document.getElementById('schoolsBody');
-      if (!body) return;
-      try {
-        var data = await api('/api/admin/schools');
-        var rows = data.schools || [];
-        body.innerHTML = rows.length ? rows.map(function(s){
-          return '<tr><td>'+esc(s.name)+'</td><td>'+esc(s.location||'—')+'</td><td>'+(s.studentCount||0)+'</td><td><button type="button" class="btn small danger" data-del-school="'+esc(s.id)+'">Нест</button></td></tr>';
-        }).join('') : '<tr><td colspan="4">Мактаб нест</td></tr>';
-        body.querySelectorAll('[data-del-school]').forEach(function(btn){
-          btn.addEventListener('click', async function(){
-            if (!confirm('Нест кунем?')) return;
-            try { await api('/api/admin/schools/'+btn.getAttribute('data-del-school'), {method:'DELETE'}); loadSchools(); } catch(err){ alert(err.message); }
-          });
-        });
-      } catch(e){ body.innerHTML = '<tr><td colspan="4">'+esc(e.message)+'</td></tr>'; }
-    }
-    async function loadSchoolStats(){
-      var body = document.getElementById('schoolStatsBody');
-      if (!body) return;
-      try {
-        var data = await api('/api/admin/dashboard');
-        var rows = data.bySchool || [];
-        body.innerHTML = rows.length ? rows.map(function(r){
-          return '<tr><td>'+esc(r.school)+'</td><td>'+(r.students||0)+'</td><td>'+(r.results||0)+'</td><td>'+(r.passed||0)+'</td></tr>';
-        }).join('') : '<tr><td colspan="4">—</td></tr>';
-      } catch(e){}
-    }
-    document.querySelectorAll('.tab').forEach(function(btn){
+    document.querySelectorAll('.tab[data-tab="gmail"], .tab[data-tab="content"]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        if (btn.dataset.tab === 'schools') { loadSchools(); loadSchoolStats(); }
-        if (btn.dataset.tab === 'monitor') enhanceDashboard();
+        document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.add('hidden'); });
+        btn.classList.add('active');
+        var panel = document.getElementById('tab-' + btn.dataset.tab);
+        if (panel) panel.classList.remove('hidden');
       });
     });
-    var schoolForm = document.getElementById('schoolForm');
-    if (schoolForm) {
-      schoolForm.addEventListener('submit', async function(e){
-        e.preventDefault();
-        var msg = document.getElementById('schoolFormMsg');
-        try {
-          await api('/api/admin/schools', { method:'POST', body: JSON.stringify({ name: document.getElementById('schoolName').value.trim(), location: document.getElementById('schoolLocation').value.trim() }) });
-          schoolForm.reset();
-          if (msg){ msg.textContent='Сабт шуд'; msg.classList.remove('hidden'); }
-          loadSchools();
-        } catch(err){ if (msg){ msg.textContent=err.message; msg.classList.remove('hidden'); } }
-      });
-    }
-    var adminForm = document.getElementById('adminForm');
-    if (adminForm) {
-      adminForm.addEventListener('submit', function(){
-        var roleEl = document.getElementById('newAdminRole');
-        if (!roleEl) return;
-        var _fetch = window.fetch;
-        window.fetch = function(url, opts){
-          if (typeof url === 'string' && url.indexOf('/api/admin/admins') >= 0 && opts && opts.method === 'POST' && opts.body){
-            try { var body = JSON.parse(opts.body); body.role = roleEl.value; opts = Object.assign({}, opts, {body: JSON.stringify(body)}); } catch(err){}
-          }
-          return _fetch.call(this, url, opts);
-        };
-        setTimeout(function(){ window.fetch = _fetch; }, 3000);
-      }, true);
-    }
-    if (localStorage.getItem('geo_admin_token')) setTimeout(enhanceDashboard, 1200);
   })();
   </script>
-<script>
-(function(){
-  function tok(){ return localStorage.getItem('geo_admin_token') || localStorage.getItem('adminToken') || ''; }
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]);}); }
-  async function jget(url){
-    var r = await fetch(url,{headers:{'X-Admin-Token':tok(),'Content-Type':'application/json'}});
-    var d = await r.json().catch(function(){return {};});
-    if(!r.ok) throw new Error(d.error||'Хато');
-    return d;
-  }
-  async function loadLive(){
-    try{
-      var d = await jget('/api/admin/live');
-      var pb = document.getElementById('liveProgressBody');
-      var ab = document.getElementById('liveActiveBody');
-      if(pb){
-        var rows = d.inProgress||[];
-        pb.innerHTML = rows.length ? rows.map(function(s){
-          return '<tr><td>'+esc(s.studentName||'—')+'</td><td>'+esc(s.studentCode||'')+'</td><td>'+esc(String(s.olympiadId||'').slice(0,8))+'…</td><td>'+(s.answered||0)+'</td><td>'+esc(String(s.startedAt||'').slice(0,19))+'</td><td>'+esc(String(s.endsAt||'—').slice(0,19))+'</td></tr>';
-        }).join('') : '<tr><td colspan="6">Ҳеҷ кас дар ҷараён нест</td></tr>';
-      }
-      if(ab){
-        var rows2 = d.active||[];
-        ab.innerHTML = rows2.length ? rows2.map(function(o){
-          return '<tr><td>'+esc(o.title)+'</td><td>'+esc(o.type)+'</td><td>'+(o.inProgressCount||0)+'</td><td>'+(o.finishedCount||0)+'</td><td>'+(o.passed||0)+'</td><td>'+(o.failed||0)+'</td></tr>';
-        }).join('') : '<tr><td colspan="6">—</td></tr>';
-      }
-    }catch(e){ console.warn(e); }
-  }
-  async function loadFilteredResults(){
-    var id = (document.getElementById('resultOlympiadSelect')||{}).value||'';
-    var q = new URLSearchParams();
-    if(id) q.set('olympiadId', id);
-    var school = (document.getElementById('filterSchool')||{}).value; if(school) q.set('school', school.trim());
-    var cls = (document.getElementById('filterClass')||{}).value; if(cls) q.set('class', cls.trim());
-    var st = (document.getElementById('filterStatus')||{}).value; if(st) q.set('status', st);
-    var minS = (document.getElementById('filterMinScore')||{}).value; if(minS) q.set('minScore', minS);
-    var maxS = (document.getElementById('filterMaxScore')||{}).value; if(maxS) q.set('maxScore', maxS);
-    var d = await jget('/api/admin/results?'+q.toString());
-    var body = document.getElementById('resultsBody');
-    if(!body) return;
-    var rows = d.results||[];
-    body.innerHTML = rows.length ? rows.map(function(r){
-      return '<tr><td>'+esc(r.studentName)+'</td><td>'+esc(r.studentClass)+'</td><td>'+esc(r.studentSchool)+'</td><td>'+r.score+'%</td><td>'+r.correct+'/'+r.total+'</td><td>'+esc(r.status)+'</td><td>'+esc(String(r.finishedAt||'').slice(0,19))+'</td></tr>';
-    }).join('') : '<tr><td colspan="7">Натиҷа нест</td></tr>';
-  }
-  async function loadLb(){
-    var id = (document.getElementById('resultOlympiadSelect')||{}).value;
-    if(!id){ alert('Олимпиадаро интихоб кунед'); return; }
-    var d = await jget('/api/admin/olympiads/'+id+'/leaderboard');
-    var chk = document.getElementById('leaderboardPublicChk');
-    if(chk) chk.checked = !!d.leaderboardPublic;
-    var body = document.getElementById('leaderboardBody');
-    var rows = d.entries||[];
-    body.innerHTML = rows.length ? rows.map(function(e){
-      return '<tr><td>'+e.rank+'</td><td>'+esc(e.studentName)+'</td><td>'+esc(e.studentClass)+'</td><td>'+esc(e.studentSchool)+'</td><td>'+e.score+'%</td><td>'+esc(e.status)+'</td></tr>';
-    }).join('') : '<tr><td colspan="6">Холӣ</td></tr>';
-  }
-  document.addEventListener('DOMContentLoaded', function(){
-    var rb = document.getElementById('refreshLiveBtn');
-    if(rb) rb.addEventListener('click', loadLive);
-    var af = document.getElementById('applyFiltersBtn');
-    if(af) af.addEventListener('click', function(){ loadFilteredResults().catch(function(e){ alert(e.message); }); });
-    var ex = document.getElementById('exportCsvBtn');
-    if(ex) ex.addEventListener('click', function(){
-      var id = (document.getElementById('resultOlympiadSelect')||{}).value||'';
-      var q = new URLSearchParams();
-      if(id) q.set('olympiadId', id);
-      var school = (document.getElementById('filterSchool')||{}).value; if(school) q.set('school', school.trim());
-      var cls = (document.getElementById('filterClass')||{}).value; if(cls) q.set('class', cls.trim());
-      var st = (document.getElementById('filterStatus')||{}).value; if(st) q.set('status', st);
-      fetch('/api/admin/results/export?'+q.toString(), { headers: { 'X-Admin-Token': tok() }})
-        .then(function(r){ return r.blob(); })
-        .then(function(b){
-          var u = URL.createObjectURL(b);
-          var a = document.createElement('a'); a.href=u; a.download='results.csv'; a.click();
-          URL.revokeObjectURL(u);
-        }).catch(function(e){ alert(e.message); });
-    });
-    var lb = document.getElementById('loadLeaderboardBtn');
-    if(lb) lb.addEventListener('click', function(){ loadLb().catch(function(e){ alert(e.message); }); });
-    var sv = document.getElementById('saveLbVisBtn');
-    if(sv) sv.addEventListener('click', function(){
-      var id = (document.getElementById('resultOlympiadSelect')||{}).value;
-      if(!id){ alert('Олимпиадаро интихоб кунед'); return; }
-      var pub = (document.getElementById('leaderboardPublicChk')||{}).checked;
-      fetch('/api/admin/olympiads/'+id+'/leaderboard', {
-        method:'PATCH',
-        headers:{'Content-Type':'application/json','X-Admin-Token':tok()},
-        body: JSON.stringify({ public: !!pub })
-      }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||'Хато'); alert('Нигоҳ дошта шуд'); }); })
-        .catch(function(e){ alert(e.message); });
-    });
-    document.querySelectorAll('.tab').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        if(btn.dataset.tab==='monitor') loadLive();
-        if(btn.dataset.tab==='results') setTimeout(function(){ loadFilteredResults().catch(function(){}); }, 400);
-      });
-    });
-    setTimeout(loadLive, 1000);
-  });
-})();
-</script>
 </body>
 </html>

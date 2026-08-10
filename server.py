@@ -1,8 +1,7 @@
-"""Geografia server entry — loads stable core then profile/content/i18n assets."""
+"""Geografia server entry — loads stable core then platform patches."""
 from __future__ import annotations
 
 import urllib.request
-
 from flask import send_from_directory
 
 _url = (
@@ -14,13 +13,10 @@ exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
 try:
     PUBLIC_PATHS.update({
-        "profile.html",
-        "courses.html",
-        "css/profile.css",
-        "js/profile.js",
-        "js/admin-gmail.js",
-        "js/i18n.js",
-        "js/admin-content.js",
+        "profile.html", "courses.html", "leaderboard.html",
+        "css/profile.css", "js/profile.js", "js/admin-gmail.js",
+        "js/i18n.js", "js/admin-content.js", "js/platform-home.js",
+        "js/admin-leaderboard.js",
     })
 except Exception:
     pass
@@ -46,12 +42,15 @@ except Exception:
 def _profile_page():
     return send_from_directory(BASE_DIR, "profile.html")
 
-
 @app.route("/courses")
 @app.route("/courses.html")
 def _courses_page():
     return send_from_directory(BASE_DIR, "courses.html")
 
+@app.route("/leaderboard")
+@app.route("/leaderboard.html")
+def _leaderboard_page():
+    return send_from_directory(BASE_DIR, "leaderboard.html")
 
 try:
     @app.route("/books/<path:filename>")
@@ -60,7 +59,6 @@ try:
 except Exception:
     pass
 
-# Gmail open-quiz access (no recursion)
 try:
     from db import student_access as _sa
     from db import quiz_bridge as _qb
@@ -78,10 +76,19 @@ try:
         if not student and student_code and str(student_code).startswith(("g:", "gmail:")):
             if parts:
                 return {"allowed": False, "reason": "not_assigned"}
+            real_name = ""
+            try:
+                uid = str(student_code).split(":", 1)[-1]
+                from db.profile_api import get_user_by_id as _gu
+                u = _gu(uid)
+                if u:
+                    real_name = (u.get("name") or "").strip() or (u.get("email") or "").split("@")[0]
+            except Exception:
+                pass
             return {
                 "allowed": True,
                 "reason": "gmail_open",
-                "student": {"id": student_code, "fullName": "Gmail user", "className": "", "school": ""},
+                "student": {"id": student_code, "fullName": real_name or "Иштирокчӣ", "className": "", "school": ""},
             }
         return _orig_access(olympiad_id, student_code)
 
@@ -95,90 +102,6 @@ try:
 except Exception:
     pass
 
-try:
-    from flask import jsonify, request as _req
-    from db import olympiad_engine as _oe
-    from db import quiz_api as _qa
-    from db.repo import find_student_by_code as _fsc
-
-    def _patched_quiz_start(quiz_id: str):
-        from db.quiz_routes import _resolve_quiz
-        quiz = _resolve_quiz(quiz_id, include_answers=False)
-        if not quiz:
-            return jsonify({"error": "Викторина ёфт нашуд."}), 404
-        try:
-            user = require_user()
-        except Exception:
-            user = _jwt_require_user()
-        payload = _req.get_json(silent=True) or {}
-        student_code = str(
-            payload.get("studentId") or _req.headers.get("X-Student-Id") or ""
-        ).strip() or None
-        student = _fsc(student_code) if student_code else None
-        if user and not student:
-            student = _sa.find_student_by_user_id(user["id"])
-            if student:
-                student_code = student.get("id")
-        fp = (_req.headers.get("X-Client-Fingerprint") or "")[:64]
-        if quiz.get("source") == "olympiad":
-            if not student_code:
-                if user and user.get("id"):
-                    student_code = "g:" + str(user["id"])[:40]
-                else:
-                    return jsonify({
-                        "error": "Аввал бо Google ворид шавед ё Student ID ворид кунед.",
-                        "reason": "google_or_student_required",
-                    }), 403
-            try:
-                session = _oe.start_exam(
-                    quiz_id,
-                    student_code,
-                    user_id=user["id"] if user else None,
-                    client_fingerprint=fp or None,
-                )
-            except ValueError as e:
-                code = str(e)
-                msgs = {
-                    "rate_limited": "Зиёд дархост.",
-                    "already_submitted": "Аллакай супоридаед.",
-                    "not_assigned": "Ба ин викторина таъин нашудаед.",
-                    "student_not_found": "ID нодуруст.",
-                    "not_found": "Ёфт нашуд.",
-                }
-                return jsonify({"error": msgs.get(code, code), "reason": code}), 403
-            return jsonify({
-                "attemptId": session.get("sessionId") or session.get("id"),
-                "sessionId": session.get("sessionId") or session.get("id"),
-                "sessionToken": session.get("sessionToken"),
-                "quizId": quiz_id,
-                "title": session.get("title"),
-                "startedAt": session.get("startedAt"),
-                "endsAt": session.get("endsAt"),
-                "timeLimitSec": quiz.get("timeLimitSec"),
-                "questionCount": session.get("questionCount"),
-                "questions": session.get("questions") or [],
-                "passScore": session.get("passScore"),
-                "source": "olympiad",
-            })
-        access = _qa.check_access(quiz, user, student)
-        if not access.get("allowed"):
-            return jsonify({"error": "Дастрасӣ рад шуд.", "reason": access.get("reason")}), 403
-        try:
-            attempt = _qa.start_attempt(
-                quiz_id,
-                user_id=user["id"] if user else None,
-                student_id=student_code,
-            )
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-        attempt["source"] = "quiz"
-        return jsonify(attempt)
-
-    app.view_functions["quiz_start"] = _patched_quiz_start
-except Exception:
-    pass
-
-# ---- Hard fallback for /api/content (always available) ----
 try:
     from flask import jsonify as _jfy, request as _rq_c
     import uuid as _uuid
@@ -220,13 +143,8 @@ try:
         if not items:
             now = datetime.now(_tz.utc).isoformat()
             items = [{
-                "id": str(_uuid.uuid4()),
-                "type": b["type"],
-                "title": b["title"],
-                "description": "",
-                "url": b["url"],
-                "lang": b["lang"],
-                "createdAt": now,
+                "id": str(_uuid.uuid4()), "type": b["type"], "title": b["title"],
+                "description": "", "url": b["url"], "lang": b["lang"], "createdAt": now,
             } for b in _DEFAULT_BOOKS]
             try:
                 import json as _json
@@ -245,5 +163,127 @@ try:
         if lang:
             items = [i for i in items if i.get("lang") == lang or not i.get("lang")]
         return _jfy({"items": items, "count": len(items)})
+except Exception:
+    pass
+
+try:
+    from flask import jsonify as _jl, request as _rl
+
+    def _lb_build(limit=100, public_only=True):
+        try:
+            from db import leaderboard_api as _lb
+            return _lb.build_global_leaderboard(limit=limit, public_only=public_only)
+        except Exception:
+            pass
+        import json as _json
+        data_dir = BASE_DIR / "data"
+        by = {}
+        def _ld(name):
+            p = data_dir / name
+            if p.exists():
+                try:
+                    return _json.loads(p.read_text(encoding="utf-8"))
+                except Exception:
+                    return None
+            return None
+        settings = _ld("leaderboard_settings.json") or {"public": True, "title": "Leaderboard · Top Rated"}
+        if public_only and settings.get("public") is False:
+            return {"public": False, "title": settings.get("title"), "entries": [], "total": 0, "message": "Leaderboard пӯшида аст."}
+        profiles = _ld("user_profiles.json") or {}
+        items = list(profiles.values()) if isinstance(profiles, dict) else (profiles if isinstance(profiles, list) else [])
+        for u in items:
+            uid = str(u.get("id") or "")
+            if not uid:
+                continue
+            name = (u.get("name") or "").strip()
+            if name.lower().startswith("gmail"):
+                name = (u.get("email") or "user").split("@")[0]
+            by[uid] = {
+                "id": uid, "name": name or "Иштирокчӣ",
+                "school": u.get("school") or "", "className": u.get("className") or "",
+                "rating": int(u.get("rating") or 1200), "solved": 0, "contests": 0,
+            }
+        students = _ld("students.json") or []
+        if isinstance(students, list):
+            for st in students:
+                sid = str(st.get("id") or "")
+                if not sid:
+                    continue
+                by[sid] = {
+                    "id": sid,
+                    "name": (st.get("fullName") or st.get("name") or "Хонанда"),
+                    "school": st.get("school") or "", "className": st.get("className") or "",
+                    "rating": int(st.get("rating") or 1200), "solved": 0, "contests": 0,
+                }
+        rows = sorted(by.values(), key=lambda x: -int(x.get("rating") or 0))
+        entries = []
+        for i, r in enumerate(rows[:limit], 1):
+            e = dict(r)
+            e["rank"] = i
+            entries.append(e)
+        return {"public": True, "title": settings.get("title") or "Leaderboard · Top Rated", "entries": entries, "total": len(rows), "settings": settings}
+
+    @app.get("/api/leaderboard")
+    def _public_leaderboard():
+        try:
+            limit = min(200, max(1, int(_rl.args.get("limit") or 100)))
+        except Exception:
+            limit = 100
+        return _jl(_lb_build(limit=limit, public_only=True))
+
+    @app.get("/api/admin/leaderboard")
+    def _admin_leaderboard():
+        try:
+            admin = require_admin()
+        except Exception:
+            admin = None
+        if not admin:
+            return _jl({"error": "Дастрасӣ рад шуд."}), 401
+        try:
+            limit = min(500, max(1, int(_rl.args.get("limit") or 200)))
+        except Exception:
+            limit = 200
+        data = _lb_build(limit=limit, public_only=False)
+        return _jl(data)
+
+    @app.get("/api/admin/leaderboard/settings")
+    def _admin_lb_settings_get():
+        try:
+            admin = require_admin()
+        except Exception:
+            admin = None
+        if not admin:
+            return _jl({"error": "Дастрасӣ рад шуд."}), 401
+        try:
+            from db import leaderboard_api as _lb
+            return _jl(_lb.get_settings())
+        except Exception:
+            return _jl({"public": True, "title": "Leaderboard · Top Rated", "pinned": []})
+
+    @app.post("/api/admin/leaderboard/settings")
+    def _admin_lb_settings_set():
+        try:
+            admin = require_admin()
+        except Exception:
+            admin = None
+        if not admin:
+            return _jl({"error": "Дастрасӣ рад шуд."}), 401
+        payload = _rl.get_json(silent=True) or {}
+        try:
+            from db import leaderboard_api as _lb
+            return _jl(_lb.update_settings(payload))
+        except Exception:
+            import json as _json
+            path = BASE_DIR / "data" / "leaderboard_settings.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            cur = {"public": True, "title": "Leaderboard · Top Rated", "pinned": []}
+            if path.exists():
+                try:
+                    cur = _json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            cur.update({k: payload[k] for k in ("public", "title", "showSchool", "showClass", "pinned") if k in payload})
+            path.write_text(_json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
+            return _jl(cur)
 except Exception:
     pass

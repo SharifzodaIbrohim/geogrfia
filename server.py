@@ -59,10 +59,7 @@ try:
 except Exception:
     pass
 
-# Olympiad: Student ID only via student_access — no Gmail open on olympiads.
-# Ordinary users: /quiz = standalone quizzes; /student = olympiads + quizzes.
-
-# FINAL override: public quiz list = standalone only (must run last)
+# FINAL override: public quiz list = standalone only + ensure URL rule exists
 try:
     from flask import jsonify as _jq
     from db import quiz_api as _qapi
@@ -71,6 +68,8 @@ try:
         items = _qapi.list_quizzes(include_draft=False)
         safe = []
         for q in items:
+            if q.get("source") == "olympiad":
+                continue
             safe.append({
                 "id": q["id"],
                 "title": q.get("title"),
@@ -85,8 +84,23 @@ try:
         return _jq({"quizzes": safe})
 
     app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
-except Exception:
-    pass
+    _has = False
+    for _r in list(app.url_map.iter_rules()):
+        if _r.rule == "/api/quizzes" and "GET" in (_r.methods or set()):
+            app.view_functions[_r.endpoint] = _public_list_quizzes_fixed
+            _has = True
+    if not _has:
+        try:
+            app.add_url_rule(
+                "/api/quizzes",
+                "public_list_quizzes",
+                _public_list_quizzes_fixed,
+                methods=["GET"],
+            )
+        except AssertionError:
+            app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
+except Exception as _e:
+    print("[boot] public quiz list override:", _e)
 
 try:
     from db.force_public_quiz_list import install as _install_strict_quiz_list

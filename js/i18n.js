@@ -15,8 +15,26 @@
       all: 'Ҳама', books: 'Китобҳо', articles: 'Мақолаҳо', magazines: 'Маҷаллаҳо', links: 'Пайвандҳо',
       emptyContent: 'Ҳоло мавод нест.',
       liveDashboard: 'Live Dashboard',
+      platformActivity: 'Фаъолияти платформа',
       countries: 'Кишварҳо', quizzes: 'Викторинаҳо', students: 'Хонандагон', olympiads: 'Олимпиадаҳо',
-      login: 'Воридшавӣ', profile: 'Профил', theme: 'Тема', notif: 'Огоҳӣ',
+      featuredQuizzes: 'Викторинаҳои пешниҳодшуда',
+      viewAll: 'Ҳама →',
+      leaderboard: 'Leaderboard · Top Rated',
+      activityEmpty: 'Фаъолият ҳоло нест',
+      olympEmpty: 'Фаъол нест',
+      lbEmpty: 'Натиҷаҳо баъд аз супориш',
+      login: 'Воридшавӣ',
+      loginGoogle: 'Воридшавӣ бо Google',
+      profile: 'Профил', theme: 'Тема', notif: 'Огоҳӣ',
+      guestTitle: 'Корбари оддӣ?',
+      guestText: 'Бо Google ворид шавед ва дар викторинаҳо иштирок кунед.',
+      quizLead: 'Викторинаҳои ҷуғрофӣ — балл server-side, таймер, таърих дар профил.',
+      quizTitle: 'Викторинаҳо',
+      history: 'Таърих',
+      searchPlaceholder: 'Ҷустуҷӯи кишвар...',
+      regions: 'Минтақаҳо',
+      passScore: 'Ҳад',
+      questions: 'савол',
     },
     ru: {
       navHome: 'Главная',
@@ -33,8 +51,26 @@
       all: 'Все', books: 'Книги', articles: 'Статьи', magazines: 'Журналы', links: 'Ссылки',
       emptyContent: 'Пока нет материалов.',
       liveDashboard: 'Live Dashboard',
+      platformActivity: 'Активность платформы',
       countries: 'Страны', quizzes: 'Викторины', students: 'Ученики', olympiads: 'Олимпиады',
-      login: 'Вход', profile: 'Профиль', theme: 'Тема', notif: 'Уведомления',
+      featuredQuizzes: 'Рекомендуемые викторины',
+      viewAll: 'Все →',
+      leaderboard: 'Рейтинг · Топ',
+      activityEmpty: 'Пока нет активности',
+      olympEmpty: 'Нет активных',
+      lbEmpty: 'Результаты появятся после сдачи',
+      login: 'Вход',
+      loginGoogle: 'Войти через Google',
+      profile: 'Профиль', theme: 'Тема', notif: 'Уведомления',
+      guestTitle: 'Обычный пользователь?',
+      guestText: 'Войдите через Google и участвуйте в викторинах.',
+      quizLead: 'Географические викторины — серверный балл, таймер, история в профиле.',
+      quizTitle: 'Викторины',
+      history: 'История',
+      searchPlaceholder: 'Поиск страны...',
+      regions: 'Регионы',
+      passScore: 'Порог',
+      questions: 'вопросов',
     },
     en: {
       navHome: 'Home',
@@ -51,8 +87,26 @@
       all: 'All', books: 'Books', articles: 'Articles', magazines: 'Magazines', links: 'Links',
       emptyContent: 'No materials yet.',
       liveDashboard: 'Live Dashboard',
+      platformActivity: 'Platform activity',
       countries: 'Countries', quizzes: 'Quizzes', students: 'Students', olympiads: 'Olympiads',
-      login: 'Sign in', profile: 'Profile', theme: 'Theme', notif: 'Notifications',
+      featuredQuizzes: 'Featured quizzes',
+      viewAll: 'View all →',
+      leaderboard: 'Leaderboard · Top Rated',
+      activityEmpty: 'No activity yet',
+      olympEmpty: 'None active',
+      lbEmpty: 'Results after submissions',
+      login: 'Sign in',
+      loginGoogle: 'Sign in with Google',
+      profile: 'Profile', theme: 'Theme', notif: 'Notifications',
+      guestTitle: 'Regular user?',
+      guestText: 'Sign in with Google to take quizzes.',
+      quizLead: 'Geography quizzes — server scoring, timer, history in profile.',
+      quizTitle: 'Quizzes',
+      history: 'History',
+      searchPlaceholder: 'Search country...',
+      regions: 'Regions',
+      passScore: 'Pass',
+      questions: 'questions',
     },
   };
 
@@ -65,10 +119,9 @@
     localStorage.setItem('geo_lang', code);
     document.documentElement.lang = code === 'tg' ? 'tg' : code;
     apply();
-    const sel = document.getElementById('pfLang');
-    if (sel) sel.value = code;
-    const legacy = document.getElementById('languageSelect');
-    if (legacy) legacy.value = code;
+    document.querySelectorAll('#pfLang, #languageSelect').forEach((sel) => {
+      if (sel) sel.value = code;
+    });
     window.dispatchEvent(new CustomEvent('geo:lang', { detail: code }));
   }
 
@@ -81,35 +134,37 @@
     document.querySelectorAll('[data-i18n]').forEach((el) => {
       const key = el.getAttribute('data-i18n');
       const val = t(key);
-      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-        el.placeholder = val;
-      } else {
-        el.textContent = val;
-      }
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = val;
+      else el.textContent = val;
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
     });
     document.querySelectorAll('[data-i18n-title]').forEach((el) => {
       el.title = t(el.getAttribute('data-i18n-title'));
     });
+    const mapPairs = [
+      ['.pf-dash-title', 'liveDashboard'],
+      ['.pf-kicker', 'platformActivity'],
+    ];
+    mapPairs.forEach(([sel, key]) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        if (!el.getAttribute('data-i18n')) el.textContent = t(key);
+      });
+    });
   }
 
   function bind() {
-    const sel = document.getElementById('pfLang');
-    if (sel) {
+    document.querySelectorAll('#pfLang, #languageSelect').forEach((sel) => {
+      if (!sel || sel._i18nBound) return;
+      sel._i18nBound = true;
       sel.value = lang();
       sel.addEventListener('change', () => setLang(sel.value));
-    }
-    const legacy = document.getElementById('languageSelect');
-    if (legacy) {
-      legacy.value = lang();
-      legacy.addEventListener('change', () => setLang(legacy.value));
-    }
+    });
     apply();
   }
 
   window.GeoI18n = { t, setLang, lang, apply, DICT };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind);
-  } else {
-    bind();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
 })();

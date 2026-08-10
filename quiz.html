@@ -5,27 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Викторинаҳо — География</title>
   <link rel="stylesheet" href="css/quiz.css" />
+  <link rel="stylesheet" href="css/platform.css" />
 </head>
 <body>
   <header class="q-header">
     <a href="/" class="q-brand">← География</a>
-    <h1>Викторинаҳо</h1>
+    <h1 data-i18n="quizTitle">Викторинаҳо</h1>
     <div class="q-header-actions">
-      <button type="button" id="btnHistory" class="q-btn ghost">Таърих</button>
-      <button type="button" id="btnAuth" class="q-btn">Ворид</button>
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+      <button type="button" id="btnHistory" class="q-btn ghost" data-i18n="history">Таърих</button>
+      <button type="button" id="btnAuth" class="q-btn" data-i18n="login">Ворид</button>
     </div>
   </header>
 
   <main class="q-main">
-    <!-- List -->
+    <div id="guestBanner" class="q-guest-banner">
+      <div>
+        <strong data-i18n="guestTitle">Корбари оддӣ?</strong>
+        <span data-i18n="guestText">Бо Google ворид шавед ва дар викторинаҳо иштирок кунед.</span>
+      </div>
+      <button type="button" id="btnGuestLogin" class="q-btn primary" data-i18n="loginGoogle">Воридшавӣ бо Google</button>
+    </div>
     <section id="viewList" class="q-view">
-      <p class="q-lead">Викторинаҳои ҷуғрофӣ — балл server-side, таймер, таърих дар профил.</p>
+      <p class="q-lead" data-i18n="quizLead">Викторинаҳои ҷуғрофӣ — балл server-side, таймер, таърих дар профил.</p>
       <div id="quizList" class="q-grid"></div>
       <p id="listEmpty" class="q-empty hidden">Ҳанӯз викторина нест. Админ метавонад аз API созад.</p>
       <p id="listError" class="q-error hidden"></p>
     </section>
 
-    <!-- Take quiz -->
     <section id="viewTake" class="q-view hidden">
       <div class="q-take-top">
         <button type="button" id="btnBackList" class="q-btn ghost">← Рӯйхат</button>
@@ -39,40 +50,31 @@
         <span id="qProgress" class="q-muted"></span>
         <button type="button" id="btnNext" class="q-btn">Баъдӣ</button>
       </div>
-      <button type="button" id="btnSubmit" class="q-btn primary full">Супоридан</button>
+      <button type="button" id="btnSubmit" class="q-btn primary">Супоридан</button>
     </section>
 
-    <!-- Result -->
     <section id="viewResult" class="q-view hidden">
-      <div class="q-card result">
+      <div class="q-card">
         <h2>Натиҷа</h2>
-        <p class="q-score" id="resultScore">—</p>
-        <p id="resultStatus" class="q-badge"></p>
-        <p id="resultDetail" class="q-muted"></p>
-        <div class="q-row">
-          <button type="button" id="btnAgain" class="q-btn">Боз рӯйхат</button>
-          <button type="button" id="btnToHistory" class="q-btn ghost">Таърих</button>
-        </div>
+        <p id="resultScore" class="q-score"></p>
+        <p id="resultStatus" class="q-muted"></p>
+        <button type="button" id="btnBackFromResult" class="q-btn primary">Рӯйхат</button>
       </div>
     </section>
 
-    <!-- History / profile -->
     <section id="viewHistory" class="q-view hidden">
-      <div class="q-take-top">
-        <button type="button" id="btnBackFromHistory" class="q-btn ghost">← Рӯйхат</button>
-      </div>
-      <h2>Таърихи викторинаҳо</h2>
+      <button type="button" id="btnBackFromHistory" class="q-btn ghost">← Бозгашт</button>
+      <h2 data-i18n="history">Таърих</h2>
       <p id="historyHint" class="q-muted">Барои нигоҳ доштани таърих бо Google ворид шавед.</p>
-      <div id="historyList" class="q-list"></div>
+      <div id="historyList" class="q-grid"></div>
     </section>
   </main>
 
-  <!-- Auth modal -->
   <div id="authOverlay" class="q-overlay hidden">
     <div class="q-modal">
       <button type="button" id="authClose" class="q-close">×</button>
-      <h2>Воридшавӣ</h2>
-      <p class="q-muted">Google — барои викторинаҳои google-only ва таърих.</p>
+      <h2 data-i18n="login">Воридшавӣ</h2>
+      <p class="q-muted">Google — барои викторина ва таърих. Ё Student ID.</p>
       <div id="googleBtnWrap" class="g-btn-wrap">
         <div id="googleSignInBtn"></div>
       </div>
@@ -80,16 +82,32 @@
       <div id="authProfile" class="hidden">
         <p><strong id="authName"></strong></p>
         <p class="q-muted" id="authEmail"></p>
-        <button type="button" id="btnLogout" class="q-btn full">Баромадан</button>
+        <button type="button" id="btnLogout" class="q-btn ghost">Баромадан</button>
       </div>
-      <hr />
-      <p class="q-muted small">Ё Student ID (барои school-mode):</p>
-      <input id="studentIdInput" placeholder="ID-и хонанда" />
-      <button type="button" id="btnSaveStudent" class="q-btn full">Нигоҳ доштани ID</button>
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:1rem 0" />
+      <label class="q-muted">Student ID (хонанда)</label>
+      <input id="studentIdInput" type="text" placeholder="ID аз админ" style="width:100%;padding:0.55rem;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#151a17;color:#eef3ef;margin:0.35rem 0 0.5rem" />
+      <button type="button" id="btnSaveStudentId" class="q-btn">Сабти ID</button>
     </div>
   </div>
 
+  <script src="js/i18n.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      var g = document.getElementById('btnGuestLogin');
+      var a = document.getElementById('btnAuth');
+      if (g && a) g.addEventListener('click', function(){ a.click(); });
+      function syncBanner(){
+        var tok = localStorage.getItem('geo_user_token') || localStorage.getItem('userToken');
+        var sid = localStorage.getItem('geo_student_id');
+        var b = document.getElementById('guestBanner');
+        if (b) b.style.display = (tok || sid) ? 'none' : 'flex';
+      }
+      syncBanner();
+      setInterval(syncBanner, 1500);
+    });
+  </script>
   <script src="js/quiz-platform.js"></script>
 </body>
 </html>

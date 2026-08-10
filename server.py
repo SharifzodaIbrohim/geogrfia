@@ -59,19 +59,28 @@ try:
 except Exception:
     pass
 
-# FINAL override: public quiz list = standalone only + ensure URL rule exists
+# FINAL: public quiz list + ensure URL rule
 try:
     from flask import jsonify as _jq
     from db import quiz_api as _qapi
+    from db.repo import list_olympiads as _list_oly
 
     def _public_list_quizzes_fixed():
-        items = _qapi.list_quizzes(include_draft=False)
         safe = []
+        seen = set()
+        try:
+            items = _qapi.list_quizzes(include_draft=False)
+        except Exception:
+            items = []
         for q in items:
             if q.get("source") == "olympiad":
                 continue
+            qid = q.get("id")
+            if not qid or qid in seen:
+                continue
+            seen.add(qid)
             safe.append({
-                "id": q["id"],
+                "id": qid,
                 "title": q.get("title"),
                 "description": q.get("description"),
                 "passScore": q.get("passScore"),
@@ -81,6 +90,29 @@ try:
                 "questionCount": q.get("questionCount") or 0,
                 "source": "quiz",
             })
+        try:
+            for o in _list_oly():
+                if (o.get("type") or "olympiad").lower() != "quiz":
+                    continue
+                if not o.get("isActive"):
+                    continue
+                oid = o.get("id")
+                if not oid or oid in seen:
+                    continue
+                seen.add(oid)
+                safe.append({
+                    "id": oid,
+                    "title": o.get("title"),
+                    "description": o.get("description") or "",
+                    "passScore": o.get("passScore") or 70,
+                    "timeLimitSec": o.get("durationSec"),
+                    "accessMode": "school",
+                    "questionCount": o.get("questionCount") or 0,
+                    "source": "quiz",
+                    "eventKind": "olympiad_quiz",
+                })
+        except Exception:
+            pass
         return _jq({"quizzes": safe})
 
     app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
@@ -91,14 +123,9 @@ try:
             _has = True
     if not _has:
         try:
-            app.add_url_rule(
-                "/api/quizzes",
-                "public_list_quizzes",
-                _public_list_quizzes_fixed,
-                methods=["GET"],
-            )
+            app.add_url_rule("/api/quizzes", "public_list_quizzes", _public_list_quizzes_fixed, methods=["GET"])
         except AssertionError:
-            app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
+            pass
 except Exception as _e:
     print("[boot] public quiz list override:", _e)
 
@@ -107,6 +134,12 @@ try:
     _install_strict_quiz_list(app)
 except Exception as _e:
     print("[boot] force_public_quiz_list:", _e)
+
+try:
+    from db.install_leaderboard import install as _install_lb
+    _install_lb(app)
+except Exception as _e:
+    print("[boot] leaderboard:", _e)
 
 try:
     from db.one_attempt import install as _install_one_attempt

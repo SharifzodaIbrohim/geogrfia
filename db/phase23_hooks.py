@@ -103,3 +103,10 @@ def register_routes(app, public_student, public_user, olympiad_window_status):
         if access.get("student"):
             body["student"] = public_student(access["student"])
         return jsonify(body), status
+
+    # After all other boot patches: public /quiz = standalone quizzes only
+    try:
+        from db.force_public_quiz_list import install as _force_quiz_list
+        _force_quiz_list(app)
+    except Exception as e:
+        print("[boot] force_public_quiz_list via phase23:", e)

@@ -189,7 +189,7 @@ try:
                 except Exception:
                     return None
             return None
-        settings = _ld("leaderboard_settings.json") or {"public": True, "title": "Leaderboard · Top Rated"}
+        settings = _ld("leaderboard_settings.json") or {"public": True, "title": "Leaderboard \u00b7 Top Rated", "useDemo": True}
         if public_only and settings.get("public") is False:
             return {"public": False, "title": settings.get("title"), "entries": [], "total": 0, "message": "Leaderboard пӯшида аст."}
         profiles = _ld("user_profiles.json") or {}
@@ -219,12 +219,20 @@ try:
                     "rating": int(st.get("rating") or 1200), "solved": 0, "contests": 0,
                 }
         rows = sorted(by.values(), key=lambda x: -int(x.get("rating") or 0))
+        demo = False
+        if not rows and settings.get("useDemo", True):
+            demo = True
+            rows = [
+                {"id": "demo-1", "name": "Ализода Фарход", "school": "Литсей №1", "className": "11А", "rating": 1480, "solved": 12, "contests": 5},
+                {"id": "demo-2", "name": "Каримова Дилбар", "school": "МТМУ №15", "className": "10Б", "rating": 1410, "solved": 9, "contests": 4},
+                {"id": "demo-3", "name": "Раҳимов Ҷамолиддин", "school": "Литсей №2", "className": "11Б", "rating": 1365, "solved": 8, "contests": 3},
+            ]
         entries = []
         for i, r in enumerate(rows[:limit], 1):
             e = dict(r)
             e["rank"] = i
             entries.append(e)
-        return {"public": True, "title": settings.get("title") or "Leaderboard · Top Rated", "entries": entries, "total": len(rows), "settings": settings}
+        return {"public": True, "title": settings.get("title") or "Leaderboard \u00b7 Top Rated", "entries": entries, "total": len(rows), "demo": demo, "settings": settings}
 
     @app.get("/api/leaderboard")
     def _public_leaderboard():
@@ -246,8 +254,7 @@ try:
             limit = min(500, max(1, int(_rl.args.get("limit") or 200)))
         except Exception:
             limit = 200
-        data = _lb_build(limit=limit, public_only=False)
-        return _jl(data)
+        return _jl(_lb_build(limit=limit, public_only=False))
 
     @app.get("/api/admin/leaderboard/settings")
     def _admin_lb_settings_get():
@@ -261,7 +268,7 @@ try:
             from db import leaderboard_api as _lb
             return _jl(_lb.get_settings())
         except Exception:
-            return _jl({"public": True, "title": "Leaderboard · Top Rated", "pinned": []})
+            return _jl({"public": True, "title": "Leaderboard \u00b7 Top Rated", "pinned": []})
 
     @app.post("/api/admin/leaderboard/settings")
     def _admin_lb_settings_set():
@@ -279,13 +286,13 @@ try:
             import json as _json
             path = BASE_DIR / "data" / "leaderboard_settings.json"
             path.parent.mkdir(parents=True, exist_ok=True)
-            cur = {"public": True, "title": "Leaderboard · Top Rated", "pinned": []}
+            cur = {"public": True, "title": "Leaderboard \u00b7 Top Rated", "pinned": []}
             if path.exists():
                 try:
                     cur = _json.loads(path.read_text(encoding="utf-8"))
                 except Exception:
                     pass
-            cur.update({k: payload[k] for k in ("public", "title", "showSchool", "showClass", "pinned") if k in payload})
+            cur.update({k: payload[k] for k in ("public", "title", "showSchool", "showClass", "pinned", "useDemo") if k in payload})
             path.write_text(_json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
             return _jl(cur)
 except Exception:
@@ -345,7 +352,7 @@ try:
                 code = str(e)
                 msgs = {
                     "rate_limited": "Зиёд дархост.",
-                    "already_submitted": "Аллакай супоридаед.",
+                    "already_submitted": "Аллакай супоридаед. Танҳо 1 бор ичоза аст.",
                     "not_assigned": "Ба ин викторина таъин нашудаед.",
                     "student_not_found": "ID нодуруст.",
                     "not_found": "Ёфт нашуд.",
@@ -375,6 +382,9 @@ try:
                 student_id=student_code,
             )
         except ValueError as e:
+            code = str(e)
+            if code == "already_submitted":
+                return jsonify({"error": "Аллакай супоридаед. Танҳо 1 бор ичоза аст.", "reason": code}), 403
             return jsonify({"error": str(e)}), 400
         attempt["source"] = "quiz"
         return jsonify(attempt)
@@ -396,13 +406,7 @@ try:
             admin = None
         if not admin:
             return _jc({"error": "Дастрасӣ рад шуд."}), 401
-        try:
-            marker = BASE_DIR / "data" / "recent_results_cleared.json"
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            marker.write_text(_json_cr.dumps({"clearedAt": __import__("datetime").datetime.utcnow().isoformat() + "Z"}), encoding="utf-8")
-        except Exception:
-            pass
-        return _jc({"ok": True, "message": "Рӯйхати охирин пок шуд (UI)"})
+        return _jc({"ok": True, "message": "UI пок шуд"})
 
     @app.post("/api/admin/results/clear-all")
     def _clear_all_results():
@@ -413,13 +417,13 @@ try:
         if not admin:
             return _jc({"error": "Дастрасӣ рад шуд."}), 401
         cleared = 0
-        for name in ("results.json", "olympiad_sessions.json"):
+        for name in ("results.json",):
             path = BASE_DIR / "data" / name
             if path.exists():
                 try:
                     data = _json_cr.loads(path.read_text(encoding="utf-8"))
                     if isinstance(data, list):
-                        cleared += len(data)
+                        cleared = len(data)
                     path.write_text("[]", encoding="utf-8")
                 except Exception as e:
                     return _jc({"error": str(e)}), 500
@@ -458,38 +462,7 @@ try:
             all_s[str(oid)] = cur
             settings_path.write_text(_json_cr.dumps(all_s, ensure_ascii=False, indent=2), encoding="utf-8")
             return _jc({"ok": True, "leaderboardPublic": cur.get("public", True), "olympiadId": oid})
-        entries = []
-        try:
-            from db.repo import list_results
-            rows = list_results(oid) or []
-            ranked = []
-            for r in rows:
-                sid = str(r.get("studentId") or r.get("studentCode") or "")
-                if sid.startswith("g:") or sid.startswith("gmail:"):
-                    continue
-                name = (r.get("studentName") or "").strip()
-                if name.lower().startswith("gmail"):
-                    continue
-                ranked.append(r)
-            ranked.sort(key=lambda x: -float(x.get("score") or 0))
-            for i, r in enumerate(ranked, 1):
-                entries.append({
-                    "rank": i,
-                    "studentName": r.get("studentName") or "Хонанда",
-                    "studentClass": r.get("studentClass") or r.get("className") or "",
-                    "studentSchool": r.get("studentSchool") or r.get("school") or "",
-                    "score": r.get("score"),
-                    "status": r.get("status"),
-                    "studentId": r.get("studentId"),
-                })
-        except Exception:
-            pass
-        return _jc({
-            "entries": entries,
-            "leaderboard": entries,
-            "leaderboardPublic": cur.get("public", True),
-            "olympiadId": oid,
-        })
+        return _jc({"entries": [], "leaderboard": [], "leaderboardPublic": cur.get("public", True), "olympiadId": oid})
 except Exception:
     pass
 
@@ -534,5 +507,12 @@ try:
         return _jq({"quizzes": safe})
 
     app.view_functions["public_list_quizzes"] = _public_list_quizzes_fixed
+except Exception:
+    pass
+
+# One attempt only (no retake after submit)
+try:
+    from db.one_attempt import install as _install_one_attempt
+    _install_one_attempt()
 except Exception:
     pass

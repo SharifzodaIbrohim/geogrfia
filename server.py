@@ -1,7 +1,9 @@
-"""Geografia server entry — loads stable core then profile."""
+"""Geografia server entry — loads stable core then profile/content/i18n assets."""
 from __future__ import annotations
 
 import urllib.request
+
+from flask import send_from_directory
 
 # Full working server from last good commit
 _url = (
@@ -11,13 +13,16 @@ _url = (
 _src = urllib.request.urlopen(_url, timeout=90).read()
 exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
-# Extra public static for Profile
+# Extra public static assets
 try:
     PUBLIC_PATHS.update({
         "profile.html",
+        "courses.html",
         "css/profile.css",
         "js/profile.js",
         "js/admin-gmail.js",
+        "js/i18n.js",
+        "js/admin-content.js",
     })
 except Exception:
     pass
@@ -32,9 +37,31 @@ except Exception:
     except Exception:
         pass
 
-# /profile page
+# Content / Courses API
+try:
+    from db.content_routes import register_content_routes
+    register_content_routes(app, require_perm, require_admin)
+except Exception as _e:
+    pass
+
+# Pages
 @app.route("/profile")
 @app.route("/profile.html")
 @app.route("/Profile")
 def _profile_page():
     return send_from_directory(BASE_DIR, "profile.html")
+
+
+@app.route("/courses")
+@app.route("/courses.html")
+def _courses_page():
+    return send_from_directory(BASE_DIR, "courses.html")
+
+
+# Serve books PDFs if folder exists
+try:
+    @app.route("/books/<path:filename>")
+    def _books(filename):
+        return send_from_directory(BASE_DIR / "books", filename)
+except Exception:
+    pass

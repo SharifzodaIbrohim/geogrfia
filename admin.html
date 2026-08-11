@@ -33,22 +33,23 @@
 
     <nav class="tabs" id="adminTabs">
       <button type="button" class="tab active" data-tab="monitor">Dashboard</button>
-      <button type="button" class="tab" data-tab="students">Students</button>
-      <button type="button" class="tab" data-tab="schools">Schools</button>
-      <button type="button" class="tab" data-tab="gmail">Users (Gmail)</button>
-      <button type="button" class="tab" data-tab="olympiads">Olympiads / Quizzes</button>
-      <button type="button" class="tab" data-tab="results">Results</button>
+      <button type="button" class="tab" data-tab="students">Хонандагон</button>
+      <button type="button" class="tab" data-tab="schools">Мактабҳо</button>
+      <button type="button" class="tab" data-tab="gmail">Gmail корбарон</button>
+      <button type="button" class="tab" data-tab="olympiads">Олимпиада / Викторина</button>
+      <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
       <button type="button" class="tab" data-tab="leaderboard">Leaderboard</button>
-      <button type="button" class="tab" data-tab="content">Content</button>
-      <button type="button" class="tab" data-tab="audit">Audit / Notifications</button>
-      <button type="button" class="tab" data-tab="admins">Admins</button>
+      <button type="button" class="tab" data-tab="content">Контент</button>
+      <button type="button" class="tab" data-tab="audit">Audit</button>
+      <button type="button" class="tab" data-tab="admins">Админҳо</button>
     </nav>
 
     <main class="panel">
+      <!-- Dashboard -->
       <section id="tab-monitor" class="tab-panel">
         <h2>Dashboard / Live Monitoring</h2>
         <div id="statsGrid" class="stats"></div>
-        <div style="display:flex;gap:.5rem;margin:0.75rem 0">
+        <div style="display:flex;gap:.5rem;margin:0.75rem 0;flex-wrap:wrap">
           <button type="button" id="refreshLiveBtn" class="btn">Навсозӣ</button>
           <button type="button" id="clearRecentBtn" class="btn">Пок кардани recent</button>
         </div>
@@ -62,25 +63,42 @@
         </tr></thead><tbody id="recentResultsBody"></tbody></table></div>
       </section>
 
+      <!-- Students — classic form -->
       <section id="tab-students" class="tab-panel hidden">
-        <h2>Students · Хонандагон</h2>
+        <h2>Хонандагон</h2>
         <form id="studentForm" class="card grid-form">
-          <div><label>Ному насаб</label><input id="fullName" required /></div>
-          <div><label>Синф</label><input id="className" required /></div>
-          <div><label>Мактаб</label><input id="school" required /></div>
+          <div>
+            <label>Ному насаб</label>
+            <input id="fullName" required placeholder="масалан: Ҳасанов Ойбек" />
+          </div>
+          <div>
+            <label>Синф</label>
+            <input id="className" required placeholder="10" />
+          </div>
+          <div>
+            <label>Мактаб</label>
+            <input id="school" required placeholder="Мактаби 7" />
+          </div>
           <div class="form-actions">
             <button type="submit" class="btn primary">Сохтани ID</button>
             <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
           </div>
           <p id="studentMsg" class="msg hidden"></p>
         </form>
-        <div class="table-wrap"><table><thead><tr>
+        <div id="newIdBox" class="card hidden" style="margin-top:0.75rem">
+          <p><strong id="newIdName"></strong></p>
+          <p class="muted">ID-и нав:</p>
+          <code id="newIdValue" style="user-select:all;font-size:1.05rem"></code>
+          <button type="button" id="copyIdBtn" class="btn" style="margin-top:0.5rem">Нусхабардорӣ</button>
+        </div>
+        <div class="table-wrap" style="margin-top:1rem"><table><thead><tr>
           <th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th><th></th>
         </tr></thead><tbody id="studentsBody"></tbody></table></div>
       </section>
 
+      <!-- Schools -->
       <section id="tab-schools" class="tab-panel hidden">
-        <h2>Schools · Мактабҳо</h2>
+        <h2>Мактабҳо</h2>
         <form id="schoolForm" class="card grid-form">
           <div><label>Номи мактаб</label><input id="schoolName" required /></div>
           <div><label>Ҷойгиршавӣ</label><input id="schoolLocation" /></div>
@@ -91,25 +109,67 @@
         </tr></thead><tbody id="schoolsBody"></tbody></table></div>
       </section>
 
+      <!-- Gmail users — table + filters (admin-gmail.js) -->
       <section id="tab-gmail" class="tab-panel hidden">
-        <h2>Users · Gmail корбарон</h2>
-        <div id="gmailPanel"><p class="muted" id="gmBody">Бор мешавад…</p></div>
+        <h2>Мониторинги корбарони Gmail (оддӣ)</h2>
+        <p class="muted">Аз хонандагони ID ҷудо. Филтр: мактаб / минтақа / ҷинс</p>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.5rem 0">
+          <input id="gmSchool" placeholder="Мактаб" />
+          <input id="gmRegion" placeholder="Минтақа" />
+          <select id="gmGender">
+            <option value="">Ҷинс</option>
+            <option value="male">Писар</option>
+            <option value="female">Духтар</option>
+          </select>
+          <button type="button" class="btn primary" id="gmFilter">Филтр</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Ном</th><th>Email</th><th>Ҷинс</th><th>Синф</th><th>Мактаб</th><th>Минтақа</th>
+          <th>Rating</th><th>Супориш</th><th>Гузашт</th><th>Нагузашт</th>
+        </tr></thead><tbody id="gmBody"></tbody></table></div>
       </section>
 
+      <!-- Olympiads — classic create + questions -->
       <section id="tab-olympiads" class="tab-panel hidden">
-        <h2>Olympiads / Quizzes</h2>
-        <p class="muted">Create · Questions · Participants · Schedule · Monitoring (дар ҳамин ҷадвал)</p>
+        <h2>Олимпиада / Викторина</h2>
         <form id="olympiadForm" class="card">
-          <label>Унвон</label><input id="olyTitle" required />
-          <label>Навъ</label><select id="olyType"><option value="olympiad">Олимпиада</option><option value="quiz">Викторина</option></select>
-          <label>Ҳадди гузаштан (%)</label><input id="olyPass" type="number" min="0" max="100" value="70" />
-          <label>Оғоз</label><input id="olyStart" type="datetime-local" />
-          <label>Анҷом</label><input id="olyEnd" type="datetime-local" />
-          <label><input type="checkbox" id="olyActive" checked /> Фавран фаъол</label>
-          <h3>Саволҳо</h3>
+          <div class="grid-form">
+            <div>
+              <label>Унвон</label>
+              <input id="olyTitle" required placeholder="масалан: Олимпиадаи даври мактаб" />
+            </div>
+            <div>
+              <label>Навъ</label>
+              <select id="olyType">
+                <option value="olympiad">Олимпиада</option>
+                <option value="quiz">Викторина</option>
+              </select>
+            </div>
+            <div>
+              <label>Ҳадди гузаштан (%)</label>
+              <input id="olyPass" type="number" min="0" max="100" value="70" />
+            </div>
+            <div>
+              <label>Оғоз</label>
+              <input id="olyStart" type="datetime-local" />
+            </div>
+            <div>
+              <label>Анҷом</label>
+              <input id="olyEnd" type="datetime-local" />
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <label style="display:flex;gap:.4rem;align-items:center">
+                <input type="checkbox" id="olyActive" checked /> Фавран фаъол
+              </label>
+            </div>
+          </div>
+          <h3 style="margin-top:1rem">Саволҳо</h3>
           <div id="questionsList"></div>
-          <button type="button" id="addQuestionBtn" class="btn">+ Савол</button>
-          <button type="submit" class="btn primary">Сабт</button>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <button type="button" id="addQuestionBtn" class="btn">+ Савол</button>
+            <button type="submit" class="btn primary">Сабт</button>
+          </div>
+          <p id="olyFormMsg" class="msg hidden"></p>
           <p id="olyMsg" class="msg hidden"></p>
         </form>
         <div class="table-wrap" style="margin-top:1rem"><table><thead><tr>
@@ -117,15 +177,13 @@
         </tr></thead><tbody id="olympiadsBody"></tbody></table></div>
       </section>
 
+      <!-- Results -->
       <section id="tab-results" class="tab-panel hidden">
-        <h2>Results · Натиҷаҳо / Export</h2>
+        <h2>Натиҷаҳо / Export</h2>
         <div class="row-between" style="flex-wrap:wrap;gap:.5rem">
           <div><label>Олимпиада</label><select id="resultOlympiadSelect"></select></div>
           <button type="button" class="btn" id="loadResultsBtn">Бор кардан</button>
           <button type="button" class="btn" id="loadLeaderboardBtn">Leaderboard</button>
-          <label style="display:flex;align-items:center;gap:.35rem">
-            <input type="checkbox" id="leaderboardPublicChk" checked /> Leaderboard public
-          </label>
         </div>
         <div class="table-wrap" style="margin-top:.75rem"><table><thead><tr>
           <th>Хонанда</th><th>Мактаб</th><th>Синф</th><th>Хол</th><th>Статус</th><th>Вақт</th>
@@ -136,16 +194,17 @@
         </tr></thead><tbody id="leaderboardBody"></tbody></table></div>
       </section>
 
+      <!-- Leaderboard privacy -->
       <section id="tab-leaderboard" class="tab-panel hidden">
         <h2>Leaderboard public · Рейтинги умумӣ</h2>
         <p class="muted">Танзимоти Leaderboard барои Home ва /leaderboard.</p>
         <div class="card" style="margin-bottom:1rem">
-          <h3 style="margin-top:0">Privacy · Leaderboard</h3>
+          <h3 style="margin-top:0">Privacy</h3>
           <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-            <input type="checkbox" id="lbPublicToggle" checked /> show_public_leaderboard (оммавӣ)
+            <input type="checkbox" id="lbPublicToggle" checked /> show_public_leaderboard
           </label>
           <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-            <input type="checkbox" id="lbHideNames" /> hide_names (номҳоро пинҳон / қисман)
+            <input type="checkbox" id="lbHideNames" /> hide_names
           </label>
           <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
             <input type="checkbox" id="lbShowSchool" checked /> show_school
@@ -153,7 +212,7 @@
           <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
             <input type="checkbox" id="lbShowClass" checked /> show_class
           </label>
-          <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+          <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
             <input type="checkbox" id="lbShowScore" checked /> show_score
           </label>
           <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
@@ -182,11 +241,50 @@
         <div id="pinList" class="muted">—</div>
       </section>
 
+      <!-- Content — form + table (admin-content.js) -->
       <section id="tab-content" class="tab-panel hidden">
-        <h2>Content · Courses / Китобҳо</h2>
-        <div id="contentBody"><p class="muted">Бор мешавад…</p></div>
+        <h2>Контент · Courses / Китобҳо / Мақолаҳо</h2>
+        <form id="contentForm" class="card grid-form">
+          <div>
+            <label>Навъ</label>
+            <select id="cType">
+              <option value="book">Китоб</option>
+              <option value="article">Мақола</option>
+              <option value="link">Пайванд</option>
+              <option value="course">Курс</option>
+            </select>
+          </div>
+          <div>
+            <label>Унвон</label>
+            <input id="cTitle" required />
+          </div>
+          <div>
+            <label>Тавсиф</label>
+            <input id="cDesc" />
+          </div>
+          <div>
+            <label>URL</label>
+            <input id="cUrl" type="url" placeholder="https://..." />
+          </div>
+          <div>
+            <label>Забон</label>
+            <select id="cLang">
+              <option value="tg">Тоҷикӣ</option>
+              <option value="ru">Русӣ</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Илова</button>
+          </div>
+          <p id="cMsg" class="msg hidden"></p>
+        </form>
+        <div class="table-wrap" style="margin-top:1rem"><table><thead><tr>
+          <th>Навъ</th><th>Унвон</th><th>Забон</th><th>URL</th><th></th>
+        </tr></thead><tbody id="contentBody"></tbody></table></div>
       </section>
 
+      <!-- Audit -->
       <section id="tab-audit" class="tab-panel hidden">
         <h2>Audit Log / Notifications</h2>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
@@ -194,16 +292,17 @@
           <button type="button" class="btn" id="testNotifBtn">Test notification</button>
         </div>
         <div class="table-wrap"><table><thead><tr>
-          <th>Вақт</th><th>Амал</th><th>Актор</th><th>Тафсилот</th>
+          <th>Вақт</th><th>Админ</th><th>Амал</th><th>Ҳадаф</th><th>IP</th>
         </tr></thead><tbody id="auditBody"></tbody></table></div>
         <h3 style="margin-top:1rem">Notifications</h3>
         <div class="table-wrap"><table><thead><tr>
-          <th>Вақт</th><th>Матн</th>
+          <th>Вақт</th><th>Унвон</th><th>Матн</th><th>Хонда</th>
         </tr></thead><tbody id="notifBody"></tbody></table></div>
       </section>
 
+      <!-- Admins -->
       <section id="tab-admins" class="tab-panel hidden">
-        <h2>Admins · System roles</h2>
+        <h2>Админҳо</h2>
         <form id="adminForm" class="card grid-form">
           <div><label>Login</label><input id="newAdminLogin" required /></div>
           <div><label>Ном</label><input id="newAdminName" required /></div>

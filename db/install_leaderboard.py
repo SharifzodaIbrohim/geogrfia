@@ -6,8 +6,17 @@ import logging
 log = logging.getLogger("geografia.leaderboard_install")
 
 
+def _with_ranks(entries: list) -> list:
+    out = []
+    for i, e in enumerate(entries or []):
+        row = dict(e) if isinstance(e, dict) else {"name": str(e)}
+        row["rank"] = int(row.get("rank") or (i + 1))
+        out.append(row)
+    return out
+
+
 def install(app) -> None:
-    from flask import jsonify, request
+    from flask import jsonify
 
     def public_leaderboard():
         try:
@@ -23,12 +32,13 @@ def install(app) -> None:
             elif hasattr(lb, "get_leaderboard"):
                 entries = lb.get_leaderboard() or []
             else:
-                # Fallback: aggregate from attempts if available
                 entries = _from_attempts()
             if not entries and settings.get("useDemo", True) and hasattr(lb, "_DEMO"):
                 entries = list(lb._DEMO)
+            entries = _with_ranks(entries)
             return jsonify({
                 "entries": entries,
+                "total": len(entries),
                 "settings": {
                     "title": settings.get("title") or "Leaderboard",
                     "showSchool": settings.get("showSchool", True),
@@ -69,7 +79,6 @@ def install(app) -> None:
             log.warning("attempts leaderboard: %s", e)
             return []
 
-    # Bind under several endpoint names the frontend might use
     app.view_functions["public_leaderboard"] = public_leaderboard
     has = False
     for r in list(app.url_map.iter_rules()):

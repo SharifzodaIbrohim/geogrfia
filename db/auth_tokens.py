@@ -1,6 +1,6 @@
 """
-Phase 2 — JWT tokens for users and admins.
-Env: JWT_SECRET (required in production). Falls back to a dev secret only if unset.
+Phase 2 / P0.9 — JWT tokens for users and admins.
+Secret resolution via db.secrets (required in production).
 """
 from __future__ import annotations
 
@@ -10,22 +10,9 @@ from typing import Any
 
 import jwt
 
+from db.secrets import get_jwt_secret
 
-def _resolve_jwt_secret() -> str:
-    secret = os.environ.get("JWT_SECRET", "").strip()
-    env = (os.environ.get("FLASK_ENV") or os.environ.get("ENV") or os.environ.get("APP_ENV") or "").strip().lower()
-    is_prod = env in ("production", "prod") or bool(os.environ.get("RENDER") or os.environ.get("DYNO"))
-    if secret:
-        return secret
-    if is_prod:
-        raise RuntimeError(
-            "JWT_SECRET environment variable is required in production. "
-            "Refusing to start with a default secret."
-        )
-    return "geografia-dev-only-change-me"
-
-
-JWT_SECRET = _resolve_jwt_secret()
+JWT_SECRET = get_jwt_secret()
 JWT_ALG = "HS256"
 USER_TTL = int(os.environ.get("USER_SESSION_TTL", str(60 * 60 * 24 * 7)))
 ADMIN_TTL = int(os.environ.get("ADMIN_SESSION_TTL", str(60 * 60 * 12)))
@@ -47,12 +34,16 @@ def issue_user_token(user: dict) -> str:
 
 def issue_admin_token(admin: dict) -> str:
     now = int(time.time())
+    role = admin.get("role")
+    # P0.7: never invent super_admin; unknown → monitor (least privilege for token claim)
+    if not role:
+        role = "monitor"
     payload = {
         "typ": "admin",
         "sub": str(admin["id"]),
         "login": admin.get("login"),
         "name": admin.get("name") or admin.get("login"),
-        "role": admin.get("role") or "monitor",
+        "role": role,
         "iat": now,
         "exp": now + ADMIN_TTL,
     }

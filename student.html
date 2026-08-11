@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Хонанда — Олимпиада ва викторина</title>
   <link rel="stylesheet" href="css/admin.css" />
+  <link rel="stylesheet" href="css/student.css" />
 </head>
 <body>
   <div id="loginView" class="auth-shell">
@@ -18,6 +19,7 @@
       <p class="muted center"><a href="/">Бозгашт ба сайт</a></p>
     </form>
   </div>
+
   <div id="appView" class="hidden">
     <header class="topbar">
       <div>
@@ -29,6 +31,7 @@
         <button id="logoutBtn" type="button" class="btn">Баромадан</button>
       </div>
     </header>
+
     <main class="panel">
       <section id="listView">
         <h2>Олимпиадаҳои фаъол</h2>
@@ -38,20 +41,37 @@
         <div id="quizList" class="cards"></div>
         <p id="emptyQuiz" class="muted hidden">Ҳоло викторина нест.</p>
       </section>
-      <section id="examView" class="hidden">
-        <div class="row-between">
-          <h2 id="examTitle">—</h2>
-          <div style="display:flex;gap:0.5rem;align-items:center">
-            <span id="examTimer" class="badge">—</span>
-            <span id="examProgress" class="badge">0/0</span>
+
+      <section id="examView" class="hidden exam-shell">
+        <div class="exam-card">
+          <div class="exam-head">
+            <div class="exam-brand">GEOGRAFIA</div>
+            <h1 id="examTitle" class="exam-title">—</h1>
+            <div class="exam-meta">
+              <span id="examTimer" class="exam-chip">—</span>
+              <span id="examProgress" class="exam-chip accent">Савол 0 / 0</span>
+            </div>
+          </div>
+
+          <div id="examQuestionPane" class="exam-body">
+            <!-- filled by JS: one question -->
+          </div>
+
+          <div class="exam-nav">
+            <button type="button" id="examPrevBtn" class="btn ghost">← Previous</button>
+            <div id="examDots" class="exam-dots" aria-hidden="true"></div>
+            <button type="button" id="examNextBtn" class="btn">Next →</button>
+          </div>
+
+          <div class="exam-footer">
+            <button type="button" id="submitExamBtn" class="btn primary exam-submit">Супоридан</button>
+            <p id="examMsg" class="msg hidden"></p>
           </div>
         </div>
-        <div id="examQuestions"></div>
-        <button id="submitExamBtn" type="button" class="btn primary">Супоридан</button>
-        <p id="examMsg" class="msg hidden"></p>
       </section>
+
       <section id="resultView" class="hidden">
-        <div class="card highlight center">
+        <div class="card highlight center result-card">
           <h2>Натиҷа</h2>
           <p class="score-big" id="resultScore">0%</p>
           <p id="resultDetail"></p>
@@ -61,6 +81,7 @@
       </section>
     </main>
   </div>
+
   <script src="js/student.js"></script>
 </body>
 </html>

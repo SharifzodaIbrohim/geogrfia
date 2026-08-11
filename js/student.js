@@ -95,9 +95,20 @@
       const quizBox = document.getElementById('quizList');
       const emptyOly = document.getElementById('emptyOly');
       const emptyQuiz = document.getElementById('emptyQuiz');
-      const olympiads = (data.olympiads || []).filter((o) => (o.type || 'olympiad') !== 'quiz');
-      const quizzes = (data.olympiads || []).filter((o) => (o.type || '') === 'quiz');
+
+      // API returns olympiads + quizzes separately — never double-merge
+      const rawOly = data.olympiads || [];
+      const olympiads = rawOly.filter((o) => (o.type || 'olympiad').toLowerCase() !== 'quiz');
+      const fromOly = rawOly.filter((o) => (o.type || '').toLowerCase() === 'quiz');
       const quizzes2 = data.quizzes || [];
+      const seenQ = new Set();
+      const quizzes = [];
+      for (const q of [...fromOly, ...quizzes2]) {
+        const id = String(q.id || '');
+        if (!id || seenQ.has(id)) continue;
+        seenQ.add(id);
+        quizzes.push(q);
+      }
 
       function card(o, isQuiz) {
         return `
@@ -112,16 +123,15 @@
         olyBox.innerHTML = olympiads.map((o) => card(o, false)).join('') || '';
         emptyOly?.classList.toggle('hidden', olympiads.length > 0);
       }
-      const allQ = [...quizzes, ...quizzes2];
       if (quizBox) {
-        quizBox.innerHTML = allQ.map((o) => card(o, true)).join('') || '';
-        emptyQuiz?.classList.toggle('hidden', allQ.length > 0);
+        quizBox.innerHTML = quizzes.map((o) => card(o, true)).join('') || '';
+        emptyQuiz?.classList.toggle('hidden', quizzes.length > 0);
       }
 
       document.querySelectorAll('[data-start]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const id = btn.dataset.start;
-          const oly = [...olympiads, ...allQ].find((x) => String(x.id) === String(id));
+          const oly = [...olympiads, ...quizzes].find((x) => String(x.id) === String(id));
           if (oly) await startExam(oly);
         });
       });

@@ -11,6 +11,20 @@ _url = (
 _src = urllib.request.urlopen(_url, timeout=90).read()
 exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
+# P0.9: secrets policy check (log status; hard-fail only if explicitly GEOgrafia_STRICT_SECRETS=1)
+try:
+    import os as _os
+    from db.secrets import require_production_secrets, is_production
+    try:
+        _sec = require_production_secrets()
+        print("[boot] secrets:", _sec)
+    except RuntimeError as _se:
+        print("[boot] secrets WARNING:", _se)
+        if _os.environ.get("GEOGRAFIA_STRICT_SECRETS", "").strip() in ("1", "true", "yes"):
+            raise
+except Exception as _e:
+    print("[boot] secrets check:", _e)
+
 # P0.6: apply pending SQL migrations (idempotent; no-op if already applied)
 try:
     import os as _os

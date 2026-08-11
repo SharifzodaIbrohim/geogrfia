@@ -1,5 +1,5 @@
 """
-P1.1 — Install cookie-based session on login/logout and identity helpers.
+P1.1 / P1.2 — Cookie session + real logout (server revoke).
 """
 from __future__ import annotations
 
@@ -136,15 +136,55 @@ def _register_legacy_admin_token(token: str, admin: dict) -> None:
 
 
 def _add_logout_routes(app, sc) -> None:
-    def user_logout():
-        resp = make_response(jsonify({"ok": True}), 200)
-        sc.clear_user_session(resp)
+    """P1.2 real logout: revoke jti → clear cookie → drop legacy token store."""
+
+    def _logout_common(*, admin: bool):
+        from db.session_revocation import revoke_token
+        from db.session_cookies import admin_cookie_name, user_cookie_name
+
+        raw = ""
+        if admin:
+            raw = (request.cookies.get(admin_cookie_name()) or "").strip()
+            if not raw:
+                raw = (request.headers.get("X-Admin-Token") or "").strip()
+        else:
+            raw = (request.cookies.get(user_cookie_name()) or "").strip()
+            auth = (request.headers.get("Authorization") or "").strip()
+            if not raw and auth.lower().startswith("bearer "):
+                raw = auth[7:].strip()
+            if not raw:
+                raw = (request.headers.get("X-User-Token") or "").strip()
+
+        claims = revoke_token(raw) if raw else None
+
+        if raw:
+            for modname in ("server_12d7430", "server_core_remote", "__main__"):
+                mod = sys.modules.get(modname)
+                if mod and hasattr(mod, "ADMIN_TOKENS"):
+                    try:
+                        mod.ADMIN_TOKENS.pop(raw, None)
+                    except Exception:
+                        pass
+
+        resp = make_response(
+            jsonify({
+                "ok": True,
+                "loggedOut": True,
+                "revoked": bool(claims and claims.get("jti")),
+            }),
+            200,
+        )
+        if admin:
+            sc.clear_admin_session(resp)
+        else:
+            sc.clear_user_session(resp)
         return resp
 
+    def user_logout():
+        return _logout_common(admin=False)
+
     def admin_logout():
-        resp = make_response(jsonify({"ok": True}), 200)
-        sc.clear_admin_session(resp)
-        return resp
+        return _logout_common(admin=True)
 
     for rule, ep, fn, methods in [
         ("/api/auth/logout", "user_logout", user_logout, ["POST"]),
@@ -202,12 +242,6 @@ def _add_me_routes(app, sc, enrich_admin) -> None:
 
 
 def _install_before_request(app, sc, enrich_admin) -> None:
-    """
-    Bridge HttpOnly cookie → legacy header lookup.
-    Core require_admin reads X-Admin-Token; we inject cookie JWT into environ
-    so every admin route works without JS storing tokens.
-    """
-
     @app.before_request
     def _bind_session_cookie():
         try:
@@ -218,19 +252,26 @@ def _install_before_request(app, sc, enrich_admin) -> None:
 
             admin_raw = (request.cookies.get(admin_cookie_name()) or "").strip()
             if admin_raw:
-                # Make legacy require_admin see the cookie as X-Admin-Token
-                request.environ["HTTP_X_ADMIN_TOKEN"] = admin_raw
                 admin = enrich_admin(sc.current_admin(request))
                 g.session_admin = admin
                 if admin:
+                    request.environ["HTTP_X_ADMIN_TOKEN"] = admin_raw
                     _register_legacy_admin_token(admin_raw, admin)
+                else:
+                    for modname in ("server_12d7430", "server_core_remote", "__main__"):
+                        mod = sys.modules.get(modname)
+                        if mod and hasattr(mod, "ADMIN_TOKENS"):
+                            try:
+                                mod.ADMIN_TOKENS.pop(admin_raw, None)
+                            except Exception:
+                                pass
 
             user_raw = (request.cookies.get(user_cookie_name()) or "").strip()
             if user_raw:
-                # Optional: surface as Bearer for user routes
-                if not (request.headers.get("Authorization") or "").strip():
+                user = sc.current_user(request)
+                g.session_user = user
+                if user and not (request.headers.get("Authorization") or "").strip():
                     request.environ["HTTP_AUTHORIZATION"] = "Bearer " + user_raw
-                g.session_user = sc.current_user(request)
         except Exception as e:
             log.debug("bind session: %s", e)
             g.session_admin = None

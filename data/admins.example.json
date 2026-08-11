@@ -1,0 +1,9 @@
+[
+  {
+    "id": "adm-local-001",
+    "login": "admin",
+    "name": "Local Super Admin",
+    "role": "super_admin",
+    "_comment": "Create real admin via app or hashed password offline. Do not store plaintext passwords."
+  }
+]

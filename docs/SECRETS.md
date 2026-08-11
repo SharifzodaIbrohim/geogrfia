@@ -4,10 +4,10 @@
 
 | Variable | Purpose | Notes |
 |----------|---------|-------|
-| `DATABASE_URL` | PostgreSQL | Provided by Render Postgres |
-| `JWT_SECRET` | Sign admin/user JWT | Random, **≥32 characters** |
+| `DATABASE_URL` | PostgreSQL | From Render Postgres addon |
+| `JWT_SECRET` | Sign admin/user JWTs | Random, **≥32 characters** |
 
-Generate JWT secret:
+Generate a JWT secret:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -17,25 +17,43 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 | Variable | Purpose |
 |----------|---------|
-| `GOOGLE_CLIENT_ID` | Google Sign-In |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth (if server-side) |
+| `GOOGLE_CLIENT_ID` | Google Sign-In (Gmail users) |
+| `GOOGLE_CLIENT_SECRET` | Server-side OAuth (if used) |
 | `USER_SESSION_TTL` | User JWT lifetime (seconds, default 7d) |
 | `ADMIN_SESSION_TTL` | Admin JWT lifetime (seconds, default 12h) |
-| `ALLOW_JSON_BACKEND` | Emergency JSON fallback (`1` only) — never in prod normally |
+| `GEOGRAFIA_STRICT_SECRETS` | `1` = boot fails if secrets invalid |
+| `ALLOW_JSON_BACKEND` | Emergency JSON only — never permanent in prod |
 
 ## Rules
 
-1. **Never commit** real passwords, API keys, or JWT secrets to git.
-2. Production boot **refuses** weak/missing `JWT_SECRET` and missing `DATABASE_URL`.
-3. Admin passwords live only in the `admins` table (hashed); reset via Super Admin or DB.
-4. Default seed password for local only — change immediately on any shared environment.
+1. **Never commit** real passwords, API keys, JWT secrets, or `.env` to git.
+2. Production boot **warns** (or **fails** if `GEOGRAFIA_STRICT_SECRETS=1`) when `JWT_SECRET` / `DATABASE_URL` missing or weak.
+3. Admin passwords live only in PostgreSQL (`admins.password_hash`), never plaintext.
+4. `data/admins.json` is gitignored — use `data/admins.example.json` as a template.
+5. Google Client ID comes **only** from env / `/api/auth/google/status` — not hardcoded in JS.
 
-## Render checklist
+## Render setup checklist
 
-Environment → add:
+1. Dashboard → Environment:
+   - `DATABASE_URL` (linked Postgres)
+   - `JWT_SECRET` = output of `token_urlsafe(48)`
+   - `GOOGLE_CLIENT_ID` (if needed)
+2. Deploy once and open `/api/health` — check:
+   ```json
+   "secrets": {
+     "production": true,
+     "databaseUrlSet": true,
+     "jwtSecretSet": true,
+     "jwtSecretStrong": true
+   }
+   ```
+3. After confirmed strong:
+   - set `GEOGRAFIA_STRICT_SECRETS=1`
+   - redeploy
 
-- `JWT_SECRET` = (output of token_urlsafe)
-- `DATABASE_URL` = (from Postgres addon)
-- `GOOGLE_CLIENT_ID` = (if Gmail login needed)
+## Local development
 
-Redeploy after setting secrets.
+```bash
+cp .env.example .env
+# edit .env — JWT_SECRET can be any long random string
+```

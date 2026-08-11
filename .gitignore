@@ -16,12 +16,25 @@ env/
 htmlcov/
 .DS_Store
 *.log
+
+# Runtime / local data (may contain PII or password hashes)
 data/users.json
 data/admins.json
 data/students.json
 data/results.json
 data/olympiad_sessions.json
 data/quiz_attempts.json
+data/user_profiles.json
+data/leaderboard_settings.json
+data/audit_logs.json
 data/*.local.json
+
+# Secrets / keys
+*.pem
+*.key
+secrets/
+credentials.json
+client_secret*.json
+
 .vscode/
 .idea/

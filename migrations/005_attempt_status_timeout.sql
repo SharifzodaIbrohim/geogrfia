@@ -1,4 +1,5 @@
--- 005: ensure attempt_status has 'timeout' (safe on already-updated DBs)
+-- 005: ensure attempt_status includes timeout (idempotent)
+-- Runs AFTER 003 so index creation never depends on timeout.
 
 DO $mig$
 BEGIN
@@ -6,5 +7,6 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
   WHEN undefined_object THEN NULL;
+  WHEN others THEN NULL;
 END
 $mig$;

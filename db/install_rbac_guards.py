@@ -1,7 +1,8 @@
 """
-P0.7 / P0.8 boot install:
+P0.7 / P0.8 / P1.1 boot install:
   - Replace list/find admin so missing role ≠ super_admin
   - Guarded admin delete + role change with audit
+  - Resolve admin from HttpOnly session cookie
 """
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ def install(app) -> None:
 
 
 def _patch_repo_admin_lookups() -> None:
-    """P0.7: never default missing role to super_admin."""
     try:
         from db import repo
         from db.connection import get_session
@@ -38,7 +38,7 @@ def _patch_repo_admin_lookups() -> None:
                         "id": r["id"],
                         "login": r["login"],
                         "name": r["name"],
-                        "role": normalize_role(r.get("role")),  # None if invalid
+                        "role": normalize_role(r.get("role")),
                         "createdBy": r.get("created_by"),
                         "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
                     } for r in rows]
@@ -112,6 +112,13 @@ def _patch_admin_views(app) -> None:
     )
 
     def _actor():
+        try:
+            from db import session_cookies as sc
+            admin = enrich_admin(sc.current_admin(request))
+            if admin:
+                return admin
+        except Exception:
+            pass
         try:
             from db.auth_tokens import admin_from_token
             token = request.headers.get("X-Admin-Token") or ""

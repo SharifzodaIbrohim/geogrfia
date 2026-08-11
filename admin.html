@@ -3,27 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Админ · Geografia</title>
+  <title>Панели админ — География</title>
   <link rel="stylesheet" href="css/admin.css" />
 </head>
 <body>
-  <div id="loginView" class="login-wrap">
+  <div id="loginView" class="login-screen">
     <form id="adminLoginForm" class="login-card">
       <h1>Панели админ</h1>
       <p class="muted">Танҳо барои администраторон</p>
-      <label>Логин<input id="adminLogin" autocomplete="username" required /></label>
-      <label>Парол<input id="adminPassword" type="password" autocomplete="current-password" required /></label>
+      <label>Логин<input id="adminLogin" name="login" autocomplete="username" required /></label>
+      <label>Парол<input id="adminPassword" name="password" type="password" autocomplete="current-password" required /></label>
       <p id="loginError" class="error hidden"></p>
-      <button type="submit" class="btn">Ворид шудан</button>
+      <button type="submit" class="btn primary">Ворид шудан</button>
     </form>
   </div>
-  <div id="appView" class="app hidden">
-    <header class="topbar">
+
+  <div id="appView" class="admin-shell hidden">
+    <header class="admin-header">
       <strong>Geografia Admin</strong>
       <span id="adminName"></span>
       <button type="button" id="logoutBtn" class="btn ghost">Баромад</button>
     </header>
-    <nav class="tabs">
+
+    <nav class="admin-nav">
       <button type="button" class="tab active" data-tab="monitor">Dashboard</button>
       <button type="button" class="tab" data-tab="students">Хонандагон</button>
       <button type="button" class="tab" data-tab="olympiads">Олимпиада</button>
@@ -34,18 +36,144 @@
       <button type="button" class="tab" data-tab="leaderboard">Leaderboard</button>
       <button type="button" class="tab" data-tab="audit">Audit</button>
     </nav>
-    <main>
-      <section id="tab-monitor" class="tab-panel"></section>
-      <section id="tab-students" class="tab-panel hidden"></section>
-      <section id="tab-olympiads" class="tab-panel hidden"></section>
-      <section id="tab-results" class="tab-panel hidden"></section>
-      <section id="tab-admins" class="tab-panel hidden"></section>
-      <section id="tab-gmail" class="tab-panel hidden"></section>
-      <section id="tab-content" class="tab-panel hidden"></section>
-      <section id="tab-leaderboard" class="tab-panel hidden"></section>
-      <section id="tab-audit" class="tab-panel hidden"></section>
+
+    <main class="admin-main">
+      <section id="tab-monitor" class="tab-panel">
+        <h2>Dashboard / Live Monitoring</h2>
+        <div class="stats" id="statsGrid"></div>
+        <div class="card">
+          <h3>Натиҷаҳои охирин</h3>
+          <table class="table">
+            <thead>
+              <tr><th>Хонанда</th><th>Мактаб</th><th>Хол</th><th>Статус</th><th>Вақт</th></tr>
+            </thead>
+            <tbody id="recentResultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-students" class="tab-panel hidden">
+        <h2>Хонандагон</h2>
+        <form id="studentForm" class="card form-grid">
+          <label>Ному насаб<input id="fullName" required /></label>
+          <label>Синф<input id="className" required /></label>
+          <label>Мактаб<input id="school" required /></label>
+          <button type="submit" class="btn primary">Сохтани ID</button>
+          <p id="studentFormMsg" class="msg hidden"></p>
+        </form>
+        <div id="newIdBox" class="card hidden">
+          <p>ID барои <strong id="newIdName"></strong>:</p>
+          <code id="newIdValue"></code>
+          <button type="button" id="copyIdBtn" class="btn">Нусха</button>
+        </div>
+        <div class="card">
+          <div class="row">
+            <h3>Рӯйхат</h3>
+            <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th></tr>
+            </thead>
+            <tbody id="studentsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-olympiads" class="tab-panel hidden">
+        <h2>Олимпиада / Викторина</h2>
+        <form id="olympiadForm" class="card form-grid">
+          <label>Унвон<input id="olyTitle" required /></label>
+          <label>Навъ
+            <select id="olyType">
+              <option value="olympiad">Олимпиада</option>
+              <option value="quiz">Викторина</option>
+            </select>
+          </label>
+          <label>Ҳадди гузаштан (%)<input id="olyPass" type="number" value="70" min="1" max="100" /></label>
+          <label>Оғоз<input id="olyStart" type="datetime-local" /></label>
+          <label>Анҷом<input id="olyEnd" type="datetime-local" /></label>
+          <label class="check"><input id="olyActive" type="checkbox" checked /> Фавран фаъол</label>
+          <div id="questionsBox" class="questions"></div>
+          <button type="button" id="addQuestionBtn" class="btn">+ Савол</button>
+          <button type="submit" class="btn primary">Сабт</button>
+          <p id="olyFormMsg" class="msg hidden"></p>
+        </form>
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr><th>Унвон</th><th>Навъ</th><th>Ҳолат</th><th></th></tr>
+            </thead>
+            <tbody id="olympiadsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-results" class="tab-panel hidden">
+        <h2>Натиҷаҳо</h2>
+        <div class="card">
+          <label>Олимпиада
+            <select id="resultsOlympiadSelect"></select>
+          </label>
+          <button type="button" id="loadResultsBtn" class="btn">Бор кардан</button>
+          <button type="button" id="clearResultsBtn" class="btn ghost">Пок кардан</button>
+          <table class="table">
+            <thead>
+              <tr><th>Хонанда</th><th>Мактаб</th><th>Хол</th><th>Статус</th></tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-admins" class="tab-panel hidden">
+        <h2>Админҳо</h2>
+        <form id="adminCreateForm" class="card form-grid">
+          <label>Логин<input id="newAdminLogin" required /></label>
+          <label>Ном<input id="newAdminName" /></label>
+          <label>Парол<input id="newAdminPassword" type="password" required /></label>
+          <label>Нақш
+            <select id="newAdminRole">
+              <option value="monitor">monitor</option>
+              <option value="olympiad_admin">olympiad_admin</option>
+              <option value="super_admin">super_admin</option>
+            </select>
+          </label>
+          <button type="submit" class="btn primary">Илова</button>
+          <p id="adminCreateMsg" class="msg hidden"></p>
+        </form>
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr><th>Логин</th><th>Ном</th><th>Нақш</th><th></th></tr>
+            </thead>
+            <tbody id="adminsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-gmail" class="tab-panel hidden">
+        <h2>Мониторинги Gmail</h2>
+        <div id="gmailPanel" class="card">Бор мешавад…</div>
+      </section>
+
+      <section id="tab-content" class="tab-panel hidden">
+        <h2>Контент · Courses</h2>
+        <div id="contentPanel" class="card">Бор мешавад…</div>
+      </section>
+
+      <section id="tab-leaderboard" class="tab-panel hidden">
+        <h2>Leaderboard public</h2>
+        <div id="leaderboardPanel" class="card">Бор мешавад…</div>
+      </section>
+
+      <section id="tab-audit" class="tab-panel hidden">
+        <h2>Audit Log</h2>
+        <div id="auditPanel" class="card">Бор мешавад…</div>
+      </section>
     </main>
   </div>
+
   <script src="js/admin-session.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/admin-audit.js"></script>

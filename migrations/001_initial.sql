@@ -1,37 +1,55 @@
 -- 001_initial: baseline schema (Phase 1)
--- Equivalent to db/schema.sql at the time of P0.6 formalization.
--- Idempotent: IF NOT EXISTS / DO $$ exception handlers.
+-- Idempotent: IF NOT EXISTS and exception handlers for enums.
+-- Note: avoid dollar-signs in comments (they confuse naive tools).
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE user_status AS ENUM ('active', 'disabled');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE student_status AS ENUM ('active', 'inactive', 'graduated');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE admin_role AS ENUM (
     'super_admin', 'user_admin', 'quiz_admin',
     'olympiad_admin', 'monitor', 'content_admin'
   );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE content_status AS ENUM ('draft', 'published', 'archived');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE attempt_kind AS ENUM ('quiz', 'olympiad');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
-DO $$ BEGIN
+DO $mig$
+BEGIN
   CREATE TYPE attempt_status AS ENUM (
     'in_progress', 'submitted', 'passed', 'failed', 'timeout', 'cancelled'
   );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$mig$;
 
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

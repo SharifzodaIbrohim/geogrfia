@@ -80,7 +80,6 @@ def discover_migrations() -> list[dict]:
             "sql": sql,
             "checksum": _checksum(sql),
         })
-    # stable sort by version number
     found.sort(key=lambda x: int(x["version"]))
     return found
 
@@ -107,20 +106,50 @@ def applied_versions(conn) -> dict[str, dict]:
     }
 
 
+def _execute_script(conn, sql: str) -> None:
+    """
+    Run a multi-statement SQL script.
+
+    Prefer the underlying DBAPI cursor so PostgreSQL receives the whole
+    script (dollar-quotes, DO $$ blocks, etc.). Fall back to a comment-aware
+    splitter + SQLAlchemy text() only if DBAPI path is unavailable.
+    """
+    # Strip UTF-8 BOM if present
+    if sql.startswith("\ufeff"):
+        sql = sql[1:]
+
+    dbapi = None
+    try:
+        # SQLAlchemy 2 Connection
+        dbapi = conn.connection.dbapi_connection
+    except Exception:
+        try:
+            dbapi = conn.connection
+        except Exception:
+            dbapi = None
+
+    if dbapi is not None and hasattr(dbapi, "cursor"):
+        cur = dbapi.cursor()
+        try:
+            cur.execute(sql)
+        finally:
+            cur.close()
+        return
+
+    # Fallback: split safely then execute
+    from sqlalchemy import text
+    for stmt in _split_sql(sql):
+        s = stmt.strip()
+        if s:
+            conn.execute(text(s))
+
+
 def apply_one(conn, mig: dict, *, dry_run: bool = False) -> None:
     from sqlalchemy import text
     log.info("%s %s (%s)", "DRY" if dry_run else "APPLY", mig["version"], mig["name"])
     if dry_run:
         return
-    # Run migration SQL as a single script (multiple statements)
-    # Use connection.execute per statement for broader driver compatibility
-    raw = mig["sql"]
-    # Strip pure comment-only lines noise is fine for psycopg2 execute of whole script
-    # SQLAlchemy 2 + psycopg2: execute one statement at a time is safer
-    statements = _split_sql(raw)
-    for stmt in statements:
-        if stmt.strip():
-            conn.execute(text(stmt))
+    _execute_script(conn, mig["sql"])
     conn.execute(
         text(
             "INSERT INTO schema_migrations (version, name, checksum) "
@@ -133,8 +162,57 @@ def apply_one(conn, mig: dict, *, dry_run: bool = False) -> None:
     conn.commit()
 
 
+def _strip_line_comments(script: str) -> str:
+    """Remove -- line comments that are not inside quotes / dollar-quotes."""
+    out: list[str] = []
+    i = 0
+    n = len(script)
+    in_single = False
+    dollar_tag: str | None = None
+    while i < n:
+        ch = script[i]
+        if not in_single and dollar_tag is None and ch == "-" and i + 1 < n and script[i + 1] == "-":
+            # skip until newline
+            while i < n and script[i] not in ("\n", "\r"):
+                i += 1
+            continue
+        if not in_single and script.startswith("$", i):
+            m = re.match(r"\$([A-Za-z0-9_]*)\$", script[i:])
+            if m:
+                tag = m.group(0)
+                if dollar_tag is None:
+                    dollar_tag = tag
+                elif tag == dollar_tag:
+                    dollar_tag = None
+                out.append(tag)
+                i += len(tag)
+                continue
+        if dollar_tag is not None:
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "'" and not in_single:
+            in_single = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "'" and in_single:
+            if i + 1 < n and script[i + 1] == "'":
+                out.append("''")
+                i += 2
+                continue
+            in_single = False
+            out.append(ch)
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _split_sql(script: str) -> list[str]:
-    """Naive split on ';' outside of $$ dollar-quotes and simple quotes."""
+    """Split on ';' outside of dollar-quotes and single quotes. Comments stripped first."""
+    script = _strip_line_comments(script)
     parts: list[str] = []
     buf: list[str] = []
     i = 0
@@ -143,8 +221,7 @@ def _split_sql(script: str) -> list[str]:
     dollar_tag: str | None = None
     while i < n:
         ch = script[i]
-        # dollar-quote start/end
-        if not in_single and script[i] == "$":
+        if not in_single and script.startswith("$", i):
             m = re.match(r"\$([A-Za-z0-9_]*)\$", script[i:])
             if m:
                 tag = m.group(0)
@@ -168,7 +245,6 @@ def _split_sql(script: str) -> list[str]:
             i += 1
             continue
         if ch == "'" and in_single:
-            # handle escaped ''
             if i + 1 < n and script[i + 1] == "'":
                 buf.append("''")
                 i += 2
@@ -212,9 +288,13 @@ def run_migrations(*, dry_run: bool = False, engine=None) -> dict:
                 result["already"].append(ver)
                 continue
             result["pending"].append(ver)
-            apply_one(conn, mig, dry_run=dry_run)
-            if not dry_run:
-                result["applied"].append(ver)
+            try:
+                apply_one(conn, mig, dry_run=dry_run)
+                if not dry_run:
+                    result["applied"].append(ver)
+            except Exception as e:
+                log.error("migration %s failed: %s", ver, e)
+                raise
 
     log.info(
         "migrations done: applied=%s pending_were=%s already=%s",
@@ -241,8 +321,11 @@ def status(*, engine=None) -> dict:
                 info["checksum"] == mig["checksum"] if info and info.get("checksum") else None
             ),
         })
-    return {"migrations": rows, "count_applied": sum(1 for r in rows if r["status"] == "applied"),
-            "count_pending": sum(1 for r in rows if r["status"] == "pending")}
+    return {
+        "migrations": rows,
+        "count_applied": sum(1 for r in rows if r["status"] == "applied"),
+        "count_pending": sum(1 for r in rows if r["status"] == "pending"),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

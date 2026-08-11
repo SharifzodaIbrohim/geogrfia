@@ -16,21 +16,8 @@ JWT_SECRET = get_jwt_secret()
 JWT_ALG = "HS256"
 
 
-def _user_ttl() -> int:
-    return user_session_ttl()
-
-
-def _admin_ttl() -> int:
-    return admin_session_ttl()
-
-
-# Back-compat aliases (read at call time via functions preferred)
-@property  # type: ignore
-def USER_TTL():  # noqa: N802 — legacy name
-    return user_session_ttl()
-
-
 def __getattr__(name: str):
+    # Legacy imports: from db.auth_tokens import USER_TTL, ADMIN_TTL
     if name == "USER_TTL":
         return user_session_ttl()
     if name == "ADMIN_TTL":

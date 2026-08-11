@@ -35,12 +35,34 @@ try:
 except Exception as _e:
     print("[boot] migrations failed:", _e)
 
+# P1.3: log session TTL
+try:
+    from db.session_ttl import ttl_public_status
+    print("[boot] session ttl:", ttl_public_status())
+except Exception as _e:
+    print("[boot] session ttl:", _e)
+
+# P1.5: security headers (before routes respond)
+try:
+    from db.security_headers import install as _install_sec_headers
+    _install_sec_headers(app)
+except Exception as _e:
+    print("[boot] security headers:", _e)
+
+# P1.4: rate limiting
+try:
+    from db.install_rate_limit import install as _install_rl
+    _install_rl(app)
+except Exception as _e:
+    print("[boot] rate limit:", _e)
+
 try:
     PUBLIC_PATHS.update({
         "profile.html", "courses.html", "leaderboard.html",
         "css/profile.css", "js/profile.js", "js/admin-gmail.js",
         "js/i18n.js", "js/admin-content.js", "js/platform-home.js",
         "js/admin-leaderboard.js", "js/admin-fixes.js", "js/google-signin.js",
+        "js/auth-logout.js",
     })
 except Exception:
     pass
@@ -182,7 +204,7 @@ try:
 except Exception as _e:
     print("[boot] secrets health:", _e)
 
-# P1.1: HttpOnly Secure session cookies (user + admin)
+# P1.1 / P1.2: HttpOnly session cookies + real logout
 try:
     from db.install_session_auth import install as _install_session
     _install_session(app)

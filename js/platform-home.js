@@ -1,4 +1,3 @@
-/** Home Live Dashboard — data only (markup is in index.html) */
 (() => {
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -10,15 +9,37 @@
     if (el) el.textContent = v;
   }
 
-  async function loadData() {
+  async function loadHome() {
     try {
       const [quizzesRes, olyRes, lbRes] = await Promise.all([
         fetch('/api/quizzes').then((r) => r.json()).catch(() => ({ quizzes: [] })),
         fetch('/api/olympiads/active').then((r) => r.json()).catch(() => ({ olympiads: [] })),
         fetch('/api/leaderboard?limit=3').then((r) => r.json()).catch(() => ({ entries: [] })),
       ]);
-      const quizzes = quizzesRes.quizzes || [];
-      const olympiads = olyRes.olympiads || [];
+
+      const quizzesRaw = quizzesRes.quizzes || [];
+      const olympiadsRaw = olyRes.olympiads || [];
+
+      // Pure olympiads only (exclude type=quiz — those belong under quizzes)
+      const olympiads = [];
+      const seenO = new Set();
+      for (const o of olympiadsRaw) {
+        const id = String(o.id || '');
+        if (!id || seenO.has(id)) continue;
+        if ((o.type || 'olympiad').toLowerCase() === 'quiz') continue;
+        seenO.add(id);
+        olympiads.push(o);
+      }
+
+      // Quizzes: only /api/quizzes, deduped by id
+      const quizzes = [];
+      const seenQ = new Set();
+      for (const q of quizzesRaw) {
+        const id = String(q.id || '');
+        if (!id || seenQ.has(id)) continue;
+        seenQ.add(id);
+        quizzes.push(q);
+      }
 
       set('pfMQuizzes', String(quizzes.length));
       set('pfMOlympiads', String(olympiads.length));
@@ -41,26 +62,39 @@
       }
 
       const oBox = document.getElementById('pfUpcomingBox');
-      if (oBox && olympiads.length) {
-        oBox.innerHTML = olympiads
-          .slice(0, 5)
-          .map(
-            (o) => `<div class="pf-act">
+      if (oBox) {
+        if (olympiads.length) {
+          oBox.innerHTML = olympiads
+            .slice(0, 5)
+            .map(
+              (o) => `<div class="pf-act">
             <div>
               <div class="pf-act-main"><strong>${esc(o.title)}</strong></div>
               <div class="pf-act-meta">${o.questionCount || 0} савол · ҳад ${o.passScore || 70}%</div>
             </div>
-            <div class="pf-act-time">${o.type === 'quiz' ? 'quiz' : 'olympiad'}</div>
+            <div class="pf-act-time">olympiad</div>
           </div>`
-          )
-          .join('');
+            )
+            .join('');
+        }
       }
 
       const feed = document.getElementById('pfActivityFeed');
       if (feed) {
         const rows = [];
-        olympiads.slice(0, 4).forEach((o) => rows.push({ title: o.title, meta: 'Олимпиада фаъол' }));
-        quizzes.slice(0, 4).forEach((q) => rows.push({ title: q.title, meta: 'Викторина дастрас' }));
+        const seenFeed = new Set();
+        olympiads.slice(0, 4).forEach((o) => {
+          const id = String(o.id || o.title);
+          if (seenFeed.has(id)) return;
+          seenFeed.add(id);
+          rows.push({ title: o.title, meta: 'Олимпиада фаъол' });
+        });
+        quizzes.slice(0, 4).forEach((q) => {
+          const id = String(q.id || q.title);
+          if (seenFeed.has(id)) return;
+          seenFeed.add(id);
+          rows.push({ title: q.title, meta: 'Викторина дастрас' });
+        });
         if (rows.length) {
           feed.innerHTML = rows
             .slice(0, 8)
@@ -79,33 +113,27 @@
 
       const lb = document.getElementById('pfLeaderPreview');
       if (lb) {
-        const entries = (lbRes && lbRes.entries) || [];
-        if (lbRes && lbRes.public === false) {
-          lb.innerHTML = `<div class="pf-empty"><div class="ico">🔒</div><span>Пӯшида</span></div>`;
-        } else if (entries.length) {
+        const entries = lbRes.entries || lbRes.leaders || [];
+        if (entries.length) {
           lb.innerHTML = entries
             .slice(0, 3)
-            .map((e, i) => {
-              const rank = e.rank || i + 1;
-              const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
-              const name = e.name || e.studentName || '—';
-              const clean = String(name).replace(/^Gmail\s*[·•\-:]?\s*/i, '').trim() || name;
-              return `<div class="pf-lb-row">
-                <span class="pf-lb-rank">${medal}</span>
-                <span class="pf-lb-name">${esc(clean)}</span>
-                <span class="pf-lb-score">${esc(e.rating ?? e.score ?? '—')}</span>
-              </div>`;
-            })
+            .map(
+              (e, i) => `<div class="pf-act">
+              <div class="pf-act-main"><strong>${i + 1}. ${esc(e.name || e.studentName || '—')}</strong></div>
+              <div class="pf-act-time">${e.score ?? e.points ?? '—'}</div>
+            </div>`
+            )
             .join('');
-        } else {
-          lb.innerHTML = `<div class="pf-empty"><div class="ico">⭐</div><span data-i18n="lbEmpty">Натиҷаҳо баъд аз супориш</span></div>`;
         }
       }
-    } catch (e) {
-      console.warn('platform-home', e);
+    } catch (err) {
+      console.warn('[platform-home]', err);
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadData);
-  else loadData();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadHome);
+  } else {
+    loadHome();
+  }
 })();

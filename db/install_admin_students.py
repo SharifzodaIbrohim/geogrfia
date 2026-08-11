@@ -1,7 +1,5 @@
 """
-Hardened /api/admin/students GET + POST + DELETE.
-
-DELETE soft-deletes (status=inactive) so FK/attempts do not 500.
+Hardened /api/admin/students GET + POST + DELETE + audit (P1.9).
 """
 from __future__ import annotations
 
@@ -18,6 +16,36 @@ log = logging.getLogger("geografia.admin_students")
 def _gen_student_code() -> str:
     n = secrets.randbelow(9 * 10**18) + 10**18
     return str(n)
+
+
+def _client_ip() -> str:
+    xff = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    return xff or (request.remote_addr or "")
+
+
+def _current_admin() -> dict | None:
+    try:
+        from db.session_cookies import current_admin
+
+        return current_admin(request)
+    except Exception:
+        return None
+
+
+def _audit(action: str, target_id: str | None = None, meta: dict | None = None) -> None:
+    try:
+        from db.audit import log_action
+
+        log_action(
+            action=action,
+            admin=_current_admin(),
+            target_type="student",
+            target_id=target_id,
+            meta=meta or {},
+            ip=_client_ip(),
+        )
+    except Exception as e:
+        log.warning("audit failed action=%s: %s", action, e)
 
 
 def install(app) -> None:
@@ -67,7 +95,6 @@ def install(app) -> None:
             return False
         if is_postgres_enabled() or use_pg():
             with get_session() as s:
-                # Soft-delete first (keeps history / FK safe)
                 res = s.execute(
                     text(
                         "UPDATE students SET status = CAST('inactive' AS student_status) "
@@ -77,26 +104,16 @@ def install(app) -> None:
                 )
                 if res.rowcount and res.rowcount > 0:
                     return True
-                # Already inactive or missing
                 exists = s.execute(
                     text("SELECT 1 FROM students WHERE student_code = :c LIMIT 1"),
                     {"c": code},
                 ).first()
                 return bool(exists)
-        # JSON fallback
-        from db.repo import DATA_DIR, STUDENTS_FILE, _load_json, _save_json
+        from db.repo import STUDENTS_FILE, _load_json, _save_json
 
         items = _load_json(STUDENTS_FILE)
-        new_items = []
-        found = False
-        for st in items:
-            if str(st.get("id")) == code:
-                found = True
-                st = dict(st)
-                st["status"] = "inactive"
-                # drop from active list entirely in JSON mode
-                continue
-            new_items.append(st)
+        new_items = [st for st in items if str(st.get("id")) != code]
+        found = len(new_items) != len(items)
         if found:
             _save_json(STUDENTS_FILE, new_items)
         return found
@@ -108,9 +125,6 @@ def install(app) -> None:
             except Exception as e:
                 log.exception("list students")
                 return jsonify({"students": [], "error": str(e)[:160]}), 500
-
-        if request.method == "DELETE":
-            return jsonify({"error": "ID лозим аст."}), 400
 
         payload = request.get_json(silent=True) or {}
         full_name = str(payload.get("fullName") or payload.get("name") or "").strip()
@@ -126,6 +140,11 @@ def install(app) -> None:
 
         try:
             st = create_one(full_name, class_name, school)
+            _audit(
+                "CREATE_STUDENT",
+                target_id=st.get("id"),
+                meta={"fullName": full_name, "className": class_name, "school": school},
+            )
             return jsonify({"ok": True, "student": st}), 201
         except Exception as e:
             log.exception("create student failed: %s", e)
@@ -142,6 +161,7 @@ def install(app) -> None:
             ok = delete_one(code)
             if not ok:
                 return jsonify({"error": "Хонанда ёфт нашуд."}), 404
+            _audit("DELETE_STUDENT", target_id=code, meta={"mode": "soft"})
             return jsonify({"ok": True, "deleted": code, "mode": "soft"})
         except Exception as e:
             log.exception("delete student %s: %s", code, e)
@@ -150,12 +170,6 @@ def install(app) -> None:
                 "detail": str(e)[:240],
             }), 500
 
-    def admin_students_dispatch(student_id=None):
-        if request.method == "DELETE" and student_id:
-            return admin_student_delete(student_id)
-        return admin_students()
-
-    # /api/admin/students  GET+POST
     for r in list(app.url_map.iter_rules()):
         if r.rule == "/api/admin/students":
             app.view_functions[r.endpoint] = admin_students
@@ -170,16 +184,6 @@ def install(app) -> None:
     except AssertionError:
         app.view_functions["admin_students_hardened"] = admin_students
 
-    # /api/admin/students/<id> DELETE
-    def _del(student_id):
-        return admin_student_delete(student_id)
-
-    for r in list(app.url_map.iter_rules()):
-        if r.rule in ("/api/admin/students/<student_id>", "/api/admin/students/<id>"):
-            app.view_functions[r.endpoint] = (
-                lambda student_id=None, id=None, **kw: admin_student_delete(student_id or id or "")
-            )
-
     for path, ep in [
         ("/api/admin/students/<student_id>", "admin_student_delete_code"),
         ("/api/admin/students/<id>", "admin_student_delete_id"),
@@ -187,10 +191,8 @@ def install(app) -> None:
         try:
             app.add_url_rule(path, ep, admin_student_delete, methods=["DELETE"])
         except AssertionError:
-            # replace existing
             for r in list(app.url_map.iter_rules()):
                 if r.rule == path:
                     app.view_functions[r.endpoint] = admin_student_delete
 
-    log.info("admin students GET/POST/DELETE installed")
-    print("[boot] admin students: create/list/delete OK")
+    print("[boot] admin students: create/list/delete + audit")

@@ -1,10 +1,10 @@
 """
-Phase 2 / P0.9 — JWT tokens for users and admins.
-Secret resolution via db.secrets (required in production).
+Phase 2 / P0.9 / P1.2 — JWT tokens with jti for logout revocation.
 """
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from typing import Any
 
@@ -18,6 +18,10 @@ USER_TTL = int(os.environ.get("USER_SESSION_TTL", str(60 * 60 * 24 * 7)))
 ADMIN_TTL = int(os.environ.get("ADMIN_SESSION_TTL", str(60 * 60 * 12)))
 
 
+def _new_jti() -> str:
+    return secrets.token_urlsafe(24)
+
+
 def issue_user_token(user: dict) -> str:
     now = int(time.time())
     payload = {
@@ -26,6 +30,7 @@ def issue_user_token(user: dict) -> str:
         "email": user.get("email"),
         "name": user.get("name"),
         "avatar": user.get("avatar") or user.get("avatar_url"),
+        "jti": _new_jti(),
         "iat": now,
         "exp": now + USER_TTL,
     }
@@ -35,7 +40,6 @@ def issue_user_token(user: dict) -> str:
 def issue_admin_token(admin: dict) -> str:
     now = int(time.time())
     role = admin.get("role")
-    # P0.7: never invent super_admin; unknown → monitor (least privilege for token claim)
     if not role:
         role = "monitor"
     payload = {
@@ -44,6 +48,7 @@ def issue_admin_token(admin: dict) -> str:
         "login": admin.get("login"),
         "name": admin.get("name") or admin.get("login"),
         "role": role,
+        "jti": _new_jti(),
         "iat": now,
         "exp": now + ADMIN_TTL,
     }
@@ -54,9 +59,18 @@ def decode_token(token: str) -> dict[str, Any] | None:
     if not token:
         return None
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
     except jwt.PyJWTError:
         return None
+    # P1.2: reject revoked sessions
+    try:
+        from db.session_revocation import is_revoked
+
+        if is_revoked(data.get("jti")):
+            return None
+    except Exception:
+        pass
+    return data
 
 
 def user_from_token(token: str) -> dict | None:
@@ -68,6 +82,7 @@ def user_from_token(token: str) -> dict | None:
         "email": data.get("email"),
         "name": data.get("name"),
         "avatar": data.get("avatar"),
+        "jti": data.get("jti"),
     }
 
 
@@ -80,4 +95,5 @@ def admin_from_token(token: str) -> dict | None:
         "login": data.get("login"),
         "name": data.get("name"),
         "role": data.get("role"),
+        "jti": data.get("jti"),
     }

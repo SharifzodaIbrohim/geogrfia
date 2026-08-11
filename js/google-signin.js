@@ -1,4 +1,5 @@
 (function () {
+  /* P1.1: Google → backend → HttpOnly session cookie (no localStorage token) */
   function showMsg(text, isError) {
     var el = document.getElementById('authMessage');
     if (!el) return;
@@ -12,12 +13,17 @@
       var res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ idToken: response.credential }),
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok) throw new Error(data.error || 'Google login failed');
-      localStorage.setItem('currentUser', JSON.stringify(data.user));
-      if (data.token) localStorage.setItem('userToken', data.token);
+      if (data.user) {
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+        localStorage.setItem('geo_user', JSON.stringify(data.user));
+      }
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('geo_user_token');
       showMsg('Бо Google ворид шудед');
       setTimeout(function () { location.reload(); }, 600);
     } catch (e) {
@@ -29,7 +35,7 @@
     var host = document.getElementById('googleSignInBtn');
     if (!host) return;
     try {
-      var res = await fetch('/api/auth/google/status');
+      var res = await fetch('/api/auth/google/status', { credentials: 'include' });
       var status = await res.json();
       if (!status.configured || !status.clientId) {
         host.style.display = 'none';

@@ -11,7 +11,7 @@ _url = (
 _src = urllib.request.urlopen(_url, timeout=90).read()
 exec(compile(_src, "server_12d7430.py", "exec"), globals())
 
-# P0.9: secrets policy check (log status; hard-fail only if GEOGRAFIA_STRICT_SECRETS=1)
+# P0.9: secrets policy check
 try:
     import os as _os
     from db.secrets import require_production_secrets
@@ -25,7 +25,7 @@ try:
 except Exception as _e:
     print("[boot] secrets check:", _e)
 
-# P0.6: apply pending SQL migrations (idempotent)
+# P0.6: migrations
 try:
     import os as _os
     if _os.environ.get("DATABASE_URL"):
@@ -40,7 +40,7 @@ try:
         "profile.html", "courses.html", "leaderboard.html",
         "css/profile.css", "js/profile.js", "js/admin-gmail.js",
         "js/i18n.js", "js/admin-content.js", "js/platform-home.js",
-        "js/admin-leaderboard.js", "js/admin-fixes.js",
+        "js/admin-leaderboard.js", "js/admin-fixes.js", "js/google-signin.js",
     })
 except Exception:
     pass
@@ -83,7 +83,6 @@ try:
 except Exception:
     pass
 
-# FINAL: public quiz list + ensure URL rule
 try:
     from flask import jsonify as _jq
     from db import quiz_api as _qapi
@@ -182,3 +181,10 @@ try:
     _install_sec_health(app)
 except Exception as _e:
     print("[boot] secrets health:", _e)
+
+# P1.1: HttpOnly Secure session cookies (user + admin)
+try:
+    from db.install_session_auth import install as _install_session
+    _install_session(app)
+except Exception as _e:
+    print("[boot] session auth:", _e)

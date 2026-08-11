@@ -105,11 +105,10 @@ def _patch_admin_login(app, sc, enrich_admin) -> None:
             "permissions": body.get("permissions") or [],
             "backend": body.get("backend"),
             "session": "cookie",
-            "token": body.get("token"),  # transition only
+            "token": body.get("token"),
         }
         resp = make_response(jsonify(out), 200)
         cookie_tok = sc.set_admin_session(resp, admin)
-        # Bridge cookie JWT into legacy ADMIN_TOKENS so core require_admin works
         _register_legacy_admin_token(cookie_tok, admin)
         if body.get("token"):
             _register_legacy_admin_token(body["token"], admin)
@@ -183,7 +182,6 @@ def _add_me_routes(app, sc, enrich_admin) -> None:
             "session": "cookie",
         })
 
-    # Override ANY existing handler bound to these paths
     for rule, preferred_ep, fn in [
         ("/api/auth/me", "auth_me", auth_me),
         ("/api/admin/me", "admin_me", admin_me),
@@ -204,28 +202,42 @@ def _add_me_routes(app, sc, enrich_admin) -> None:
 
 
 def _install_before_request(app, sc, enrich_admin) -> None:
-    """Each request: if admin cookie present, register JWT into ADMIN_TOKENS."""
+    """
+    Bridge HttpOnly cookie → legacy header lookup.
+    Core require_admin reads X-Admin-Token; we inject cookie JWT into environ
+    so every admin route works without JS storing tokens.
+    """
 
     @app.before_request
     def _bind_session_cookie():
         try:
-            admin = enrich_admin(sc.current_admin(request))
-            g.session_admin = admin
-            if admin:
-                # Cookie value itself is the JWT — use as legacy token key
-                from db.session_cookies import admin_cookie_name
-                raw = (request.cookies.get(admin_cookie_name()) or "").strip()
-                if raw:
-                    _register_legacy_admin_token(raw, admin)
-            user = sc.current_user(request)
-            g.session_user = user
-        except Exception:
+            g.session_admin = None
+            g.session_user = None
+
+            from db.session_cookies import admin_cookie_name, user_cookie_name
+
+            admin_raw = (request.cookies.get(admin_cookie_name()) or "").strip()
+            if admin_raw:
+                # Make legacy require_admin see the cookie as X-Admin-Token
+                request.environ["HTTP_X_ADMIN_TOKEN"] = admin_raw
+                admin = enrich_admin(sc.current_admin(request))
+                g.session_admin = admin
+                if admin:
+                    _register_legacy_admin_token(admin_raw, admin)
+
+            user_raw = (request.cookies.get(user_cookie_name()) or "").strip()
+            if user_raw:
+                # Optional: surface as Bearer for user routes
+                if not (request.headers.get("Authorization") or "").strip():
+                    request.environ["HTTP_AUTHORIZATION"] = "Bearer " + user_raw
+                g.session_user = sc.current_user(request)
+        except Exception as e:
+            log.debug("bind session: %s", e)
             g.session_admin = None
             g.session_user = None
 
 
 def _patch_require_admin_globals(sc, enrich_admin) -> None:
-    """Wrap core require_admin to prefer cookie session."""
     for modname in ("server_12d7430", "__main__"):
         mod = sys.modules.get(modname)
         if not mod:

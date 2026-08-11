@@ -1,1 +1,57 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ · Geografia</title>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <div id="loginView" class="login-wrap">
+    <form id="adminLoginForm" class="login-card">
+      <h1>Панели админ</h1>
+      <p class="muted">Танҳо барои администраторон</p>
+      <label>Логин<input id="adminLogin" autocomplete="username" required /></label>
+      <label>Парол<input id="adminPassword" type="password" autocomplete="current-password" required /></label>
+      <p id="loginError" class="error hidden"></p>
+      <button type="submit" class="btn">Ворид шудан</button>
+    </form>
+  </div>
+  <div id="appView" class="app hidden">
+    <header class="topbar">
+      <strong>Geografia Admin</strong>
+      <span id="adminName"></span>
+      <button type="button" id="logoutBtn" class="btn ghost">Баромад</button>
+    </header>
+    <nav class="tabs">
+      <button type="button" class="tab active" data-tab="monitor">Dashboard</button>
+      <button type="button" class="tab" data-tab="students">Хонандагон</button>
+      <button type="button" class="tab" data-tab="olympiads">Олимпиада</button>
+      <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
+      <button type="button" class="tab" data-tab="admins">Админҳо</button>
+      <button type="button" class="tab" data-tab="gmail">Gmail</button>
+      <button type="button" class="tab" data-tab="content">Контент</button>
+      <button type="button" class="tab" data-tab="leaderboard">Leaderboard</button>
+      <button type="button" class="tab" data-tab="audit">Audit</button>
+    </nav>
+    <main>
+      <section id="tab-monitor" class="tab-panel"></section>
+      <section id="tab-students" class="tab-panel hidden"></section>
+      <section id="tab-olympiads" class="tab-panel hidden"></section>
+      <section id="tab-results" class="tab-panel hidden"></section>
+      <section id="tab-admins" class="tab-panel hidden"></section>
+      <section id="tab-gmail" class="tab-panel hidden"></section>
+      <section id="tab-content" class="tab-panel hidden"></section>
+      <section id="tab-leaderboard" class="tab-panel hidden"></section>
+      <section id="tab-audit" class="tab-panel hidden"></section>
+    </main>
+  </div>
+  <script src="js/admin-session.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/admin-audit.js"></script>
+  <script src="js/admin-gmail.js"></script>
+  <script src="js/admin-content.js"></script>
+  <script src="js/admin-leaderboard.js"></script>
+  <script src="js/admin-fixes.js"></script>
+</body>
+</html>

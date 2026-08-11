@@ -73,7 +73,7 @@
           </div>
           <table class="table">
             <thead>
-              <tr><th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th></tr>
+              <tr><th>ID</th><th>Ном</th><th>Синф</th><th>Мактаб</th><th></th></tr>
             </thead>
             <tbody id="studentsBody"></tbody>
           </table>
@@ -94,7 +94,7 @@
           <label>Оғоз<input id="olyStart" type="datetime-local" /></label>
           <label>Анҷом<input id="olyEnd" type="datetime-local" /></label>
           <label class="check"><input id="olyActive" type="checkbox" checked /> Фавран фаъол</label>
-          <div id="questionsBox" class="questions"></div>
+          <div id="questionsList" class="questions"></div>
           <button type="button" id="addQuestionBtn" class="btn">+ Савол</button>
           <button type="submit" class="btn primary">Сабт</button>
           <p id="olyFormMsg" class="msg hidden"></p>
@@ -113,7 +113,7 @@
         <h2>Натиҷаҳо</h2>
         <div class="card">
           <label>Олимпиада
-            <select id="resultsOlympiadSelect"></select>
+            <select id="resultOlympiadSelect"></select>
           </label>
           <button type="button" id="loadResultsBtn" class="btn">Бор кардан</button>
           <button type="button" id="clearResultsBtn" class="btn ghost">Пок кардан</button>
@@ -128,24 +128,17 @@
 
       <section id="tab-admins" class="tab-panel hidden">
         <h2>Админҳо</h2>
-        <form id="adminCreateForm" class="card form-grid">
+        <form id="adminForm" class="card form-grid">
           <label>Логин<input id="newAdminLogin" required /></label>
           <label>Ном<input id="newAdminName" /></label>
           <label>Парол<input id="newAdminPassword" type="password" required /></label>
-          <label>Нақш
-            <select id="newAdminRole">
-              <option value="monitor">monitor</option>
-              <option value="olympiad_admin">olympiad_admin</option>
-              <option value="super_admin">super_admin</option>
-            </select>
-          </label>
           <button type="submit" class="btn primary">Илова</button>
-          <p id="adminCreateMsg" class="msg hidden"></p>
+          <p id="adminFormMsg" class="msg hidden"></p>
         </form>
         <div class="card">
           <table class="table">
             <thead>
-              <tr><th>Логин</th><th>Ном</th><th>Нақш</th><th></th></tr>
+              <tr><th>Ном</th><th>Логин</th><th>Созанда</th><th>Сана</th><th></th></tr>
             </thead>
             <tbody id="adminsBody"></tbody>
           </table>

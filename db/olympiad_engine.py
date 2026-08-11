@@ -1,4 +1,4 @@
-"""P1 Olympiad Exam Engine — attempt lifecycle, attempt_answers, server-only scoring."""
+"""P1 Olympiad Engine — P1.10 no answers to client, P1.11 server timer, P1.12 one attempt."""
 from __future__ import annotations
 
 import logging
@@ -14,6 +14,11 @@ from db.student_access import student_has_olympiad_access
 
 log = logging.getLogger("geografia.olympiad_engine")
 SESSIONS_FILE = DATA_DIR / "exam_sessions.json"
+
+_FORBIDDEN_Q_KEYS = {
+    "answer", "correct", "correctIndex", "correct_index", "is_correct",
+    "isCorrect", "solution", "explanation",
+}
 
 
 def _utc_now() -> str:
@@ -77,6 +82,39 @@ def _compute_expires(oly: dict, started: datetime):
     return min(candidates) if candidates else None
 
 
+def _sanitize_options(options) -> list[str]:
+    """P1.10: options are plain text only — never is_correct."""
+    out = []
+    for o in options or []:
+        if isinstance(o, dict):
+            out.append(str(o.get("text") or o.get("label") or ""))
+        else:
+            out.append(str(o))
+    return out
+
+
+def _public_questions(qs_src: list) -> list:
+    """Client-safe questions: id, text, options only (+ originalIndex for submit mapping)."""
+    order = list(range(len(qs_src)))
+    secrets.SystemRandom().shuffle(order)
+    out = []
+    for orig_i in order:
+        q = qs_src[orig_i] or {}
+        qid = q.get("id")
+        if qid is None:
+            qid = str(orig_i)
+        item = {
+            "id": str(qid),
+            "text": q.get("text"),
+            "options": _sanitize_options(q.get("options")),
+            "originalIndex": orig_i,
+        }
+        for bad in _FORBIDDEN_Q_KEYS:
+            item.pop(bad, None)
+        out.append(item)
+    return out
+
+
 def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | None = None) -> bool:
     if not olympiad_id:
         return False
@@ -110,22 +148,97 @@ def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | Non
     return False
 
 
-def _public_questions(qs_src: list) -> list:
-    order = list(range(len(qs_src)))
-    secrets.SystemRandom().shuffle(order)
-    out = []
-    for orig_i in order:
-        q = qs_src[orig_i]
-        qid = q.get("id")
-        if qid is None:
-            qid = str(orig_i)
-        out.append({
-            "id": str(qid),
+def find_open_attempt(olympiad_id: str, student_code: str) -> dict | None:
+    """Return in_progress session if still within expires_at."""
+    code = str(student_code).strip()
+    now = _now()
+    try:
+        for s in _load_json(SESSIONS_FILE):
+            if str(s.get("olympiadId")) != str(olympiad_id):
+                continue
+            if str(s.get("studentId") or "") != code:
+                continue
+            if s.get("status") != "in_progress":
+                continue
+            exp = _parse_dt(s.get("expiresAt"))
+            if exp and now > exp:
+                continue
+            return s
+    except Exception:
+        pass
+    if is_postgres_enabled():
+        try:
+            sid = _student_uuid(student_code)
+            if not sid:
+                return None
+            with get_session() as s:
+                row = s.execute(
+                    text(
+                        "SELECT id::text, session_token, started_at, expires_at, pass_score "
+                        "FROM attempts WHERE kind = 'olympiad' "
+                        "AND olympiad_id::text = :oid AND student_id = :sid "
+                        "AND status = 'in_progress' "
+                        "AND (expires_at IS NULL OR expires_at > NOW()) "
+                        "ORDER BY started_at DESC LIMIT 1"
+                    ),
+                    {"oid": str(olympiad_id), "sid": sid},
+                ).mappings().first()
+                if row:
+                    return {
+                        "sessionId": row["id"],
+                        "attemptId": row["id"],
+                        "sessionToken": row.get("session_token") or "",
+                        "olympiadId": olympiad_id,
+                        "studentId": code,
+                        "status": "in_progress",
+                        "startedAt": row["started_at"].isoformat() if row.get("started_at") else None,
+                        "expiresAt": row["expires_at"].isoformat() if row.get("expires_at") else None,
+                        "passScore": row.get("pass_score") or 70,
+                        "questions": [],
+                        "answers": {},
+                        "_from_pg": True,
+                    }
+        except Exception as e:
+            log.warning("find_open_attempt: %s", e)
+    return None
+
+
+def _remaining_sec(expires_at) -> int | None:
+    exp = _parse_dt(expires_at)
+    if not exp:
+        return None
+    return max(0, int((exp - _now()).total_seconds()))
+
+
+def _client_session_payload(session: dict, oly: dict | None = None) -> dict:
+    qs = session.get("questions") or []
+    # Re-sanitize every time
+    safe_qs = []
+    for q in qs:
+        safe_qs.append({
+            "id": str(q.get("id")),
             "text": q.get("text"),
-            "options": list(q.get("options") or []),
-            "originalIndex": orig_i,
+            "options": _sanitize_options(q.get("options")),
+            "originalIndex": q.get("originalIndex"),
         })
-    return out
+    remaining = _remaining_sec(session.get("expiresAt"))
+    return {
+        "sessionId": session.get("sessionId") or session.get("attemptId"),
+        "attemptId": session.get("attemptId") or session.get("sessionId"),
+        "sessionToken": session.get("sessionToken"),
+        "olympiadId": session.get("olympiadId"),
+        "title": (oly or {}).get("title") if oly else session.get("title"),
+        "passScore": session.get("passScore") or 70,
+        "durationSec": (oly or {}).get("durationSec"),
+        "startedAt": session.get("startedAt"),
+        "expiresAt": session.get("expiresAt"),
+        "endsAt": session.get("expiresAt"),
+        "serverNow": _utc_now(),
+        "remainingSec": remaining,
+        "questions": safe_qs,
+        "status": "in_progress",
+        "resumed": bool(session.get("_resumed")),
+    }
 
 
 def start_exam(
@@ -146,8 +259,20 @@ def start_exam(
     access = student_has_olympiad_access(olympiad_id, student_code)
     if not access.get("allowed"):
         raise ValueError(access.get("reason") or "student_not_found")
+
+    # P1.12: finished → reject; in_progress → resume same attempt
     if has_finished_attempt(olympiad_id, student_code, user_id):
         raise ValueError("already_submitted")
+
+    open_sess = find_open_attempt(olympiad_id, student_code)
+    if open_sess and open_sess.get("sessionToken"):
+        open_sess["_resumed"] = True
+        # Prefer JSON session questions if present
+        if not open_sess.get("questions"):
+            # cannot resume questions from PG-only without session file — reject new start? keep resume with empty and force client error
+            pass
+        return _client_session_payload(open_sess, oly)
+
     qs_src = list(oly.get("questions") or [])
     if not qs_src:
         raise ValueError("no_questions")
@@ -180,6 +305,7 @@ def start_exam(
         _save_json(SESSIONS_FILE, items)
     except Exception as e:
         log.warning("session save: %s", e)
+
     if is_postgres_enabled():
         try:
             sid = _student_uuid(student_code)
@@ -220,20 +346,8 @@ def start_exam(
                     )
         except Exception as e:
             log.warning("attempt start persist: %s", e)
-    return {
-        "sessionId": attempt_id,
-        "attemptId": attempt_id,
-        "sessionToken": session_token,
-        "olympiadId": olympiad_id,
-        "title": oly.get("title"),
-        "passScore": pass_score,
-        "durationSec": oly.get("durationSec"),
-        "startedAt": session["startedAt"],
-        "expiresAt": session["expiresAt"],
-        "endsAt": session["expiresAt"],
-        "questions": questions,
-        "status": "in_progress",
-    }
+
+    return _client_session_payload(session, oly)
 
 
 def _load_session(session_id: str, session_token: str):
@@ -301,7 +415,14 @@ def autosave(session_id: str, session_token: str, answers: dict | None, fingerpr
         _save_json(SESSIONS_FILE, items)
     except Exception as e:
         log.warning("autosave: %s", e)
-    return {"ok": True, "savedAt": _utc_now(), "attemptId": session_id}
+    return {
+        "ok": True,
+        "savedAt": _utc_now(),
+        "attemptId": session_id,
+        "serverNow": _utc_now(),
+        "remainingSec": _remaining_sec(session.get("expiresAt")),
+        "expiresAt": session.get("expiresAt"),
+    }
 
 
 def _resolve_selection(ans: dict, q: dict, session_questions: list, index: int):
@@ -327,18 +448,22 @@ def _resolve_selection(ans: dict, q: dict, session_questions: list, index: int):
 
 
 def submit_exam(session_id: str, session_token: str, answers: dict | None, fingerprint: str | None = None, **_kwargs) -> dict:
+    """Server scores; expires_at is authoritative (P1.11)."""
     session, items = _load_session(session_id, session_token)
     if session.get("status") in ("submitted", "passed", "failed", "timeout"):
         raise ValueError("already_submitted")
+
     timed_out = False
     exp = _parse_dt(session.get("expiresAt"))
     if exp and _now() > exp:
         timed_out = True
+
     oly = find_olympiad(session["olympiadId"]) or {}
-    qs = oly.get("questions") or []
+    qs = oly.get("questions") or []  # full questions WITH answers — server only
     ans = dict(session.get("answers") or {})
     if isinstance(answers, dict):
         ans.update(answers)
+
     correct = 0
     total = len(qs)
     detail_rows = []
@@ -356,12 +481,14 @@ def submit_exam(session_id: str, session_token: str, answers: dict | None, finge
             "selected": int(sel) if sel is not None else None,
             "isCorrect": ok,
         })
+
     score = int(round(100 * correct / total)) if total else 0
     pass_score = int(oly.get("passScore") or session.get("passScore") or 70)
-    if timed_out and score < pass_score:
-        status = "timeout"
+    if timed_out:
+        status = "timeout" if score < pass_score else "passed"
     else:
         status = "passed" if score >= pass_score else "failed"
+
     session["status"] = status
     session["answers"] = ans
     session["score"] = score
@@ -372,7 +499,9 @@ def submit_exam(session_id: str, session_token: str, answers: dict | None, finge
         _save_json(SESSIONS_FILE, items)
     except Exception as e:
         log.warning("submit save: %s", e)
+
     _persist_answers_pg(session_id, ans, session.get("questions") or [])
+
     if is_postgres_enabled():
         try:
             with get_session() as s:
@@ -420,6 +549,8 @@ def submit_exam(session_id: str, session_token: str, answers: dict | None, finge
                     )
         except Exception as e:
             log.error("attempts submit persist: %s", e)
+
+    # P1.10: result has scores only — never per-question correct keys to client
     result = {
         "attemptId": session_id,
         "olympiadId": session.get("olympiadId"),
@@ -431,5 +562,6 @@ def submit_exam(session_id: str, session_token: str, answers: dict | None, finge
         "status": status,
         "timedOut": timed_out,
         "finishedAt": session.get("finishedAt"),
+        "serverNow": _utc_now(),
     }
     return {"ok": True, "result": result, **result}

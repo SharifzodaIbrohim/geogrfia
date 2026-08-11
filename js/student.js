@@ -172,7 +172,7 @@
       }
     });
     try {
-      await api('/api/olympiads/' + currentOlympiad.id + '/autosave', {
+      const res = await api('/api/olympiads/' + currentOlympiad.id + '/autosave', {
         method: 'POST',
         headers: { 'X-Client-Fingerprint': FP },
         body: JSON.stringify({
@@ -181,6 +181,9 @@
           answers: payload,
         }),
       });
+      // Sync timer from server if provided
+      if (res && res.expiresAt) examEndsAt = new Date(res.expiresAt).getTime();
+      else if (res && res.remainingSec != null) examEndsAt = Date.now() + Number(res.remainingSec) * 1000;
     } catch (_) {}
   }
 
@@ -210,7 +213,10 @@
       document.getElementById('examTitle').textContent = currentOlympiad.title;
       const msg = document.getElementById('examMsg');
       if (msg) msg.classList.add('hidden');
-      if (data.endsAt) examEndsAt = new Date(data.endsAt).getTime();
+      // P1.11 server-authoritative timer
+      if (data.expiresAt) examEndsAt = new Date(data.expiresAt).getTime();
+      else if (data.endsAt) examEndsAt = new Date(data.endsAt).getTime();
+      else if (data.remainingSec != null) examEndsAt = Date.now() + Number(data.remainingSec) * 1000;
       else if (data.durationSec) examEndsAt = Date.now() + data.durationSec * 1000;
       else examEndsAt = null;
       renderExamQuestions();

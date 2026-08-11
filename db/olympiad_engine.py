@@ -4,16 +4,20 @@ from __future__ import annotations
 import logging
 import secrets
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
 from db.connection import get_session, is_postgres_enabled
-from db.repo import find_olympiad, DATA_DIR, _load_json, _save_json, _utc_now
+from db.repo import DATA_DIR, _load_json, _save_json, find_olympiad, use_pg
 from db.student_access import student_has_olympiad_access
 
 log = logging.getLogger("geografia.olympiad_engine")
-SESSIONS_FILE = DATA_DIR / "olympiad_sessions.json"
+SESSIONS_FILE = DATA_DIR / "exam_sessions.json"
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _now() -> datetime:
@@ -41,16 +45,15 @@ def has_finished_attempt(
     """True if this student already has a finished olympiad attempt."""
     if not olympiad_id:
         return False
-    # Prefer attempts table (production schema)
     if is_postgres_enabled():
         try:
             sid = _student_uuid(student_code)
             with get_session() as s:
-                if sid is not None:
+                if sid:
                     row = s.execute(
                         text(
-                            "SELECT 1 FROM attempts "
-                            "WHERE kind = 'olympiad' AND olympiad_id::text = :oid "
+                            "SELECT 1 FROM attempts WHERE kind = 'olympiad' "
+                            "AND olympiad_id::text = :oid "
                             "AND student_id = :sid "
                             "AND status IN ('submitted','passed','failed','timeout') "
                             "LIMIT 1"
@@ -62,8 +65,8 @@ def has_finished_attempt(
                 if user_id:
                     row = s.execute(
                         text(
-                            "SELECT 1 FROM attempts "
-                            "WHERE kind = 'olympiad' AND olympiad_id::text = :oid "
+                            "SELECT 1 FROM attempts WHERE kind = 'olympiad' "
+                            "AND olympiad_id::text = :oid "
                             "AND user_id::text = :uid "
                             "AND status IN ('submitted','passed','failed','timeout') "
                             "LIMIT 1"
@@ -73,23 +76,19 @@ def has_finished_attempt(
                     if row:
                         return True
         except Exception as e:
-            log.warning("has_finished_attempt PG: %s", e)
-
-    # JSON / legacy sessions fallback
+            log.warning("has_finished_attempt pg: %s", e)
     try:
+        sessions = _load_json(SESSIONS_FILE)
         keys = {str(student_code).strip()} if student_code else set()
-        if user_id:
-            keys.add(str(user_id))
-            keys.add("g:" + str(user_id)[:40])
-        for s in _load_json(SESSIONS_FILE):
+        for s in sessions:
             if str(s.get("olympiadId")) != str(olympiad_id):
                 continue
             if s.get("status") not in ("submitted", "passed", "failed", "timeout"):
                 continue
             if str(s.get("studentId") or "") in keys:
                 return True
-    except Exception as e:
-        log.warning("has_finished_attempt JSON: %s", e)
+    except Exception:
+        pass
     return False
 
 
@@ -97,71 +96,56 @@ def start_exam(
     olympiad_id: str,
     student_code: str,
     user_id: str | None = None,
-    client_fingerprint: str | None = None,
+    fingerprint: str | None = None,
 ) -> dict:
     oly = find_olympiad(olympiad_id)
     if not oly:
         raise ValueError("not_found")
-
     access = student_has_olympiad_access(olympiad_id, student_code)
     if not access.get("allowed"):
-        raise ValueError(access.get("reason") or "not_allowed")
-
+        raise ValueError(access.get("reason") or "student_not_found")
     if has_finished_attempt(olympiad_id, student_code, user_id):
         raise ValueError("already_submitted")
 
-    qs_raw = oly.get("questions") or []
-    if not qs_raw:
-        raise ValueError("no_questions")
-
+    qs_src = list(oly.get("questions") or [])
+    # shuffle order for exam presentation
+    order = list(range(len(qs_src)))
+    secrets.SystemRandom().shuffle(order)
     questions = []
-    for i, q in enumerate(qs_raw):
+    for disp_i, orig_i in enumerate(order):
+        q = qs_src[orig_i]
+        opts = list(q.get("options") or [])
         questions.append({
-            "id": q.get("id", i + 1),
+            "id": q.get("id") if q.get("id") is not None else orig_i,
             "text": q.get("text"),
-            "options": list(q.get("options") or []),
-            "originalIndex": i,
+            "options": opts,
+            "originalIndex": orig_i,
         })
 
     session_id = str(uuid.uuid4())
-    token = secrets.token_urlsafe(24)
-    duration = oly.get("durationSec") or oly.get("duration_sec")
-    ends_at = None
-    if duration:
-        try:
-            ends_at = (_now() + timedelta(seconds=int(duration))).isoformat()
-        except (TypeError, ValueError):
-            ends_at = None
-
+    session_token = secrets.token_urlsafe(24)
     student = access.get("student") or {}
     session = {
         "sessionId": session_id,
-        "sessionToken": token,
+        "sessionToken": session_token,
         "olympiadId": olympiad_id,
         "studentId": student_code,
         "studentName": student.get("fullName") or student_code,
         "userId": user_id,
-        "title": oly.get("title"),
-        "passScore": oly.get("passScore") or 70,
-        "questions": questions,
-        "questionCount": len(questions),
-        "startedAt": _utc_now(),
-        "endsAt": ends_at,
-        "answers": {},
         "status": "in_progress",
-        "source": oly.get("type") or "olympiad",
+        "answers": {},
+        "questions": questions,
+        "passScore": oly.get("passScore") or 70,
+        "startedAt": _utc_now(),
+        "fingerprint": fingerprint,
     }
-
-    # Persist session to JSON (always — works even if PG attempts insert fails)
     try:
         items = _load_json(SESSIONS_FILE)
         items.append(session)
         _save_json(SESSIONS_FILE, items)
     except Exception as e:
-        log.error("session save failed: %s", e)
-        raise ValueError("session_save_failed") from e
+        log.warning("session save: %s", e)
 
-    # Optional: open in-progress row in attempts
     if is_postgres_enabled():
         try:
             sid = _student_uuid(student_code)
@@ -171,8 +155,8 @@ def start_exam(
                         "INSERT INTO attempts "
                         "(id, kind, olympiad_id, student_id, user_id, student_name, "
                         " student_class, student_school, status, pass_score, total) "
-                        "VALUES (:id, 'olympiad', :oid, :sid, :uid, :name, :cls, :sch, "
-                        " 'in_progress', :ps, :total)"
+                        "VALUES (:id, 'olympiad', :oid, :sid, :uid, :name, "
+                        " :cls, :sch, 'in_progress', :ps, :total)"
                     ),
                     {
                         "id": session_id,
@@ -187,24 +171,36 @@ def start_exam(
                     },
                 )
         except Exception as e:
-            log.warning("attempts in_progress insert skipped: %s", e)
+            log.warning("attempt start persist: %s", e)
 
-    return session
+    return {
+        "sessionId": session_id,
+        "sessionToken": session_token,
+        "olympiadId": olympiad_id,
+        "title": oly.get("title"),
+        "passScore": oly.get("passScore") or 70,
+        "durationSec": oly.get("durationSec"),
+        "questions": questions,
+    }
 
 
 def autosave(
     session_id: str,
     session_token: str,
-    answers: dict,
+    answers: dict | None,
     fingerprint: str | None = None,
 ) -> dict:
     items = _load_json(SESSIONS_FILE)
     for s in items:
         if s.get("sessionId") == session_id and s.get("sessionToken") == session_token:
-            if s.get("status") == "submitted":
+            if s.get("status") in ("submitted", "passed", "failed"):
                 raise ValueError("already_submitted")
-            s["answers"] = answers if isinstance(answers, dict) else {}
-            _save_json(SESSIONS_FILE, items)
+            if isinstance(answers, dict):
+                s["answers"] = answers
+            try:
+                _save_json(SESSIONS_FILE, items)
+            except Exception as e:
+                log.warning("autosave: %s", e)
             return {"ok": True, "savedAt": _utc_now()}
     raise ValueError("session_not_found")
 
@@ -233,8 +229,29 @@ def submit_exam(
     correct = 0
     total = len(qs)
     for i, q in enumerate(qs):
-        key = str(q.get("id", i))
-        sel = ans.get(key, ans.get(str(i)))
+        candidates = [
+            str(q.get("originalIndex")) if q.get("originalIndex") is not None else None,
+            str(q.get("id")) if q.get("id") is not None else None,
+            str(i),
+            i,
+        ]
+        # also accept keys from shuffled session questions
+        for sq in session.get("questions") or []:
+            if sq.get("originalIndex") == i or str(sq.get("id")) == str(q.get("id")):
+                if sq.get("id") is not None:
+                    candidates.append(str(sq.get("id")))
+                if sq.get("originalIndex") is not None:
+                    candidates.append(str(sq.get("originalIndex")))
+        sel = None
+        for k in candidates:
+            if k is None:
+                continue
+            if k in ans:
+                sel = ans[k]
+                break
+            if str(k) in ans:
+                sel = ans[str(k)]
+                break
         try:
             if sel is not None and int(sel) == int(q.get("answer", -1)):
                 correct += 1
@@ -254,12 +271,10 @@ def submit_exam(
     except Exception as e:
         log.warning("session submit save: %s", e)
 
-    # Persist to attempts table
     if is_postgres_enabled():
         try:
             sid = _student_uuid(session.get("studentId") or "")
             with get_session() as s:
-                # Update in-progress row if present, else insert
                 updated = s.execute(
                     text(
                         "UPDATE attempts SET status = :st, score = :score, correct = :c, "
@@ -301,6 +316,18 @@ def submit_exam(
             log.error("attempts submit persist: %s", e)
 
     return {
+        "ok": True,
+        "result": {
+            "olympiadId": session.get("olympiadId"),
+            "studentId": session.get("studentId"),
+            "score": score,
+            "correct": correct,
+            "total": total,
+            "passScore": pass_score,
+            "status": status,
+            "finishedAt": session.get("finishedAt"),
+        },
+        # flat fields for older clients
         "olympiadId": session.get("olympiadId"),
         "studentId": session.get("studentId"),
         "score": score,

@@ -1,9 +1,8 @@
 """
-Phase 2 / P0.9 / P1.2 — JWT tokens with jti for logout revocation.
+Phase 2 / P0.9 / P1.2 / P1.3 — JWT with jti + configurable TTL.
 """
 from __future__ import annotations
 
-import os
 import secrets
 import time
 from typing import Any
@@ -11,11 +10,32 @@ from typing import Any
 import jwt
 
 from db.secrets import get_jwt_secret
+from db.session_ttl import admin_session_ttl, user_session_ttl
 
 JWT_SECRET = get_jwt_secret()
 JWT_ALG = "HS256"
-USER_TTL = int(os.environ.get("USER_SESSION_TTL", str(60 * 60 * 24 * 7)))
-ADMIN_TTL = int(os.environ.get("ADMIN_SESSION_TTL", str(60 * 60 * 12)))
+
+
+def _user_ttl() -> int:
+    return user_session_ttl()
+
+
+def _admin_ttl() -> int:
+    return admin_session_ttl()
+
+
+# Back-compat aliases (read at call time via functions preferred)
+@property  # type: ignore
+def USER_TTL():  # noqa: N802 — legacy name
+    return user_session_ttl()
+
+
+def __getattr__(name: str):
+    if name == "USER_TTL":
+        return user_session_ttl()
+    if name == "ADMIN_TTL":
+        return admin_session_ttl()
+    raise AttributeError(name)
 
 
 def _new_jti() -> str:
@@ -24,6 +44,7 @@ def _new_jti() -> str:
 
 def issue_user_token(user: dict) -> str:
     now = int(time.time())
+    ttl = user_session_ttl()
     payload = {
         "typ": "user",
         "sub": str(user["id"]),
@@ -32,7 +53,7 @@ def issue_user_token(user: dict) -> str:
         "avatar": user.get("avatar") or user.get("avatar_url"),
         "jti": _new_jti(),
         "iat": now,
-        "exp": now + USER_TTL,
+        "exp": now + ttl,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
@@ -42,6 +63,7 @@ def issue_admin_token(admin: dict) -> str:
     role = admin.get("role")
     if not role:
         role = "monitor"
+    ttl = admin_session_ttl()
     payload = {
         "typ": "admin",
         "sub": str(admin["id"]),
@@ -50,7 +72,7 @@ def issue_admin_token(admin: dict) -> str:
         "role": role,
         "jti": _new_jti(),
         "iat": now,
-        "exp": now + ADMIN_TTL,
+        "exp": now + ttl,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
@@ -62,7 +84,6 @@ def decode_token(token: str) -> dict[str, Any] | None:
         data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
     except jwt.PyJWTError:
         return None
-    # P1.2: reject revoked sessions
     try:
         from db.session_revocation import is_revoked
 

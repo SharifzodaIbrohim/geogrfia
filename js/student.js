@@ -96,7 +96,6 @@
       const emptyOly = document.getElementById('emptyOly');
       const emptyQuiz = document.getElementById('emptyQuiz');
 
-      // API returns olympiads + quizzes separately — never double-merge
       const rawOly = data.olympiads || [];
       const olympiads = rawOly.filter((o) => (o.type || 'olympiad').toLowerCase() !== 'quiz');
       const fromOly = rawOly.filter((o) => (o.type || '').toLowerCase() === 'quiz');
@@ -166,7 +165,11 @@
     const payload = {};
     (examSession.questions || []).forEach((q) => {
       let sel = getAnswer(q.id);
-      if (sel != null) payload[String(q.originalIndex)] = sel;
+      if (sel != null) {
+        const oi = q.originalIndex != null ? q.originalIndex : q.id;
+        payload[String(oi)] = sel;
+        if (q.id != null) payload[String(q.id)] = sel;
+      }
     });
     try {
       await api('/api/olympiads/' + currentOlympiad.id + '/autosave', {
@@ -333,13 +336,36 @@
     }
   });
 
+  function showResult(r, auto) {
+    r = r || {};
+    examView.classList.add('hidden');
+    resultView.classList.remove('hidden');
+    const scoreVal = r.score ?? r.percent ?? null;
+    document.getElementById('resultScore').textContent =
+      (scoreVal != null && scoreVal !== '' ? scoreVal : '—') + '%';
+    document.getElementById('resultDetail').textContent =
+      `Дуруст: ${r.correct ?? 0} аз ${r.total ?? 0} · ҳад: ${r.passScore ?? r.pass_score ?? 70}%` +
+      (r.timedOut ? ' · вақт тамом' : '') +
+      (auto ? ' · худкор' : '');
+    const st = document.getElementById('resultStatus');
+    if (st) {
+      const status = r.status || '';
+      st.textContent = status === 'passed' ? 'Гузашт' : status === 'failed' ? 'Нагузашт' : (status || '—');
+      st.className = 'badge' + (status === 'passed' ? '' : ' fail');
+    }
+  }
+
   async function submitExam(auto) {
     if (!examSession || !currentOlympiad) return;
     stopExamTimers();
     const payload = {};
     (examSession.questions || []).forEach((q) => {
       const sel = getAnswer(q.id);
-      if (sel != null) payload[String(q.originalIndex)] = sel;
+      if (sel != null) {
+        const oi = q.originalIndex != null ? q.originalIndex : q.id;
+        payload[String(oi)] = sel;
+        if (q.id != null) payload[String(q.id)] = sel;
+      }
     });
     try {
       const data = await api('/api/olympiads/' + currentOlympiad.id + '/exam-submit', {
@@ -351,19 +377,8 @@
           answers: payload,
         }),
       });
-      const r = data.result || {};
-      examView.classList.add('hidden');
-      resultView.classList.remove('hidden');
-      document.getElementById('resultScore').textContent = (r.score ?? '—') + '%';
-      document.getElementById('resultDetail').textContent =
-        `Дуруст: ${r.correct} аз ${r.total} · ҳад: ${r.passScore}%` +
-        (r.timedOut ? ' · вақт тамом' : '') +
-        (auto ? ' · худкор' : '');
-      const st = document.getElementById('resultStatus');
-      if (st) {
-        st.textContent = r.status === 'passed' ? 'Гузашт' : 'Нагузашт';
-        st.className = 'badge' + (r.status === 'passed' ? '' : ' fail');
-      }
+      const r = (data && (data.result || data)) || {};
+      showResult(r, auto);
       examSession = null;
     } catch (err) {
       const msg = document.getElementById('examMsg');

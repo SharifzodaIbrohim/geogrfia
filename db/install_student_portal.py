@@ -1,9 +1,5 @@
 """
-Student portal APIs used by /student (login + olympiad list).
-
-Routes:
-  POST /api/student/login          { studentId }
-  GET  /api/student/olympiads?studentId=
+Student portal APIs: login + olympiad list (deduped).
 """
 from __future__ import annotations
 
@@ -20,12 +16,9 @@ def _now() -> datetime:
 
 
 def _window_status(oly: dict) -> str:
-    """open | not_started | ended | closed"""
     if not oly.get("isActive"):
         return "closed"
     now = _now()
-    st = oly.get("startTime") or oly.get("start_at")
-    et = oly.get("endTime") or oly.get("end_at")
 
     def parse(v):
         if not v:
@@ -39,8 +32,8 @@ def _window_status(oly: dict) -> str:
         except Exception:
             return None
 
-    start = parse(st)
-    end = parse(et)
+    start = parse(oly.get("startTime") or oly.get("start_at"))
+    end = parse(oly.get("endTime") or oly.get("end_at"))
     if start and now < start:
         return "not_started"
     if end and now > end:
@@ -66,10 +59,7 @@ def install(app) -> None:
     def student_login():
         payload = request.get_json(silent=True) or {}
         code = str(
-            payload.get("studentId")
-            or payload.get("id")
-            or payload.get("code")
-            or ""
+            payload.get("studentId") or payload.get("id") or payload.get("code") or ""
         ).strip()
         if not code:
             return jsonify({"error": "ID-и хонанда лозим аст."}), 400
@@ -79,8 +69,7 @@ def install(app) -> None:
                 "error": "ID нодуруст аст ё хонанда ёфт нашуд.",
                 "reason": "student_not_found",
             }), 401
-        pub = _public_student(st)
-        return jsonify({"ok": True, "student": pub})
+        return jsonify({"ok": True, "student": _public_student(st)})
 
     def student_olympiads():
         code = str(
@@ -96,6 +85,7 @@ def install(app) -> None:
 
         olympiads = []
         quizzes = []
+        seen = set()
         try:
             items = list_olympiads() or []
         except Exception as e:
@@ -103,17 +93,21 @@ def install(app) -> None:
             items = []
 
         for o in items:
+            oid = str(o.get("id") or "")
+            if not oid or oid in seen:
+                continue
             if not o.get("isActive"):
                 continue
-            window = _window_status(o)
-            access = student_access.student_has_olympiad_access(str(o.get("id")), code)
+            access = student_access.student_has_olympiad_access(oid, code)
             if not access.get("allowed"):
                 continue
+            seen.add(oid)
+            window = _window_status(o)
             card = {
-                "id": o.get("id"),
+                "id": oid,
                 "title": o.get("title"),
                 "description": o.get("description") or "",
-                "type": o.get("type") or "olympiad",
+                "type": (o.get("type") or "olympiad").lower(),
                 "passScore": o.get("passScore") or 70,
                 "questionCount": o.get("questionCount") or len(o.get("questions") or []),
                 "isActive": True,
@@ -123,15 +117,16 @@ def install(app) -> None:
                 "endTime": o.get("endTime"),
                 "durationSec": o.get("durationSec"),
             }
-            if (o.get("type") or "olympiad").lower() == "quiz":
+            if card["type"] == "quiz":
                 quizzes.append(card)
             else:
                 olympiads.append(card)
 
+        # olympiads = pure olympiad only; quizzes separate — avoid double render in UI
         return jsonify({
             "ok": True,
             "student": _public_student(st),
-            "olympiads": olympiads + quizzes,  # JS filters by type; also include all
+            "olympiads": olympiads,
             "quizzes": quizzes,
         })
 
@@ -139,7 +134,6 @@ def install(app) -> None:
         ("/api/student/login", "student_portal_login", student_login, ["POST"]),
         ("/api/student/olympiads", "student_portal_olympiads", student_olympiads, ["GET"]),
     ]:
-        # Override any existing handler for the same path
         for r in list(app.url_map.iter_rules()):
             if r.rule == rule:
                 app.view_functions[r.endpoint] = fn
@@ -149,10 +143,9 @@ def install(app) -> None:
             try:
                 app.add_url_rule(rule, ep, fn, methods=methods)
             except AssertionError:
-                # path exists under another endpoint — replace it
                 for r in list(app.url_map.iter_rules()):
                     if r.rule == rule:
                         app.view_functions[r.endpoint] = fn
 
     log.info("student portal routes installed")
-    print("[boot] student portal: /api/student/login + /api/student/olympiads")
+    print("[boot] student portal: login + olympiads (deduped)")

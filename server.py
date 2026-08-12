@@ -1,5 +1,6 @@
-"""Geografia entry — Phase 25.5.1 local-only (no remote exec)."""
+"""Geografia entry — Phase 25.5.1 local-only (no remote exec, no network at boot)."""
 from __future__ import annotations
+
 import base64
 import zlib
 from pathlib import Path

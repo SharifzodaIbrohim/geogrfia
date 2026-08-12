@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Avoid accidental production side-effects during unit tests
 os.environ.setdefault("FLASK_ENV", "testing")
 os.environ.setdefault("ALLOW_JSON_BACKEND", "1")
 os.environ.pop("DATABASE_URL", None)

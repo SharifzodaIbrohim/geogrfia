@@ -1,4 +1,9 @@
-"""Phase 9–12 — Olympiad exam routes (no uncaught 500)."""
+"""Phase 9–12 — Olympiad exam routes (no uncaught 500).
+
+P1.12 fix: /api/olympiads/<id>/submit must close the attempt in `attempts`
+(status passed|failed|timeout) — legacy submit only wrote client result and
+left attempts.in_progress, so resume still worked after "submit".
+"""
 from __future__ import annotations
 
 import logging
@@ -11,15 +16,25 @@ from db.repo import find_olympiad
 log = logging.getLogger("geografia.olympiad_routes")
 
 
+def _student_id_from_request(payload: dict) -> str:
+    return str(
+        payload.get("studentId")
+        or payload.get("id")
+        or request.headers.get("X-Student-Id")
+        or ""
+    ).strip()
+
+
+def _fp() -> str | None:
+    v = request.headers.get("X-Client-Fingerprint", "")[:64]
+    return v or None
+
+
 def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
     @app.post("/api/olympiads/<olympiad_id>/start")
     def olympiad_start(olympiad_id: str):
         payload = request.get_json(silent=True) or {}
-        student_id = str(
-            payload.get("studentId")
-            or request.headers.get("X-Student-Id")
-            or ""
-        ).strip()
+        student_id = _student_id_from_request(payload)
         if not student_id:
             return jsonify({"error": "studentId лозим аст.", "reason": "student_id_required"}), 400
 
@@ -47,13 +62,12 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
         except Exception:
             user = None
 
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
         try:
             session = olympiad_engine.start_exam(
                 olympiad_id,
                 student_id,
                 user_id=(user or {}).get("id") if isinstance(user, dict) else None,
-                client_fingerprint=fp or None,
+                client_fingerprint=_fp(),
             )
             return jsonify(session)
         except ValueError as e:
@@ -77,15 +91,14 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
     @app.post("/api/olympiads/<olympiad_id>/autosave")
     def olympiad_autosave(olympiad_id: str):
         payload = request.get_json(silent=True) or {}
-        session_id = str(payload.get("sessionId") or "").strip()
+        session_id = str(payload.get("sessionId") or payload.get("attemptId") or "").strip()
         session_token = str(payload.get("sessionToken") or "").strip()
         answers = payload.get("answers") or {}
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
         if not session_id or not session_token:
             return jsonify({"error": "sessionId ва sessionToken лозиманд."}), 400
         try:
             result = olympiad_engine.autosave(
-                session_id, session_token, answers, fingerprint=fp or None
+                session_id, session_token, answers, fingerprint=_fp()
             )
             return jsonify(result)
         except ValueError as e:
@@ -94,34 +107,96 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
             log.exception("autosave failed")
             return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
 
-    @app.post("/api/olympiads/<olympiad_id>/exam-submit")
-    def olympiad_exam_submit(olympiad_id: str):
+    def _do_submit(olympiad_id: str):
+        """Shared submit: always closes attempt via olympiad_engine.submit_exam."""
         payload = request.get_json(silent=True) or {}
-        session_id = str(payload.get("sessionId") or "").strip()
+        session_id = str(
+            payload.get("sessionId") or payload.get("attemptId") or ""
+        ).strip()
         session_token = str(payload.get("sessionToken") or "").strip()
+        student_id = _student_id_from_request(payload)
         answers = payload.get("answers")
-        fp = request.headers.get("X-Client-Fingerprint", "")[:64]
+
+        # Normalize list answers → dict
+        if isinstance(answers, list):
+            amap = {}
+            for i, a in enumerate(answers):
+                if isinstance(a, dict):
+                    qid = a.get("questionId", a.get("id", i))
+                    sel = a.get("selected", a.get("selectedIndex", a.get("answer")))
+                    if qid is not None and sel is not None:
+                        amap[str(qid)] = sel
+                else:
+                    try:
+                        amap[str(i)] = int(a)
+                    except (TypeError, ValueError):
+                        pass
+            answers = amap
+
+        if not isinstance(answers, dict):
+            answers = {}
+
+        # Resolve session if token missing (legacy clients / test client)
         if not session_id or not session_token:
-            return jsonify({"error": "sessionId ва sessionToken лозиманд."}), 400
+            resolved = olympiad_engine.resolve_session_for_submit(
+                olympiad_id,
+                student_code=student_id or None,
+                session_id=session_id or None,
+            )
+            if not resolved:
+                return jsonify({
+                    "error": "Сессия ёфт нашуд. Аввал start кунед.",
+                    "reason": "session_not_found",
+                }), 400
+            session_id = resolved["sessionId"]
+            session_token = resolved["sessionToken"]
+
         try:
             result = olympiad_engine.submit_exam(
                 session_id,
                 session_token,
-                answers if isinstance(answers, dict) else None,
-                fingerprint=fp or None,
+                answers,
+                fingerprint=_fp(),
             )
-            return jsonify(result)
+            body = {
+                "ok": True,
+                "result": result.get("result") or {
+                    "score": result.get("score"),
+                    "correct": result.get("correct"),
+                    "total": result.get("total"),
+                    "passScore": result.get("passScore"),
+                    "status": result.get("status"),
+                    "finishedAt": result.get("finishedAt"),
+                },
+            }
+            return jsonify(body)
         except ValueError as e:
             code = str(e)
             messages = {
                 "already_submitted": "Аллакай супорида шудааст.",
                 "session_not_found": "Сессия ёфт нашуд.",
                 "not_found": "Ёфт нашуд.",
+                "timeout": "Вақт ба охир расид.",
             }
             return jsonify({"error": messages.get(code, code), "reason": code}), 400
         except Exception as e:
             log.exception("exam submit failed")
             return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
+
+    @app.post("/api/olympiads/<olympiad_id>/exam-submit")
+    def olympiad_exam_submit(olympiad_id: str):
+        return _do_submit(olympiad_id)
+
+    @app.post("/api/olympiads/<olympiad_id>/submit")
+    def olympiad_submit(olympiad_id: str):
+        """Primary submit path — closes attempts row (P1.12)."""
+        return _do_submit(olympiad_id)
+
+    # Override any earlier legacy endpoint with the same rule/name
+    try:
+        app.view_functions["submit_olympiad"] = olympiad_submit
+    except Exception as e:
+        log.warning("could not override submit_olympiad: %s", e)
 
     @app.patch("/api/admin/olympiads/<olympiad_id>/duration")
     def admin_set_duration(olympiad_id: str):

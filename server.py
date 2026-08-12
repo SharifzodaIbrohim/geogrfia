@@ -30,3 +30,14 @@ def _load() -> str:
 
 _src = _load()
 exec(compile(_src, "server_core.py", "exec"), globals())
+
+# P1.12: force submit to close attempts (status finished + score)
+try:
+    from db.patch_submit_p112 import install as _install_submit_p112
+    _install_submit_p112(app)  # noqa: F821 — app from payload
+except Exception as _e:
+    try:
+        from patch_submit_p112 import install as _install_submit_p112
+        _install_submit_p112(app)  # noqa: F821
+    except Exception as _e2:
+        print("[boot] patch_submit_p112:", _e2)

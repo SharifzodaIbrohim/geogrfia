@@ -41,14 +41,26 @@ def _parse_dt(v):
         return None
 
 
+def _norm_code(student_code) -> str:
+    if isinstance(student_code, dict):
+        student_code = (
+            student_code.get("id")
+            or student_code.get("studentId")
+            or student_code.get("student_code")
+            or ""
+        )
+    return str(student_code or "").strip()
+
+
 def _student_uuid(student_code: str):
+    student_code = _norm_code(student_code)
     if not student_code or not is_postgres_enabled():
         return None
     try:
         with get_session() as s:
             return s.execute(
                 text("SELECT id FROM students WHERE student_code = :c AND status = 'active'"),
-                {"c": str(student_code).strip()},
+                {"c": student_code},
             ).scalar()
     except Exception as e:
         log.warning("student uuid lookup: %s", e)
@@ -114,6 +126,7 @@ def _public_questions(qs_src: list) -> list:
 
 
 def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | None = None) -> bool:
+    student_code = _norm_code(student_code)
     if not olympiad_id or not student_code:
         return False
     if is_postgres_enabled():
@@ -134,7 +147,7 @@ def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | Non
                             "SELECT 1 FROM attempts WHERE olympiad_id = :o AND student_code = :c "
                             "AND status IN ('passed','failed','timeout','submitted') LIMIT 1"
                         ),
-                        {"o": olympiad_id, "c": str(student_code)},
+                        {"o": olympiad_id, "c": student_code},
                     ).first()
                 if row:
                     return True
@@ -152,6 +165,7 @@ def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | Non
 
 
 def find_open_attempt(olympiad_id: str, student_code: str):
+    student_code = _norm_code(student_code)
     if is_postgres_enabled():
         try:
             su = _student_uuid(student_code)
@@ -205,18 +219,28 @@ def _client_session_payload(session: dict, questions: list) -> dict:
 
 
 def start_exam(olympiad_id: str, student_code: str, fingerprint: str | None = None, **kwargs):
+    student_code = _norm_code(student_code)
+    if not student_code:
+        raise ValueError("student_id_required")
     oly = find_olympiad(olympiad_id)
     if not oly:
-        return {"ok": False, "error": "olympiad not found"}, 404
-    if not student_has_olympiad_access(student_code, oly):
-        return {"ok": False, "error": "access denied"}, 403
+        raise ValueError("not_found")
+    # student_access signature: (olympiad_id, student_code) -> dict {allowed, reason}
+    access = student_has_olympiad_access(olympiad_id, student_code)
+    if isinstance(access, dict):
+        if not access.get("allowed", False):
+            raise ValueError(access.get("reason") or "not_assigned")
+    elif not access:
+        raise ValueError("not_assigned")
     win = _window_ok(oly)
     if win != "open":
-        return {"ok": False, "error": win}, 403
+        raise ValueError(win if win in ("not_started", "ended") else "not_assigned")
     if has_finished_attempt(olympiad_id, student_code):
-        return {"ok": False, "error": "already_submitted"}, 409
-    open_att = find_open_attempt(olympiad_id, student_code)
+        raise ValueError("already_submitted")
     qs_src = oly.get("questions") or []
+    if not qs_src:
+        raise ValueError("no_questions")
+    open_att = find_open_attempt(olympiad_id, student_code)
     if open_att:
         questions = _public_questions(qs_src)
         sess = {
@@ -246,14 +270,14 @@ def start_exam(olympiad_id: str, student_code: str, fingerprint: str | None = No
                         "id": session_id,
                         "o": olympiad_id,
                         "sid": str(su) if su else None,
-                        "code": str(student_code),
+                        "code": student_code,
                         "exp": expires,
                         "tok": token,
                     },
                 )
         except Exception as e:
             log.error("start_exam insert: %s", e)
-            return {"ok": False, "error": "db error"}, 500
+            raise ValueError("session_save_failed") from e
     else:
         sessions = _load_json(SESSIONS_FILE, {})
         sessions[session_id] = {
@@ -305,12 +329,16 @@ def _load_session(session_id: str):
     return sessions.get(session_id)
 
 
-def autosave(session_id: str, answers=None, session_token: str | None = None, **kwargs):
+def autosave(session_id: str, session_token=None, answers=None, fingerprint=None, **kwargs):
+    # Routes call: autosave(session_id, session_token, answers, fingerprint=...)
+    if answers is None and isinstance(session_token, dict):
+        answers = session_token
+        session_token = kwargs.get("session_token") or kwargs.get("sessionToken")
     session = _load_session(session_id)
     if not session:
-        return {"ok": False, "error": "session not found"}, 404
-    if session_token and session.get("sessionToken") and session_token != session.get("sessionToken"):
-        return {"ok": False, "error": "invalid token"}, 403
+        raise ValueError("session not found")
+    if session_token and session.get("sessionToken") and str(session_token) != str(session.get("sessionToken")):
+        raise ValueError("invalid token")
     rem = _remaining_sec(session.get("expiresAt"))
     return {"ok": True, "remainingSec": rem, "expiresAt": session.get("expiresAt"), "serverNow": _utc_now()}
 
@@ -339,13 +367,15 @@ def _resolve_selection(q, selected):
 
 
 def submit_exam(session_id: str, answers=None, session_token: str | None = None, **kwargs):
+    if session_token is None:
+        session_token = kwargs.get("sessionToken")
     session = _load_session(session_id)
     if not session:
-        return {"ok": False, "error": "session not found"}, 404
+        raise ValueError("session not found")
     if session.get("status") in ("passed", "failed", "timeout", "submitted", "finished"):
-        return {"ok": False, "error": "already_submitted"}, 409
-    if session_token and session.get("sessionToken") and session_token != session.get("sessionToken"):
-        return {"ok": False, "error": "invalid token"}, 403
+        raise ValueError("already_submitted")
+    if session_token and session.get("sessionToken") and str(session_token) != str(session.get("sessionToken")):
+        raise ValueError("invalid token")
     oly = find_olympiad(session.get("olympiadId"))
     qs_src = (oly or {}).get("questions") or []
     answers = answers or {}

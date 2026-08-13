@@ -1,4 +1,6 @@
-"""Geografia entry — Phase 25.5.1 local-only (no remote exec, no network at boot)."""
+"""Geografia entry — Phase 25.5.1 local-only (no remote exec, no network at boot).
+Payload: _srv_b64_*.txt restored from live commit dedc114 (2026-08-13).
+"""
 from __future__ import annotations
 
 import base64

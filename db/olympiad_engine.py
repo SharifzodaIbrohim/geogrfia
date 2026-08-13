@@ -1,6 +1,7 @@
 """P1 Olympiad Engine — P1.10 no answers to client, P1.11 server timer, P1.12 one attempt."""
 from __future__ import annotations
 
+import json
 import logging
 import secrets
 import uuid
@@ -9,11 +10,40 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import text
 
 from db.connection import get_session, is_postgres_enabled
-from db.repo import DATA_DIR, _load_json, _save_json, find_olympiad
+from db.repo import DATA_DIR, find_olympiad
 from db.student_access import student_has_olympiad_access
 
 log = logging.getLogger("geografia.olympiad_engine")
 SESSIONS_FILE = DATA_DIR / "exam_sessions.json"
+
+
+def _load_sessions() -> dict:
+    try:
+        if not SESSIONS_FILE.exists():
+            return {}
+        data = json.loads(SESSIONS_FILE.read_text(encoding="utf-8-sig"))
+        if isinstance(data, dict):
+            return data
+        if isinstance(data, list):
+            out = {}
+            for item in data:
+                if isinstance(item, dict):
+                    key = item.get("id") or item.get("sessionId")
+                    if key:
+                        out[str(key)] = item
+            return out
+    except Exception as e:
+        log.warning("load sessions: %s", e)
+    return {}
+
+
+def _save_sessions(data: dict) -> None:
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+        SESSIONS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        log.warning("save sessions: %s", e)
+
 
 _FORBIDDEN_Q_KEYS = {
     "answer", "correct", "correctIndex", "correct_index", "is_correct",
@@ -148,8 +178,7 @@ def has_finished_attempt(olympiad_id: str, student_code: str, user_id: str | Non
         except Exception as e:
             log.warning("has_finished_attempt pg: %s", e)
     try:
-        sessions = _load_json(SESSIONS_FILE, {})
-        for sid, sess in (sessions or {}).items():
+        for sid, sess in _load_sessions().items():
             if isinstance(sess, dict) and str(sess.get("olympiadId")) == str(olympiad_id) and str(sess.get("studentId")) == str(student_code):
                 if sess.get("status") in ("passed", "failed", "timeout", "submitted", "finished"):
                     return True
@@ -180,8 +209,7 @@ def find_open_attempt(olympiad_id: str, student_code: str):
         except Exception as e:
             log.warning("find_open_attempt: %s", e)
     try:
-        sessions = _load_json(SESSIONS_FILE, {})
-        for sid, sess in (sessions or {}).items():
+        for sid, sess in _load_sessions().items():
             if isinstance(sess, dict) and str(sess.get("olympiadId")) == str(olympiad_id) and str(sess.get("studentId")) == str(student_code):
                 if sess.get("status") in (None, "in_progress", "started"):
                     return {"id": sid, **sess}
@@ -252,10 +280,7 @@ def start_exam(olympiad_id: str, student_code: str, fingerprint: str | None = No
     questions = _public_questions(qs_src)
     su = _student_uuid(student_code)
     user_id = kwargs.get("user_id")
-    # Always JSON session so exam works even if PG schema differs
-    sessions = _load_json(SESSIONS_FILE, {})
-    if not isinstance(sessions, dict):
-        sessions = {}
+    sessions = _load_sessions()
     sessions[session_id] = {
         "id": session_id,
         "sessionId": session_id,
@@ -269,10 +294,7 @@ def start_exam(olympiad_id: str, student_code: str, fingerprint: str | None = No
         "passScore": oly.get("passScore") or 70,
         "questions": questions,
     }
-    try:
-        _save_json(SESSIONS_FILE, sessions)
-    except Exception as e:
-        log.warning("session json save: %s", e)
+    _save_sessions(sessions)
 
     if is_postgres_enabled():
         try:
@@ -320,17 +342,9 @@ def start_exam(olympiad_id: str, student_code: str, fingerprint: str | None = No
 
 
 def _load_session(session_id: str):
-    # Prefer JSON
-    try:
-        sessions = _load_json(SESSIONS_FILE, {})
-        if isinstance(sessions, dict) and session_id in sessions:
-            return sessions[session_id]
-        if isinstance(sessions, list):
-            for s in sessions:
-                if isinstance(s, dict) and (s.get("id") == session_id or s.get("sessionId") == session_id):
-                    return s
-    except Exception:
-        pass
+    sessions = _load_sessions()
+    if session_id in sessions:
+        return sessions[session_id]
     if is_postgres_enabled():
         try:
             with get_session() as s:
@@ -429,10 +443,10 @@ def submit_exam(session_id: str, answers=None, session_token: str | None = None,
     session["total"] = total
     session["finishedAt"] = _utc_now()
     try:
-        sessions = _load_json(SESSIONS_FILE, {})
-        if isinstance(sessions, dict) and session_id in sessions:
+        sessions = _load_sessions()
+        if session_id in sessions:
             sessions[session_id].update(session)
-            _save_json(SESSIONS_FILE, sessions)
+            _save_sessions(sessions)
     except Exception:
         pass
     if is_postgres_enabled():

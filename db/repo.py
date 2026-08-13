@@ -191,6 +191,29 @@ def find_student_by_code(code: str) -> dict | None:
     return None
 
 
+def student_codes_set() -> set[str]:
+    """All existing student IDs (codes) for unique generation."""
+    out: set[str] = set()
+    try:
+        if use_pg():
+            with get_session() as s:
+                rows = s.execute(text("SELECT student_code FROM students")).scalars().all()
+                for c in rows:
+                    if c:
+                        out.add(str(c).strip())
+                return out
+    except Exception as e:
+        log.warning("student_codes_set pg: %s", e)
+    try:
+        for st in _load_json(STUDENTS_FILE):
+            code = st.get("id") or st.get("student_code") or st.get("studentId")
+            if code:
+                out.add(str(code).strip())
+    except Exception:
+        pass
+    return out
+
+
 def create_student(code: str, full_name: str, class_name: str, school: str, created_by: str = "") -> dict:
     code = (code or "").strip()
     if use_pg():

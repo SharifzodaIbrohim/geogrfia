@@ -44,7 +44,10 @@
     err?.classList.add('hidden');
     try {
       const id = document.getElementById('studentIdInput').value.trim();
-      const data = await api('/api/student/login', { method: 'POST', body: JSON.stringify({ studentId: id, id: id }) });
+      const data = await api('/api/student/login', {
+        method: 'POST',
+        body: JSON.stringify({ id: id, studentId: id }),
+      });
       student = data.student || data;
       localStorage.setItem(STUDENT_KEY, JSON.stringify(student));
       showApp();
@@ -69,6 +72,14 @@
           data.olympiads = items.filter((o) => (o.type || 'olympiad').toLowerCase() !== 'quiz');
           data.quizzes = items.filter((o) => (o.type || '').toLowerCase() === 'quiz');
         } catch (e2) { console.warn(e1, e2); }
+      }
+      if ((!data.olympiads || !data.olympiads.length) && (!data.quizzes || !data.quizzes.length)) {
+        try {
+          const act = await api('/api/olympiads/active');
+          const items = act.olympiads || act.items || (Array.isArray(act) ? act : []);
+          data.olympiads = items.filter((o) => (o.type || 'olympiad').toLowerCase() !== 'quiz');
+          data.quizzes = items.filter((o) => (o.type || '').toLowerCase() === 'quiz');
+        } catch (_) {}
       }
       const olyBox = document.getElementById('olympiadList');
       const quizBox = document.getElementById('quizList');

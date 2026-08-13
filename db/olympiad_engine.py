@@ -369,15 +369,43 @@ def _load_session(session_id: str):
     return None
 
 
+def resolve_session_for_submit(olympiad_id: str, student_code=None, session_id=None):
+    """Fallback for legacy clients missing token."""
+    if session_id:
+        s = _load_session(session_id)
+        if s:
+            return {
+                "sessionId": s.get("id") or s.get("sessionId") or session_id,
+                "sessionToken": s.get("sessionToken") or s.get("session_token") or "",
+            }
+    code = _norm_code(student_code)
+    if code and olympiad_id:
+        open_att = find_open_attempt(olympiad_id, code)
+        if open_att:
+            return {
+                "sessionId": open_att.get("id") or open_att.get("sessionId"),
+                "sessionToken": open_att.get("sessionToken") or open_att.get("session_token") or "",
+            }
+        for sid, sess in _load_sessions().items():
+            if not isinstance(sess, dict):
+                continue
+            if str(sess.get("olympiadId")) == str(olympiad_id) and str(sess.get("studentId")) == code:
+                return {
+                    "sessionId": sess.get("id") or sess.get("sessionId") or sid,
+                    "sessionToken": sess.get("sessionToken") or sess.get("session_token") or "",
+                }
+    return None
+
+
 def autosave(session_id: str, session_token=None, answers=None, fingerprint=None, **kwargs):
     if answers is None and isinstance(session_token, dict):
         answers = session_token
         session_token = kwargs.get("session_token") or kwargs.get("sessionToken")
     session = _load_session(session_id)
     if not session:
-        raise ValueError("session not found")
+        raise ValueError("session_not_found")
     tok = session.get("sessionToken") or session.get("session_token")
-    if session_token and tok and str(session_token) != str(tok):
+    if session_token and tok and str(session_token).strip() and str(tok).strip() and str(session_token) != str(tok):
         raise ValueError("invalid token")
     rem = _remaining_sec(session.get("expiresAt"))
     return {"ok": True, "remainingSec": rem, "expiresAt": session.get("expiresAt"), "serverNow": _utc_now()}
@@ -406,20 +434,26 @@ def _resolve_selection(q, selected):
     return sel, bool(is_ok)
 
 
-def submit_exam(session_id: str, answers=None, session_token: str | None = None, **kwargs):
+def submit_exam(session_id: str, session_token=None, answers=None, fingerprint=None, **kwargs):
+    # Routes call: submit_exam(session_id, session_token, answers, fingerprint=...)
+    if isinstance(session_token, dict) and answers is None:
+        answers = session_token
+        session_token = kwargs.get("sessionToken") or kwargs.get("session_token")
     if session_token is None:
-        session_token = kwargs.get("sessionToken")
+        session_token = kwargs.get("sessionToken") or kwargs.get("session_token")
     session = _load_session(session_id)
     if not session:
-        raise ValueError("session not found")
+        raise ValueError("session_not_found")
     if session.get("status") in ("passed", "failed", "timeout", "submitted", "finished"):
         raise ValueError("already_submitted")
     tok = session.get("sessionToken") or session.get("session_token")
-    if session_token and tok and str(session_token) != str(tok):
+    if session_token and tok and str(session_token).strip() and str(tok).strip() and str(session_token) != str(tok):
         raise ValueError("invalid token")
     oly = find_olympiad(session.get("olympiadId"))
     qs_src = (oly or {}).get("questions") or []
     answers = answers or {}
+    if not isinstance(answers, dict):
+        answers = {}
     correct = 0
     total = len(qs_src)
     timed_out = False

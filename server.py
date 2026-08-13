@@ -51,6 +51,33 @@ exec(compile(_src, "server_core.py", "exec"), globals())
 if "app" not in globals() or app is None:  # noqa: F821
     raise RuntimeError("Phase 25.5.1: payload loaded but Flask app not defined")
 
+# Ensure student exam CSS and related assets are publicly served
+try:
+    PUBLIC_PATHS.update(  # noqa: F821
+        {
+            "css/student.css",
+            "css/quiz.css",
+            "css/platform.css",
+            "css/profile.css",
+            "js/i18n.js",
+            "js/platform-home.js",
+            "js/quiz-platform.js",
+            "js/profile.js",
+            "js/admin-fixes.js",
+            "js/admin-gmail.js",
+            "js/admin-content.js",
+            "js/admin-leaderboard.js",
+            "profile.html",
+            "quiz.html",
+            "courses.html",
+            "leaderboard.html",
+            "countries.html",
+        }
+    )
+    print("[boot] PUBLIC_PATHS: student.css + assets allowed")
+except Exception as e:
+    print("[boot] PUBLIC_PATHS update failed:", e)
+
 
 def _boot_patch(name: str, *modules: str) -> None:
     last = None

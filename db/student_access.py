@@ -163,9 +163,9 @@ def set_olympiad_participants(olympiad_id: str, student_codes: list[str]) -> lis
 
 def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     """
-    Access rules:
-    - Valid Student ID required for type=olympiad (and recommended for type=quiz events).
-    - Empty participant list = open to any valid student.
+    Access rules (P0 locked policy):
+    - Valid Student ID required for type=olympiad.
+    - Empty participant list = LOCKED (nobody can start) — admin must assign students.
     - Non-empty list = only assigned students.
     - Gmail synthetic ids (g:/gmail:) are NOT enough for olympiad type.
     """
@@ -173,7 +173,6 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     if not code:
         return {"allowed": False, "reason": "student_id_required"}
 
-    # Block pure Gmail synthetic codes for olympiads (Tajik schools: Student ID primary)
     is_gmail_synth = code.startswith("g:") or code.startswith("gmail:")
 
     student = find_student_by_code(code)
@@ -183,7 +182,6 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
         log.warning("participants check failed: %s", e)
         parts = []
 
-    # Resolve olympiad type for stricter rule
     oly_type = "olympiad"
     try:
         from db.repo import find_olympiad
@@ -196,35 +194,15 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     if is_gmail_synth:
         if oly_type == "olympiad":
             return {"allowed": False, "reason": "student_id_required"}
-        # type=quiz event may allow gmail only if no participant list
-        if parts:
-            return {"allowed": False, "reason": "not_assigned"}
-        real_name = "Иштирокчӣ"
-        try:
-            uid = code.split(":", 1)[-1]
-            from db.profile_api import get_user_by_id
-            u = get_user_by_id(uid)
-            if u:
-                real_name = (u.get("name") or "").strip() or (u.get("email") or "").split("@")[0] or real_name
-        except Exception:
-            pass
-        return {
-            "allowed": True,
-            "reason": "gmail_open_quiz",
-            "student": {
-                "id": code,
-                "fullName": real_name,
-                "className": "",
-                "school": "",
-            },
-        }
+        if not parts:
+            return {"allowed": False, "reason": "no_participants"}
+        return {"allowed": False, "reason": "not_assigned"}
 
     if not student:
         return {"allowed": False, "reason": "student_not_found"}
 
     if not parts:
-        # Open to every valid Student ID
-        return {"allowed": True, "reason": "open_to_all_students", "student": student}
+        return {"allowed": False, "reason": "no_participants", "student": student}
 
     ok = any(
         p.get("id") == code and p.get("status", "assigned") == "assigned"
@@ -232,4 +210,4 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     )
     if ok:
         return {"allowed": True, "reason": "assigned", "student": student}
-    return {"allowed": False, "reason": "not_assigned"}
+    return {"allowed": False, "reason": "not_assigned", "student": student}

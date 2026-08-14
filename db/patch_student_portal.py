@@ -1,7 +1,7 @@
 """Student portal: /api/student/login + /api/student/olympiads.
 
 Ensures students see active olympiads/quizzes and can start them.
-Empty participant list → open to any valid Student ID (school mode).
+Empty participant list → LOCKED (admin must assign students).
 """
 from __future__ import annotations
 
@@ -111,6 +111,13 @@ def install(app) -> None:
                 continue
             window = _window_status(o)
             seen.add(oid)
+            access = {"allowed": False, "reason": "unknown"}
+            try:
+                from db.student_access import student_has_olympiad_access
+                access = student_has_olympiad_access(oid, code)
+            except Exception as e:
+                log.warning("access check %s: %s", oid, e)
+            allowed = bool(access.get("allowed"))
             card = {
                 "id": oid,
                 "title": o.get("title") or "Бе ном",
@@ -119,8 +126,10 @@ def install(app) -> None:
                 "passScore": o.get("passScore") or 70,
                 "questionCount": o.get("questionCount") or len(o.get("questions") or []),
                 "isActive": o.get("isActive") is not False,
-                "isOpen": window == "open",
-                "windowStatus": window,
+                "isOpen": window == "open" and allowed,
+                "windowStatus": window if allowed else ("locked" if window == "open" else window),
+                "accessAllowed": allowed,
+                "accessReason": access.get("reason"),
                 "startTime": o.get("startTime"),
                 "endTime": o.get("endTime"),
                 "durationSec": o.get("durationSec"),
@@ -159,41 +168,7 @@ def install(app) -> None:
         app.view_functions["student_login"] = student_login
     _bind("/api/student/olympiads", "student_portal_olympiads", student_olympiads, ["GET"])
 
-    try:
-        from db import student_access as sa
-
-        def _open_access(olympiad_id, student_code):
-            student_code = (student_code or "").strip()
-            student = None
-            try:
-                from db.repo import find_student_by_code
-                student = find_student_by_code(student_code) if student_code else None
-            except Exception:
-                pass
-            if not student_code:
-                return {"allowed": False, "reason": "student_id_required"}
-            if student_code.startswith(("g:", "gmail:")) and not student:
-                return {"allowed": False, "reason": "student_id_required"}
-            if not student:
-                return {"allowed": False, "reason": "student_not_found"}
-            try:
-                parts = sa.list_olympiad_participants(olympiad_id)
-            except Exception:
-                parts = []
-            if parts:
-                assigned = any(
-                    str(p.get("id") or p.get("student_code") or "") == student_code
-                    and p.get("status", "assigned") == "assigned"
-                    for p in parts
-                )
-                if not assigned:
-                    return {"allowed": False, "reason": "not_assigned"}
-            return {"allowed": True, "reason": "open_or_assigned", "student": student}
-
-        sa.student_has_olympiad_access = _open_access
-        log.info("student_has_olympiad_access relaxed (empty list open)")
-    except Exception as e:
-        log.warning("could not patch student_access: %s", e)
+    # Empty list locked via db.student_access (no open override).
 
     log.info("student portal routes installed")
     print("[boot] patch_student_portal: login + olympiads list")

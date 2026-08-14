@@ -1,5 +1,12 @@
-"""Geografia entry — Phase 25.5.1 local-only (no remote exec, no network at boot).
-Payload: _srv_b64_*.txt restored from live commit dedc114 (2026-08-13).
+"""Geografia entry — Phase A: plain server_core preferred.
+
+Boot order:
+  1) server_core.py if present and valid (plain source)
+  2) materialize server_core.py from _srv_b64_*.txt once, then exec
+  3) fail if neither works
+
+After first successful boot, server_core.py exists as readable Python.
+Safety-net patches follow.
 """
 from __future__ import annotations
 
@@ -8,50 +15,59 @@ import zlib
 from pathlib import Path
 
 _dir = Path(__file__).resolve().parent
+_boot_mode = None
+app = None
 
 
-def _load() -> str:
-    errors = []
-    b64_parts = sorted(_dir.glob("_srv_b64_*.txt"))
-    if b64_parts:
-        try:
-            raw = "".join(p.read_text(encoding="utf-8").strip() for p in b64_parts)
-            src = zlib.decompress(base64.b64decode(raw)).decode("utf-8")
-            if "app = Flask" in src or "app=Flask" in src:
-                return src
-            errors.append("b64: no Flask app")
-        except Exception as e:
-            errors.append(f"b64: {e}")
-    py_parts = sorted(_dir.glob("server_core_part*.py"))
-    if py_parts:
-        try:
-            src = "".join(p.read_text(encoding="utf-8") for p in py_parts)
-            if len(src) > 10000 and ("app = Flask" in src or "app=Flask" in src):
-                return src
-            errors.append("parts: too short or no Flask app")
-        except Exception as e:
-            errors.append(f"parts: {e}")
-    core = _dir / "server_core.py"
-    if core.is_file():
-        try:
-            src = core.read_text(encoding="utf-8")
-            if len(src) > 10000 and ("app = Flask" in src or "app=Flask" in src):
-                return src
-            errors.append("server_core.py: invalid")
-        except Exception as e:
-            errors.append(f"server_core.py: {e}")
-    raise RuntimeError(
-        "Phase 25.5.1: missing local payload. Tried: " + "; ".join(errors)
-    )
+def _exec_src(src: str, label: str) -> None:
+    global app, _boot_mode
+    g = globals()
+    exec(compile(src, "server_core.py", "exec"), g)
+    if g.get("app") is None:
+        raise RuntimeError(f"{label}: Flask app not defined")
+    app = g["app"]
+    _boot_mode = label
+    print(f"[boot] Phase A: {label} OK")
 
 
-_src = _load()
-exec(compile(_src, "server_core.py", "exec"), globals())
+def _load_b64_src() -> str:
+    parts = sorted(_dir.glob("_srv_b64_*.txt"))
+    if not parts:
+        raise RuntimeError("no _srv_b64_*.txt")
+    raw = "".join(p.read_text(encoding="utf-8").strip() for p in parts)
+    return zlib.decompress(base64.b64decode(raw)).decode("utf-8")
 
-if "app" not in globals() or app is None:  # noqa: F821
-    raise RuntimeError("Phase 25.5.1: payload loaded but Flask app not defined")
 
-# Ensure student exam CSS and related assets are publicly served
+def _materialize_core_from_b64() -> Path:
+    """Write plain server_core.py from b64 chunks (one-time)."""
+    src = _load_b64_src()
+    if "app = Flask" not in src and "app=Flask" not in src:
+        raise RuntimeError("b64 payload has no Flask app")
+    out = _dir / "server_core.py"
+    out.write_text(src, encoding="utf-8")
+    print(f"[boot] materialized {out.name} ({len(src)} chars)")
+    return out
+
+
+# --- 1) Plain server_core.py ---
+_core = _dir / "server_core.py"
+if _core.is_file() and _core.stat().st_size > 10000:
+    try:
+        _exec_src(_core.read_text(encoding="utf-8"), "server_core.py (plain)")
+    except Exception as e:
+        print("[boot] plain server_core.py failed:", e)
+
+# --- 2) Materialize from b64, then plain exec ---
+if app is None:
+    try:
+        _core = _materialize_core_from_b64()
+        _exec_src(_core.read_text(encoding="utf-8"), "server_core.py (from b64)")
+    except Exception as e:
+        raise RuntimeError(f"Phase A boot failed: {e}") from e
+
+print(f"[boot] mode={_boot_mode}")
+
+# --- PUBLIC_PATHS ---
 try:
     PUBLIC_PATHS.update(  # noqa: F821
         {
@@ -84,7 +100,13 @@ def _boot_patch(name: str, *modules: str) -> None:
     for mod in modules:
         try:
             m = __import__(mod, fromlist=["install"])
-            m.install(app)  # noqa: F821
+            install = getattr(m, "install", None)
+            if install is None:
+                continue
+            try:
+                install(app)
+            except TypeError:
+                install()
             print(f"[boot] {name} via {mod}")
             return
         except Exception as e:
@@ -102,33 +124,44 @@ _boot_patch("patch_admin_students", "patch_admin_students", "db.patch_admin_stud
 def _install_safety_net() -> None:
     from flask import request, jsonify
 
-    if "student_login" in app.view_functions:  # noqa: F821
-        _orig = app.view_functions["student_login"]  # noqa: F821
+    if "student_login" in app.view_functions:
+        _orig = app.view_functions["student_login"]
 
         def student_login_safe():
             data = request.get_json(silent=True) or {}
             sid = data.get("id") or data.get("studentId") or data.get("code")
             if sid and not data.get("id"):
                 try:
-                    request._cached_json = ({**data, "id": str(sid).strip()}, {**data, "id": str(sid).strip()})  # type: ignore
+                    request._cached_json = (  # type: ignore
+                        {**data, "id": str(sid).strip()},
+                        {**data, "id": str(sid).strip()},
+                    )
                 except Exception:
                     pass
             return _orig()
 
-        app.view_functions["student_login"] = student_login_safe  # noqa: F821
+        app.view_functions["student_login"] = student_login_safe
         print("[boot] safety-net: student_login id|studentId|code")
 
-    rules = [r.rule for r in app.url_map.iter_rules()]  # noqa: F821
+    rules = [r.rule for r in app.url_map.iter_rules()]
     if not any("/api/student/olympiads" in r for r in rules):
 
-        @app.post("/api/student/olympiads")  # noqa: F821
+        @app.get("/api/student/olympiads")
+        @app.post("/api/student/olympiads")
         def student_olympiads_safe():
             data = request.get_json(silent=True) or {}
-            sid = data.get("studentId") or data.get("id") or data.get("code")
+            sid = (
+                data.get("studentId")
+                or data.get("id")
+                or data.get("code")
+                or request.args.get("studentId")
+                or request.args.get("id")
+            )
             if not sid:
                 return jsonify({"ok": False, "error": "studentId required"}), 400
             try:
                 from db import repo
+
                 olympiads = []
                 for key in ("list_active_olympiads", "get_active_olympiads", "list_olympiads"):
                     fn = getattr(repo, key, None)
@@ -138,17 +171,7 @@ def _install_safety_net() -> None:
                             break
                         except Exception:
                             pass
-                out = []
-                for o in olympiads:
-                    if isinstance(o, dict):
-                        out.append(o)
-                    else:
-                        out.append({
-                            "id": getattr(o, "id", None),
-                            "title": getattr(o, "title", None) or getattr(o, "name", None),
-                            "type": getattr(o, "type", "olympiad"),
-                            "status": getattr(o, "status", "active"),
-                        })
+                out = [o for o in olympiads if isinstance(o, dict)]
                 return jsonify({"ok": True, "olympiads": out, "studentId": str(sid)})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -156,10 +179,10 @@ def _install_safety_net() -> None:
         print("[boot] safety-net: /api/student/olympiads")
 
     try:
-        for rule in list(app.url_map.iter_rules()):  # noqa: F821
+        for rule in list(app.url_map.iter_rules()):
             if "DELETE" in (rule.methods or set()) and "student" in rule.rule.lower() and "<" in rule.rule:
                 ep = rule.endpoint
-                orig = app.view_functions.get(ep)  # noqa: F821
+                orig = app.view_functions.get(ep)
                 if not orig:
                     continue
 
@@ -169,6 +192,7 @@ def _install_safety_net() -> None:
                         if sid:
                             try:
                                 from db import repo
+
                                 if hasattr(repo, "soft_delete_student"):
                                     repo.soft_delete_student(str(sid))
                                 elif hasattr(repo, "update_student"):
@@ -180,7 +204,7 @@ def _install_safety_net() -> None:
 
                     return delete_safe
 
-                app.view_functions[ep] = make_wrapper(orig)  # noqa: F821
+                app.view_functions[ep] = make_wrapper(orig)
                 print(f"[boot] safety-net: soft-delete {ep}")
                 break
     except Exception as e:

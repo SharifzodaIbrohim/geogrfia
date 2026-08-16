@@ -76,6 +76,7 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
                 "rate_limited": "Зиёд дархост — каме интизор шавед.",
                 "already_submitted": "Шумо аллакай супоридаед (як маротиба).",
                 "not_assigned": "Шумо ба ин олимпиада таъин нашудаед.",
+                "no_participants": "Олимпиада ҳанӯз кушода нест — админ бояд хонандагонро илова кунад.",
                 "student_not_found": "ID нодуруст аст.",
                 "student_id_required": "Student ID лозим аст.",
                 "no_questions": "Саволҳо нестанд.",
@@ -117,7 +118,6 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
         student_id = _student_id_from_request(payload)
         answers = payload.get("answers")
 
-        # Normalize list answers → dict
         if isinstance(answers, list):
             amap = {}
             for i, a in enumerate(answers):
@@ -136,7 +136,6 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
         if not isinstance(answers, dict):
             answers = {}
 
-        # Resolve session if token missing (legacy clients / test client)
         if not session_id or not session_token:
             resolved = olympiad_engine.resolve_session_for_submit(
                 olympiad_id,
@@ -192,7 +191,6 @@ def register_olympiad_engine_routes(app, require_user, olympiad_window_status):
         """Primary submit path — closes attempts row (P1.12)."""
         return _do_submit(olympiad_id)
 
-    # Override any earlier legacy endpoint with the same rule/name
     try:
         app.view_functions["submit_olympiad"] = olympiad_submit
     except Exception as e:

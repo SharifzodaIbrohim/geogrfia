@@ -119,6 +119,7 @@ _boot_patch("one_attempt", "one_attempt", "db.one_attempt")
 _boot_patch("patch_submit_p112", "patch_submit_p112", "db.patch_submit_p112")
 _boot_patch("patch_student_portal", "patch_student_portal", "db.patch_student_portal")
 _boot_patch("patch_admin_students", "patch_admin_students", "db.patch_admin_students")
+_boot_patch("patch_names", "patch_names", "db.patch_names")
 
 
 def _install_safety_net() -> None:
@@ -147,7 +148,6 @@ def _install_safety_net() -> None:
     if not any("/api/student/olympiads" in r for r in rules):
 
         @app.get("/api/student/olympiads")
-        @app.post("/api/student/olympiads")
         def student_olympiads_safe():
             data = request.get_json(silent=True) or {}
             sid = (

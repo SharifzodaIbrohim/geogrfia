@@ -39,7 +39,6 @@ def _load_b64_src() -> str:
 
 
 def _materialize_core_from_b64() -> Path:
-    """Write plain server_core.py from b64 chunks (one-time)."""
     src = _load_b64_src()
     if "app = Flask" not in src and "app=Flask" not in src:
         raise RuntimeError("b64 payload has no Flask app")
@@ -49,7 +48,6 @@ def _materialize_core_from_b64() -> Path:
     return out
 
 
-# --- 1) Plain server_core.py ---
 _core = _dir / "server_core.py"
 if _core.is_file() and _core.stat().st_size > 10000:
     try:
@@ -57,7 +55,6 @@ if _core.is_file() and _core.stat().st_size > 10000:
     except Exception as e:
         print("[boot] plain server_core.py failed:", e)
 
-# --- 2) Materialize from b64, then plain exec ---
 if app is None:
     try:
         _core = _materialize_core_from_b64()
@@ -67,7 +64,6 @@ if app is None:
 
 print(f"[boot] mode={_boot_mode}")
 
-# --- PUBLIC_PATHS ---
 try:
     PUBLIC_PATHS.update(  # noqa: F821
         {
@@ -120,6 +116,7 @@ _boot_patch("patch_submit_p112", "patch_submit_p112", "db.patch_submit_p112")
 _boot_patch("patch_student_portal", "patch_student_portal", "db.patch_student_portal")
 _boot_patch("patch_admin_students", "patch_admin_students", "db.patch_admin_students")
 _boot_patch("patch_names", "patch_names", "db.patch_names")
+_boot_patch("patch_students_profile", "patch_students_profile", "db.patch_students_profile")
 
 
 def _install_safety_net() -> None:

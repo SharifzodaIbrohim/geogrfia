@@ -163,11 +163,12 @@ def set_olympiad_participants(olympiad_id: str, student_codes: list[str]) -> lis
 
 def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     """
-    Access rules (P0 locked policy):
-    - Valid Student ID required for type=olympiad.
-    - Empty participant list = LOCKED (nobody can start) — admin must assign students.
-    - Non-empty list = only assigned students.
-    - Gmail synthetic ids (g:/gmail:) are NOT enough for olympiad type.
+    Access rules (school-friendly):
+    - Valid Student ID required.
+    - Empty olympiad_participants list = ALL active students may start
+      (admin has students in «Хонандагон»; no per-olympiad assign UI yet).
+    - Non-empty list = only those student codes (restriction mode).
+    - Gmail synthetic ids are not enough for type=olympiad.
     """
     code = (student_code or "").strip()
     if not code:
@@ -194,18 +195,20 @@ def student_has_olympiad_access(olympiad_id: str, student_code: str) -> dict:
     if is_gmail_synth:
         if oly_type == "olympiad":
             return {"allowed": False, "reason": "student_id_required"}
-        if not parts:
-            return {"allowed": False, "reason": "no_participants"}
-        return {"allowed": False, "reason": "not_assigned"}
+        # quiz-type: still need real student or open quiz policy
+        if parts:
+            return {"allowed": False, "reason": "not_assigned"}
+        return {"allowed": False, "reason": "student_id_required"}
 
     if not student:
         return {"allowed": False, "reason": "student_not_found"}
 
     if not parts:
-        return {"allowed": False, "reason": "no_participants", "student": student}
+        # No restriction list → any active Student ID can take the event
+        return {"allowed": True, "reason": "open_to_all_students", "student": student}
 
     ok = any(
-        p.get("id") == code and p.get("status", "assigned") == "assigned"
+        str(p.get("id") or "") == code and p.get("status", "assigned") == "assigned"
         for p in parts
     )
     if ok:

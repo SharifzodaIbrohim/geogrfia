@@ -64,7 +64,7 @@
 
       <section id="tab-students" class="tab-panel hidden">
         <h2>Хонандагон — Бақайдгирӣ</h2>
-        <form id="studentForm" class="card grid-form student-reg-form">
+        <form id="studentForm" class="card grid-form student-reg-form" action="javascript:void(0)" method="post" onsubmit="return false;">
           <div><label>1. Насаб *</label><input id="stLastName" required placeholder="Ҳасанов" /></div>
           <div><label>2. Ном *</label><input id="stFirstName" required placeholder="Ойбек" /></div>
           <div><label>3. Номи падар</label><input id="stPatronymic" placeholder="Алиевич" /></div>
@@ -100,14 +100,14 @@
                   <strong>Ё файл интихоб кунед</strong> (ҳамеша кор мекунад)
                   <input type="file" id="photoFileInput" accept="image/*" capture="user" style="display:block;margin-top:0.35rem" />
                 </label>
-                <p id="cameraStatus" style="margin:0;font-size:0.9rem;color:#555">Тугмаи «1. Кушодани камера» → Allow дар браузер</p>
+                <p id="cameraStatus" style="margin:0;font-size:0.9rem;color:#555">Тугмаи «1. Кушодани камера» → Allow</p>
               </div>
             </div>
             <input type="hidden" id="stPhotoData" value="" />
           </div>
 
           <div class="form-actions full-row">
-            <button type="submit" class="btn primary">Бақайдгирӣ + Сохтани ID</button>
+            <button type="button" id="btnRegisterStudent" class="btn primary">Бақайдгирӣ + Сохтани ID</button>
             <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
           </div>
           <p id="studentMsg" class="msg hidden full-row"></p>
@@ -258,7 +258,68 @@
   <script src="js/admin-fixes.js"></script>
 
   <script>
-  /* Standalone camera — independent of other scripts */
+  /* Register student — never allow native form reload */
+  (function () {
+    function val(id) {
+      var el = document.getElementById(id);
+      return el && el.value != null ? String(el.value).trim() : "";
+    }
+    async function doRegister(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      if (typeof window.__geoRegisterStudent === "function") {
+        return window.__geoRegisterStudent(e);
+      }
+      var msg = document.getElementById("studentFormMsg") || document.getElementById("studentMsg");
+      var lastName = val("stLastName"), firstName = val("stFirstName"), patronymic = val("stPatronymic");
+      var birthDate = val("stBirthDate"), address = val("stAddress"), className = val("stClassName");
+      var school = val("stSchool"), teacher = val("stTeacher"), photoData = val("stPhotoData");
+      var fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
+      if (!lastName || !firstName) { alert("Насаб ва Ном ҳатмӣ"); return false; }
+      if (!className || !school) { alert("Синф ва Мактаб ҳатмӣ"); return false; }
+      try {
+        var token = localStorage.getItem("geo_admin_token") || "";
+        var res = await fetch("/api/admin/students", {
+          method: "POST",
+          credentials: "include",
+          headers: Object.assign({ "Content-Type": "application/json" }, token ? { "X-Admin-Token": token } : {}),
+          body: JSON.stringify({
+            lastName: lastName, firstName: firstName, patronymic: patronymic, birthDate: birthDate,
+            address: address, className: className, school: school, teacher: teacher,
+            photoData: photoData, fullName: fullName
+          })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.error || data.message || "Хато");
+        var s = data.student || data;
+        var box = document.getElementById("newIdBox"); if (box) box.classList.remove("hidden");
+        var nn = document.getElementById("newIdName"); var nv = document.getElementById("newIdValue");
+        if (nn) nn.textContent = s.fullName || fullName;
+        if (nv) nv.textContent = s.id || "";
+        var f = document.getElementById("studentForm"); if (f) f.reset();
+        if (typeof window.loadStudents === "function") window.loadStudents();
+      } catch (err) {
+        if (msg) { msg.textContent = err.message || String(err); msg.classList.remove("hidden"); msg.classList.add("error"); }
+        else alert(err.message || String(err));
+      }
+      return false;
+    }
+    function wire() {
+      var btn = document.getElementById("btnRegisterStudent");
+      var form = document.getElementById("studentForm");
+      if (btn) btn.onclick = function (e) { e.preventDefault(); doRegister(e); };
+      if (form) form.onsubmit = function (e) { e.preventDefault(); doRegister(e); return false; };
+    }
+    wire();
+    document.querySelectorAll(".tab").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.getAttribute("data-tab") === "students") setTimeout(wire, 50);
+      });
+    });
+  })();
+  </script>
+
+  <script>
+  /* Standalone camera */
   (function () {
     var stream = null;
     function $(id) { return document.getElementById(id); }
@@ -269,126 +330,69 @@
       el.style.color = bad ? "#b00020" : "#0a7a4c";
     }
     function stop() {
-      if (stream) {
-        stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
-        stream = null;
-      }
-      var v = $("cameraVideo");
-      if (v) { v.srcObject = null; v.style.display = "none"; }
-      var cap = $("btnCapturePhoto");
-      if (cap) cap.disabled = true;
+      if (stream) { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); stream = null; }
+      var v = $("cameraVideo"); if (v) { v.srcObject = null; v.style.display = "none"; }
+      var cap = $("btnCapturePhoto"); if (cap) cap.disabled = true;
     }
     function applyPhoto(dataUrl) {
-      var h = $("stPhotoData");
-      var img = $("photoPreview");
-      var ph = $("photoPlaceholder");
+      var h = $("stPhotoData"), img = $("photoPreview"), ph = $("photoPlaceholder");
       if (h) h.value = dataUrl || "";
       if (img && dataUrl) { img.src = dataUrl; img.style.display = "block"; }
       if (ph && dataUrl) ph.style.display = "none";
     }
     async function fillCams(prefer) {
-      var sel = $("cameraSelect");
-      if (!sel || !navigator.mediaDevices) return;
+      var sel = $("cameraSelect"); if (!sel || !navigator.mediaDevices) return;
       try {
         var list = await navigator.mediaDevices.enumerateDevices();
         var cams = list.filter(function (d) { return d.kind === "videoinput"; });
         sel.innerHTML = "";
-        if (!cams.length) {
-          sel.innerHTML = "<option value=\"\">Камера ёфт нашуд</option>";
-          status("Камера ёфт нашуд — файл истифода баред", true);
-          return;
-        }
+        if (!cams.length) { sel.innerHTML = "<option value=\"\">Камера ёфт нашуд</option>"; status("Камера ёфт нашуд", true); return; }
         cams.forEach(function (d, i) {
           var o = document.createElement("option");
           o.value = d.deviceId || "";
           o.textContent = (d.label && d.label.trim()) ? d.label : ("Камера " + (i + 1));
           sel.appendChild(o);
         });
-        if (prefer) {
-          for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === prefer) { sel.selectedIndex = i; break; }
-          }
-        }
+        if (prefer) { for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === prefer) { sel.selectedIndex = i; break; } } }
         status("Камераҳо: " + cams.length, false);
       } catch (e) { status("Рӯйхат: " + e.message, true); }
     }
     async function start() {
-      if (!window.isSecureContext) { status("HTTPS лозим", true); return; }
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        status("Браузер камера надорад — файл интихоб кунед", true);
-        return;
-      }
-      stop();
-      status("Иҷозат (Allow)…", false);
-      var sel = $("cameraSelect");
-      var id = sel && sel.value ? sel.value : "";
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status("Файл интихоб кунед", true); return; }
+      stop(); status("Allow…", false);
+      var sel = $("cameraSelect"); var id = sel && sel.value ? sel.value : "";
       var tries = [];
       if (id) tries.push({ video: { deviceId: { ideal: id } }, audio: false });
       tries.push({ video: true, audio: false });
-      tries.push({ video: { facingMode: "user" }, audio: false });
       var err = null;
       for (var i = 0; i < tries.length; i++) {
         try { stream = await navigator.mediaDevices.getUserMedia(tries[i]); err = null; break; }
         catch (e) { err = e; stream = null; }
       }
-      if (!stream) {
-        var m = err ? (err.name + ": " + err.message) : "номаълум";
-        status("Хато: " + m, true);
-        alert("Камера кушода нашуд.\n" + m + "\n\nАз «файл интихоб кунед» истифода баред.");
-        return;
-      }
-      var v = $("cameraVideo");
-      if (!v) return;
-      v.srcObject = stream;
-      v.style.display = "block";
-      try { await v.play(); } catch (e) {}
-      var cap = $("btnCapturePhoto");
-      if (cap) cap.disabled = false;
-      var sid = "";
-      try { sid = stream.getVideoTracks()[0].getSettings().deviceId || ""; } catch (e) {}
-      await fillCams(sid || id);
-      status("Фаъол — тугмаи «2. Гирифтани акс»", false);
+      if (!stream) { status("Хато: " + (err ? err.name : ""), true); return; }
+      var v = $("cameraVideo"); if (!v) return;
+      v.srcObject = stream; v.style.display = "block"; try { await v.play(); } catch (e) {}
+      var cap = $("btnCapturePhoto"); if (cap) cap.disabled = false;
+      var sid = ""; try { sid = stream.getVideoTracks()[0].getSettings().deviceId || ""; } catch (e) {}
+      await fillCams(sid || id); status("Фаъол — «2. Гирифтани акс»", false);
     }
     function capture() {
-      var v = $("cameraVideo");
-      var c = $("photoCanvas");
-      if (!v || !c || !v.videoWidth) { alert("Аввал «1. Кушодани камера»"); return; }
+      var v = $("cameraVideo"), c = $("photoCanvas");
+      if (!v || !c || !v.videoWidth) { alert("Аввал камераро кушоед"); return; }
       var sc = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
-      c.width = Math.round(v.videoWidth * sc);
-      c.height = Math.round(v.videoHeight * sc);
+      c.width = Math.round(v.videoWidth * sc); c.height = Math.round(v.videoHeight * sc);
       c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-      applyPhoto(c.toDataURL("image/jpeg", 0.85));
-      stop();
-      status("Акс гирифта шуд ✓", false);
+      applyPhoto(c.toDataURL("image/jpeg", 0.85)); stop(); status("Акс ✓", false);
     }
     function clearPhoto() {
       var h = $("stPhotoData"), img = $("photoPreview"), ph = $("photoPlaceholder"), f = $("photoFileInput");
-      if (h) h.value = "";
-      if (img) { img.removeAttribute("src"); img.style.display = "none"; }
-      if (ph) ph.style.display = "";
-      if (f) f.value = "";
-      status("Пок", false);
+      if (h) h.value = ""; if (img) { img.removeAttribute("src"); img.style.display = "none"; }
+      if (ph) ph.style.display = ""; if (f) f.value = ""; status("Пок", false);
     }
     function onFile(ev) {
-      var file = ev.target.files && ev.target.files[0];
-      if (!file) return;
+      var file = ev.target.files && ev.target.files[0]; if (!file) return;
       var r = new FileReader();
-      r.onload = function () {
-        var data = r.result;
-        if (typeof data === "string" && data.length > 2500000) {
-          var im = new Image();
-          im.onload = function () {
-            var c = document.createElement("canvas");
-            var sc = Math.min(1, 800 / Math.max(im.width, im.height));
-            c.width = Math.round(im.width * sc);
-            c.height = Math.round(im.height * sc);
-            c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-            applyPhoto(c.toDataURL("image/jpeg", 0.85));
-            status("Аз файл ✓", false);
-          };
-          im.src = data;
-        } else { applyPhoto(data); status("Аз файл ✓", false); }
-      };
+      r.onload = function () { applyPhoto(r.result); status("Аз файл ✓", false); };
       r.readAsDataURL(file);
     }
     function bind() {
@@ -397,16 +401,11 @@
       if (a) a.onclick = function (e) { e.preventDefault(); start(); };
       if (b) b.onclick = function (e) { e.preventDefault(); capture(); };
       if (c) c.onclick = function (e) { e.preventDefault(); clearPhoto(); stop(); };
-      if (d) d.onclick = function (e) { e.preventDefault(); stop(); status("Хомӯш", false); };
+      if (d) d.onclick = function (e) { e.preventDefault(); stop(); };
       if (f) f.onchange = onFile;
       if (s) s.onchange = function () { if (stream) start(); };
     }
     bind();
-    document.querySelectorAll(".tab").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        if (btn.getAttribute("data-tab") === "students") bind();
-      });
-    });
   })();
   </script>
 </body>

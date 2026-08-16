@@ -1,11 +1,31 @@
 /* Professional student registration: 9 fields + device camera */
 (function () {
+  const TOKEN_KEY = "geo_admin_token";
+
   const esc = window.esc || function (s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+      ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" }[c])
     );
   };
-  const api = window.api;
+
+  function getToken() {
+    return (
+      localStorage.getItem(TOKEN_KEY) ||
+      sessionStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem("adminToken") ||
+      ""
+    );
+  }
+
+  async function api(path, options = {}) {
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    const token = getToken();
+    if (token) headers["X-Admin-Token"] = token;
+    const res = await fetch(path, { ...options, headers, credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || "Хато");
+    return data;
+  }
 
   function injectStyle() {
     if (document.getElementById("student-reg-style")) return;
@@ -104,7 +124,7 @@
       const cams = devices.filter((d) => d.kind === "videoinput");
       sel.innerHTML = "";
       if (!cams.length) {
-        sel.innerHTML = "<option value=\"\">Камера ёфт нашуд</option>";
+        sel.innerHTML = '<option value="">Камера ёфт нашуд</option>';
         return;
       }
       cams.forEach((d, i) => {
@@ -208,7 +228,10 @@
 
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (btn.dataset.tab === "students") listCameras();
+      if (btn.dataset.tab === "students") {
+        listCameras();
+        loadStudentsLocal();
+      }
     });
   });
 
@@ -227,10 +250,6 @@
     const teacher = document.getElementById("stTeacher")?.value.trim() || "";
     const photoData = document.getElementById("stPhotoData")?.value || "";
     const fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
-    if (!api) {
-      alert("api() дастрас нест — саҳифаро нав кунед");
-      return;
-    }
     try {
       const data = await api("/api/admin/students", {
         method: "POST",
@@ -248,8 +267,7 @@
       e.target.reset();
       clearPhoto();
       stopCamera();
-      if (typeof window.loadStudents === "function") window.loadStudents();
-      else loadStudentsLocal();
+      loadStudentsLocal();
     } catch (err) {
       if (msg) {
         msg.textContent = err.message || String(err);
@@ -272,9 +290,10 @@
 
   document.getElementById("exportStudentsBtn")?.addEventListener("click", async () => {
     try {
-      const token = localStorage.getItem("adminToken") || sessionStorage.getItem("adminToken") || "";
+      const token = getToken();
       const res = await fetch("/api/admin/students/export", {
-        headers: { "X-Admin-Token": token },
+        headers: token ? { "X-Admin-Token": token } : {},
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Export хато");
       const blob = await res.blob();
@@ -288,7 +307,6 @@
   });
 
   async function loadStudentsLocal() {
-    if (!api) return;
     try {
       const data = await api("/api/admin/students");
       const body = document.getElementById("studentsBody");
@@ -323,9 +341,4 @@
   }
 
   window.loadStudents = loadStudentsLocal;
-  // if already on students tab
-  if (document.querySelector('.tab.active[data-tab="students"]')) {
-    listCameras();
-    loadStudentsLocal();
-  }
 })();

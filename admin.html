@@ -97,7 +97,7 @@
                   style="display:none;width:100%;max-width:360px;min-height:200px;background:#000;border-radius:8px"></video>
                 <canvas id="photoCanvas" style="display:none"></canvas>
                 <label style="display:block;margin-top:0.25rem">
-                  <strong>Ё файл интихоб кунед</strong> (ҳамеша кор мекунад)
+                  <strong>Ё файл интихоб кунед</strong>
                   <input type="file" id="photoFileInput" accept="image/*" capture="user" style="display:block;margin-top:0.35rem" />
                 </label>
                 <p id="cameraStatus" style="margin:0;font-size:0.9rem;color:#555">Тугмаи «1. Кушодани камера» → Allow</p>
@@ -106,10 +106,12 @@
             <input type="hidden" id="stPhotoData" value="" />
           </div>
 
-          <div class="form-actions full-row">
+          <div class="form-actions full-row" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
             <button type="button" id="btnRegisterStudent" class="btn primary">Бақайдгирӣ + Сохтани ID</button>
             <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
+            <button type="button" id="btnPickStudentsFolder" class="btn">Папкаи маҳаллӣ</button>
           </div>
+          <p id="localFolderStatus" class="full-row" style="margin:0.35rem 0 0;font-size:0.9rem;color:#a60">Папка ҳанӯз интихоб нашудааст — пас аз сабт файлҳо ба Downloads мераванд.</p>
           <p id="studentMsg" class="msg hidden full-row"></p>
           <p id="studentFormMsg" class="msg hidden full-row"></p>
         </form>
@@ -258,61 +260,37 @@
   <script src="js/admin-fixes.js"></script>
 
   <script>
-  /* Register student — never allow native form reload */
   (function () {
-    function val(id) {
-      var el = document.getElementById(id);
-      return el && el.value != null ? String(el.value).trim() : "";
-    }
-    async function doRegister(e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (typeof window.__geoRegisterStudent === "function") {
-        return window.__geoRegisterStudent(e);
-      }
-      var msg = document.getElementById("studentFormMsg") || document.getElementById("studentMsg");
-      var lastName = val("stLastName"), firstName = val("stFirstName"), patronymic = val("stPatronymic");
-      var birthDate = val("stBirthDate"), address = val("stAddress"), className = val("stClassName");
-      var school = val("stSchool"), teacher = val("stTeacher"), photoData = val("stPhotoData");
-      var fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
-      if (!lastName || !firstName) { alert("Насаб ва Ном ҳатмӣ"); return false; }
-      if (!className || !school) { alert("Синф ва Мактаб ҳатмӣ"); return false; }
-      try {
-        var token = localStorage.getItem("geo_admin_token") || "";
-        var res = await fetch("/api/admin/students", {
-          method: "POST",
-          credentials: "include",
-          headers: Object.assign({ "Content-Type": "application/json" }, token ? { "X-Admin-Token": token } : {}),
-          body: JSON.stringify({
-            lastName: lastName, firstName: firstName, patronymic: patronymic, birthDate: birthDate,
-            address: address, className: className, school: school, teacher: teacher,
-            photoData: photoData, fullName: fullName
-          })
-        });
-        var data = await res.json().catch(function () { return {}; });
-        if (!res.ok) throw new Error(data.error || data.message || "Хато");
-        var s = data.student || data;
-        var box = document.getElementById("newIdBox"); if (box) box.classList.remove("hidden");
-        var nn = document.getElementById("newIdName"); var nv = document.getElementById("newIdValue");
-        if (nn) nn.textContent = s.fullName || fullName;
-        if (nv) nv.textContent = s.id || "";
-        var f = document.getElementById("studentForm"); if (f) f.reset();
-        if (typeof window.loadStudents === "function") window.loadStudents();
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || String(err); msg.classList.remove("hidden"); msg.classList.add("error"); }
-        else alert(err.message || String(err));
-      }
-      return false;
-    }
     function wire() {
       var btn = document.getElementById("btnRegisterStudent");
       var form = document.getElementById("studentForm");
-      if (btn) btn.onclick = function (e) { e.preventDefault(); doRegister(e); };
-      if (form) form.onsubmit = function (e) { e.preventDefault(); doRegister(e); return false; };
+      var exp = document.getElementById("exportStudentsBtn");
+      var pick = document.getElementById("btnPickStudentsFolder");
+      if (btn) btn.onclick = function (e) {
+        e.preventDefault();
+        if (window.__geoRegisterStudent) window.__geoRegisterStudent(e);
+        else alert("Скрипти бақайдгирӣ бор нашуд — Ctrl+F5");
+      };
+      if (form) form.onsubmit = function (e) {
+        e.preventDefault();
+        if (window.__geoRegisterStudent) window.__geoRegisterStudent(e);
+        return false;
+      };
+      if (exp) exp.onclick = function (e) {
+        e.preventDefault();
+        if (window.__geoExportStudents) window.__geoExportStudents();
+        else alert("Export скрипт нест — Ctrl+F5");
+      };
+      if (pick) pick.onclick = function (e) {
+        e.preventDefault();
+        if (window.__geoPickStudentsFolder) window.__geoPickStudentsFolder();
+        else alert("Папка: Chrome/Edge + Ctrl+F5");
+      };
     }
     wire();
     document.querySelectorAll(".tab").forEach(function (b) {
       b.addEventListener("click", function () {
-        if (b.getAttribute("data-tab") === "students") setTimeout(wire, 50);
+        if (b.getAttribute("data-tab") === "students") setTimeout(wire, 30);
       });
     });
   })();

@@ -1,13 +1,14 @@
 """
-Database connection helper — Phase 25.5 / P0.5
+Database connection — aligned to current Geografia stack.
 
-Production:
-  - DATABASE_URL is mandatory
-  - PostgreSQL is the only backend
-  - JSON fallback is OFF unless ALLOW_JSON_BACKEND=1 (emergency only)
+Production / Ubuntu:
+  - DATABASE_URL is mandatory (PostgreSQL)
+  - JSON fallback OFF unless ALLOW_JSON_BACKEND=1 (emergency only)
 
 Local/dev:
-  - Without DATABASE_URL → JSON files (dev convenience)
+  - Without DATABASE_URL → JSON files under data/
+
+server.py loads .env via python-dotenv before this module is used.
 """
 from __future__ import annotations
 
@@ -35,7 +36,6 @@ _env = (
 _is_prod = _env in ("production", "prod") or bool(
     os.environ.get("RENDER") or os.environ.get("DYNO")
 )
-# Explicit opt-in JSON for emergency recovery only
 _allow_json = os.environ.get("ALLOW_JSON_BACKEND", "").strip().lower() in (
     "1",
     "true",
@@ -59,11 +59,13 @@ engine = None
 SessionLocal = None
 
 if DATABASE_URL:
+    # pool_size tuned for small Ubuntu (i3 / 8GB) + gunicorn workers=2
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
+        max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
+        pool_recycle=int(os.environ.get("DB_POOL_RECYCLE", "1800")),
     )
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     log.info("PostgreSQL engine configured")
@@ -81,9 +83,9 @@ def is_postgres_enabled() -> bool:
 
 
 def json_backend_allowed() -> bool:
-    """JSON file backend is allowed only outside prod, or with emergency flag."""
+    """JSON file backend only outside prod, or emergency flag."""
     if is_postgres_enabled():
-        return False  # PG configured → never prefer JSON
+        return False
     if _is_prod:
         return _allow_json
     return True
@@ -94,7 +96,7 @@ def get_session():
     if not SessionLocal:
         raise RuntimeError(
             "DATABASE_URL not set — PostgreSQL disabled. "
-            "In production set DATABASE_URL; for local JSON use without this call."
+            "In production set DATABASE_URL; for local JSON do not call get_session()."
         )
     session: Session = SessionLocal()
     try:
@@ -125,7 +127,6 @@ def health_check() -> dict:
             "jsonAllowed": False,
         }
     except Exception as e:
-        # In production do not claim JSON is a healthy alternative
         return {
             "backend": "postgresql",
             "ok": False,

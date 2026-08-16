@@ -8,12 +8,6 @@
 <style id="student-reg-style">
 .student-reg-form.grid-form{grid-template-columns:1fr 1fr;gap:.75rem 1rem}
 .student-reg-form .full-row{grid-column:1/-1}
-.photo-capture{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start}
-.photo-frame{width:160px;height:160px;border:2px dashed #888;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;background:rgba(0,0,0,.04)}
-.photo-frame img{width:100%;height:100%;object-fit:cover}
-.camera-video{width:240px;max-width:100%;border-radius:8px;background:#000}
-.photo-controls{display:flex;flex-direction:column;gap:.4rem;min-width:200px}
-.photo-btns{display:flex;flex-wrap:wrap;gap:.35rem}
 @media(max-width:700px){.student-reg-form.grid-form{grid-template-columns:1fr}}
 </style>
 </head>
@@ -33,13 +27,8 @@
 
   <div id="appView" class="hidden">
     <header class="topbar">
-      <div>
-        <strong>Админ</strong>
-        <span id="adminName" class="muted"></span>
-      </div>
-      <div class="topbar-actions">
-        <button id="logoutBtn" type="button" class="btn">Баромад</button>
-      </div>
+      <div><strong>Админ</strong> <span id="adminName" class="muted"></span></div>
+      <div class="topbar-actions"><button id="logoutBtn" type="button" class="btn">Баромад</button></div>
     </header>
 
     <nav class="tabs" id="adminTabs">
@@ -76,43 +65,47 @@
       <section id="tab-students" class="tab-panel hidden">
         <h2>Хонандагон — Бақайдгирӣ</h2>
         <form id="studentForm" class="card grid-form student-reg-form">
-          <div><label>1. Насаб *</label>
-            <input id="stLastName" required autocomplete="family-name" placeholder="Ҳасанов" /></div>
-          <div><label>2. Ном *</label>
-            <input id="stFirstName" required autocomplete="given-name" placeholder="Ойбек" /></div>
-          <div><label>3. Номи падар</label>
-            <input id="stPatronymic" placeholder="Алиевич" /></div>
-          <div><label>4. Рӯз.Моҳ.Сол таваллуд</label>
-            <input id="stBirthDate" type="date" /></div>
-          <div class="full-row"><label>5. Суроға</label>
-            <input id="stAddress" placeholder="ш. Душанбе, кӯчаи …" /></div>
-          <div class="full-row"><label>6. Муассиса / Мактаб *</label>
-            <input id="stSchool" required placeholder="Литсейи … / Мактаби №…" /></div>
-          <div><label>7. Синф *</label>
-            <input id="stClassName" required placeholder="10Б" /></div>
-          <div><label>8. Омӯзгор</label>
-            <input id="stTeacher" placeholder="Номи омӯзгор" /></div>
-          <div class="full-row photo-block">
-            <label>9. Сурат (.JPG) — аз камераи дастгоҳ</label>
-            <div class="photo-capture">
-              <div id="photoFrame" class="photo-frame" title="Барои аксгирӣ клик кунед">
-                <img id="photoPreview" alt="" class="hidden" />
-                <span id="photoPlaceholder">📷 Аксгирӣ</span>
+          <div><label>1. Насаб *</label><input id="stLastName" required placeholder="Ҳасанов" /></div>
+          <div><label>2. Ном *</label><input id="stFirstName" required placeholder="Ойбек" /></div>
+          <div><label>3. Номи падар</label><input id="stPatronymic" placeholder="Алиевич" /></div>
+          <div><label>4. Рӯз.Моҳ.Сол таваллуд</label><input id="stBirthDate" type="date" /></div>
+          <div class="full-row"><label>5. Суроға</label><input id="stAddress" placeholder="ш. Душанбе…" /></div>
+          <div class="full-row"><label>6. Муассиса / Мактаб *</label><input id="stSchool" required placeholder="Мактаб / Литсей" /></div>
+          <div><label>7. Синф *</label><input id="stClassName" required placeholder="10Б" /></div>
+          <div><label>8. Омӯзгор</label><input id="stTeacher" placeholder="Номи омӯзгор" /></div>
+
+          <div class="full-row" id="photoBlock">
+            <label>9. Сурат (.JPG)</label>
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;margin-top:0.5rem">
+              <div id="photoFrame" style="width:160px;height:160px;border:2px dashed #888;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f5f5f5">
+                <img id="photoPreview" alt="" style="display:none;width:100%;height:100%;object-fit:cover" />
+                <span id="photoPlaceholder">📷</span>
               </div>
-              <div class="photo-controls">
-                <label class="muted">Камера</label>
-                <select id="cameraSelect"><option value="">— интихоб —</option></select>
-                <div class="photo-btns">
-                  <button type="button" id="btnStartCamera" class="btn small">Кушодани камера</button>
-                  <button type="button" id="btnCapturePhoto" class="btn small primary" disabled>Гирифтани акс</button>
-                  <button type="button" id="btnClearPhoto" class="btn small">Пок</button>
+              <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:0.5rem">
+                <label>Камера
+                  <select id="cameraSelect" style="width:100%;margin-top:0.25rem;padding:0.4rem">
+                    <option value="">— пас аз кушодан пур мешавад —</option>
+                  </select>
+                </label>
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+                  <button type="button" id="btnStartCamera" class="btn primary">1. Кушодани камера</button>
+                  <button type="button" id="btnCapturePhoto" class="btn" disabled>2. Гирифтани акс</button>
+                  <button type="button" id="btnStopCamera" class="btn">Хомӯш</button>
+                  <button type="button" id="btnClearPhoto" class="btn">Пок</button>
                 </div>
-                <video id="cameraVideo" class="camera-video hidden" playsinline autoplay muted></video>
-                <canvas id="photoCanvas" class="hidden"></canvas>
+                <video id="cameraVideo" playsinline autoplay muted
+                  style="display:none;width:100%;max-width:360px;min-height:200px;background:#000;border-radius:8px"></video>
+                <canvas id="photoCanvas" style="display:none"></canvas>
+                <label style="display:block;margin-top:0.25rem">
+                  <strong>Ё файл интихоб кунед</strong> (ҳамеша кор мекунад)
+                  <input type="file" id="photoFileInput" accept="image/*" capture="user" style="display:block;margin-top:0.35rem" />
+                </label>
+                <p id="cameraStatus" style="margin:0;font-size:0.9rem;color:#555">Тугмаи «1. Кушодани камера» → Allow дар браузер</p>
               </div>
             </div>
             <input type="hidden" id="stPhotoData" value="" />
           </div>
+
           <div class="form-actions full-row">
             <button type="submit" class="btn primary">Бақайдгирӣ + Сохтани ID</button>
             <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
@@ -138,16 +131,13 @@
           <div><label>Ҷойгиршавӣ</label><input id="schoolLocation" /></div>
           <div class="form-actions"><button type="submit" class="btn primary">Илова</button></div>
         </form>
-        <div class="table-wrap"><table><thead><tr>
-          <th>Ном</th><th>Ҷой</th><th></th>
-        </tr></thead><tbody id="schoolsBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Ҷой</th><th></th></tr></thead><tbody id="schoolsBody"></tbody></table></div>
       </section>
 
       <section id="tab-gmail" class="tab-panel hidden">
         <h2>Мониторинги корбарони Gmail</h2>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.5rem 0">
-          <input id="gmSchool" placeholder="Мактаб" />
-          <input id="gmRegion" placeholder="Минтақа" />
+          <input id="gmSchool" placeholder="Мактаб" /><input id="gmRegion" placeholder="Минтақа" />
           <select id="gmGender"><option value="">Ҷинс</option><option value="male">Писар</option><option value="female">Духтар</option></select>
           <button type="button" class="btn primary" id="gmFilter">Филтр</button>
         </div>
@@ -183,7 +173,7 @@
       </section>
 
       <section id="tab-results" class="tab-panel hidden">
-        <h2>Натиҷаҳо / Export</h2>
+        <h2>Натиҷаҳо</h2>
         <div class="row-between" style="flex-wrap:wrap;gap:.5rem">
           <div><label>Олимпиада</label><select id="resultOlympiadSelect"></select></div>
           <button type="button" class="btn" id="loadResultsBtn">Бор кардан</button>
@@ -266,5 +256,158 @@
   <script src="js/admin-leaderboard.js"></script>
   <script src="js/admin-rbac-ui.js"></script>
   <script src="js/admin-fixes.js"></script>
+
+  <script>
+  /* Standalone camera — independent of other scripts */
+  (function () {
+    var stream = null;
+    function $(id) { return document.getElementById(id); }
+    function status(t, bad) {
+      var el = $("cameraStatus");
+      if (!el) return;
+      el.textContent = t || "";
+      el.style.color = bad ? "#b00020" : "#0a7a4c";
+    }
+    function stop() {
+      if (stream) {
+        stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+        stream = null;
+      }
+      var v = $("cameraVideo");
+      if (v) { v.srcObject = null; v.style.display = "none"; }
+      var cap = $("btnCapturePhoto");
+      if (cap) cap.disabled = true;
+    }
+    function applyPhoto(dataUrl) {
+      var h = $("stPhotoData");
+      var img = $("photoPreview");
+      var ph = $("photoPlaceholder");
+      if (h) h.value = dataUrl || "";
+      if (img && dataUrl) { img.src = dataUrl; img.style.display = "block"; }
+      if (ph && dataUrl) ph.style.display = "none";
+    }
+    async function fillCams(prefer) {
+      var sel = $("cameraSelect");
+      if (!sel || !navigator.mediaDevices) return;
+      try {
+        var list = await navigator.mediaDevices.enumerateDevices();
+        var cams = list.filter(function (d) { return d.kind === "videoinput"; });
+        sel.innerHTML = "";
+        if (!cams.length) {
+          sel.innerHTML = "<option value=\"\">Камера ёфт нашуд</option>";
+          status("Камера ёфт нашуд — файл истифода баред", true);
+          return;
+        }
+        cams.forEach(function (d, i) {
+          var o = document.createElement("option");
+          o.value = d.deviceId || "";
+          o.textContent = (d.label && d.label.trim()) ? d.label : ("Камера " + (i + 1));
+          sel.appendChild(o);
+        });
+        if (prefer) {
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === prefer) { sel.selectedIndex = i; break; }
+          }
+        }
+        status("Камераҳо: " + cams.length, false);
+      } catch (e) { status("Рӯйхат: " + e.message, true); }
+    }
+    async function start() {
+      if (!window.isSecureContext) { status("HTTPS лозим", true); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        status("Браузер камера надорад — файл интихоб кунед", true);
+        return;
+      }
+      stop();
+      status("Иҷозат (Allow)…", false);
+      var sel = $("cameraSelect");
+      var id = sel && sel.value ? sel.value : "";
+      var tries = [];
+      if (id) tries.push({ video: { deviceId: { ideal: id } }, audio: false });
+      tries.push({ video: true, audio: false });
+      tries.push({ video: { facingMode: "user" }, audio: false });
+      var err = null;
+      for (var i = 0; i < tries.length; i++) {
+        try { stream = await navigator.mediaDevices.getUserMedia(tries[i]); err = null; break; }
+        catch (e) { err = e; stream = null; }
+      }
+      if (!stream) {
+        var m = err ? (err.name + ": " + err.message) : "номаълум";
+        status("Хато: " + m, true);
+        alert("Камера кушода нашуд.\n" + m + "\n\nАз «файл интихоб кунед» истифода баред.");
+        return;
+      }
+      var v = $("cameraVideo");
+      if (!v) return;
+      v.srcObject = stream;
+      v.style.display = "block";
+      try { await v.play(); } catch (e) {}
+      var cap = $("btnCapturePhoto");
+      if (cap) cap.disabled = false;
+      var sid = "";
+      try { sid = stream.getVideoTracks()[0].getSettings().deviceId || ""; } catch (e) {}
+      await fillCams(sid || id);
+      status("Фаъол — тугмаи «2. Гирифтани акс»", false);
+    }
+    function capture() {
+      var v = $("cameraVideo");
+      var c = $("photoCanvas");
+      if (!v || !c || !v.videoWidth) { alert("Аввал «1. Кушодани камера»"); return; }
+      var sc = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+      c.width = Math.round(v.videoWidth * sc);
+      c.height = Math.round(v.videoHeight * sc);
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      applyPhoto(c.toDataURL("image/jpeg", 0.85));
+      stop();
+      status("Акс гирифта шуд ✓", false);
+    }
+    function clearPhoto() {
+      var h = $("stPhotoData"), img = $("photoPreview"), ph = $("photoPlaceholder"), f = $("photoFileInput");
+      if (h) h.value = "";
+      if (img) { img.removeAttribute("src"); img.style.display = "none"; }
+      if (ph) ph.style.display = "";
+      if (f) f.value = "";
+      status("Пок", false);
+    }
+    function onFile(ev) {
+      var file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var data = r.result;
+        if (typeof data === "string" && data.length > 2500000) {
+          var im = new Image();
+          im.onload = function () {
+            var c = document.createElement("canvas");
+            var sc = Math.min(1, 800 / Math.max(im.width, im.height));
+            c.width = Math.round(im.width * sc);
+            c.height = Math.round(im.height * sc);
+            c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+            applyPhoto(c.toDataURL("image/jpeg", 0.85));
+            status("Аз файл ✓", false);
+          };
+          im.src = data;
+        } else { applyPhoto(data); status("Аз файл ✓", false); }
+      };
+      r.readAsDataURL(file);
+    }
+    function bind() {
+      var a = $("btnStartCamera"), b = $("btnCapturePhoto"), c = $("btnClearPhoto"), d = $("btnStopCamera");
+      var f = $("photoFileInput"), s = $("cameraSelect");
+      if (a) a.onclick = function (e) { e.preventDefault(); start(); };
+      if (b) b.onclick = function (e) { e.preventDefault(); capture(); };
+      if (c) c.onclick = function (e) { e.preventDefault(); clearPhoto(); stop(); };
+      if (d) d.onclick = function (e) { e.preventDefault(); stop(); status("Хомӯш", false); };
+      if (f) f.onchange = onFile;
+      if (s) s.onchange = function () { if (stream) start(); };
+    }
+    bind();
+    document.querySelectorAll(".tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.getAttribute("data-tab") === "students") bind();
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

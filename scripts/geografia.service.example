@@ -1,0 +1,21 @@
+[Unit]
+Description=Geografia gunicorn (Flask)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=REPLACE_USER
+Group=REPLACE_USER
+WorkingDirectory=/opt/geogrfia
+EnvironmentFile=/opt/geogrfia/.env
+ExecStart=/opt/geogrfia/.venv/bin/gunicorn server:app -b 127.0.0.1:8000 --workers 2 --timeout 120
+Restart=always
+RestartSec=3
+
+# Hardening (optional)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

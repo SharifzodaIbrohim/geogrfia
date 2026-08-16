@@ -1,63 +1,72 @@
-# Географияи ҷаҳон
+# Geografia
 
-Interactive geography web app with country search, filters, detailed country cards, quiz mode, local user authentication, and downloadable geography books.
+Платформаи география / олимпиада / викторина (Тоҷикистон).
 
-## Features
+## Ҳолати ҳозира
 
-- Country search by name, capital, or region
-- Filters for region and subregion
-- Sorting by country name, population, or area
-- Country detail modal with geographic and demographic data
-- Language selection (Tajik, Russian, English)
-- Dark/light theme toggle
-- Quiz and friend quiz modes
-- Local registration/login via Flask backend
-- Included country data files and PDF book resources
+| Қисм | Ҷой |
+|------|-----|
+| Код | GitHub `SharifzodaIbrohim/geogrfia` |
+| Demo/prod cloud | Render: https://geografia-19tf.onrender.com |
+| DB | PostgreSQL (`DATABASE_URL`) |
+| Boot | Phase A: plain `server_core.py` |
 
-## Project Structure
+## Хусусиятҳо
 
-- `index.html` — main frontend page
-- `css/style.css` — application styles
-- `js/app.js` — application logic and UI behavior
-- `data/` — country data and user storage
-  - `countries.json` — country metadata for app display
-  - `countries-full.json` — extended country dataset
-  - `country-names-tg.json` — Tajik country name translations
-  - `users.json` — stored user accounts (created automatically)
-- `books/` — geography book PDFs
-- `server.py` — Flask backend for authentication and static file serving
+- Admin: хонандагон (ID дароз), олимпиада, натиҷаҳо
+- Student: login бо ID, оғоз/супоридани олимпиада (як attempt)
+- Leaderboard, кишварҳо, курсҳо, profile (Gmail ихтиёрӣ)
+- Дастрасӣ: Student ID ҳатмӣ; агар рӯйхати иштирокчии олимпиада холӣ бошад — ҳамаи хонандагони фаъол
+
+## Local / Ubuntu (кӯтоҳ)
+
+```bash
+git clone https://github.com/SharifzodaIbrohim/geogrfia.git /opt/geogrfia
+cd /opt/geogrfia
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # DATABASE_URL + JWT_SECRET
+python scripts/preflight_check.py
+gunicorn server:app -b 127.0.0.1:8000 --workers 2
+```
+
+Муфассал:
+
+- `docs/UBUNTU_DEPLOY.md` — clone, systemd, deploy
+- `docs/BACKUP.md` — `pg_dump` / restore
+- `scripts/deploy.sh` — `git pull` + restart
+- `scripts/geografia.service.example` — systemd unit
+- `scripts/nginx-geografia.conf.example` — Nginx
+
+### Systemd
+
+```bash
+sudo cp scripts/geografia.service.example /etc/systemd/system/geografia.service
+# User= ва роҳҳоро иваз кунед
+sudo systemctl daemon-reload
+sudo systemctl enable --now geografia
+```
+
+### Навсозӣ пас аз `git push`
+
+```bash
+cd /opt/geogrfia && ./scripts/deploy.sh
+```
+
+### Дастрасӣ аз интернет (мактаб)
+
+IP-и LAN (`192.168.x.x`) аз берун намерасад. Вариантҳо:
+
+1. **Cloudflare Tunnel** (тавсия) — бе port forward
+2. Port forwarding 80/443 + домен
+3. Домени ниҳоӣ: `geografia.tj`
 
 ## Requirements
 
-- Python 3.8+
-- Flask
-
-## Getting Started
-
-1. Install Flask:
-
-```bash
-pip install flask
-```
-
-2. Run the server from the project root:
-
-```bash
-python server.py
-```
-
-3. Open the app in your browser:
-
-```text
-http://127.0.0.1:5000
-```
-
-## Notes
-
-- `server.py` serves the frontend and handles `/api/register` and `/api/login`.
-- User accounts are stored in `data/users.json`.
-- If you open `index.html` directly in the browser, some features may not work due to CORS and API routing.
+- Python 3.10+
+- PostgreSQL (prod)
+- бастаҳо: `requirements.txt`
 
 ## License
 
-This project is provided as-is. Feel free to adapt and extend it for learning and educational use.
+Educational use — as-is.

@@ -1,10 +1,13 @@
-/* Student registration: API create + local folder card + structured CSV */
+/* Student registration + ALWAYS local download + optional folder */
 (function () {
   const TOKEN_KEY = "geo_admin_token";
   const DIR_DB = "geografia_admin_fs";
   const DIR_STORE = "handles";
   const DIR_KEY = "students_info_dir";
   const FOLDER_HINT = "Малумотхои хонандагон";
+
+  var _regLock = false;
+  var _dirMemory = null; // FileSystemDirectoryHandle when granted
 
   const esc =
     window.esc ||
@@ -36,17 +39,6 @@
     return data;
   }
 
-  function injectStyle() {
-    if (document.getElementById("student-reg-style")) return;
-    const s = document.createElement("style");
-    s.id = "student-reg-style";
-    s.textContent =
-      ".student-reg-form.grid-form{grid-template-columns:1fr 1fr;gap:.75rem 1rem}" +
-      ".student-reg-form .full-row{grid-column:1/-1}" +
-      "@media(max-width:700px){.student-reg-form.grid-form{grid-template-columns:1fr}}";
-    document.head.appendChild(s);
-  }
-
   function clearPhoto() {
     var hidden = document.getElementById("stPhotoData");
     var preview = document.getElementById("photoPreview");
@@ -61,7 +53,6 @@
     if (file) file.value = "";
   }
 
-  /* ---------- IndexedDB for directory handle (Chrome/Edge) ---------- */
   function idbOpen() {
     return new Promise(function (resolve, reject) {
       var req = indexedDB.open(DIR_DB, 1);
@@ -112,33 +103,27 @@
     } catch (_) {}
   }
 
-  async function ensureStudentsDir() {
-    if (!window.showDirectoryPicker) return null;
-    var handle = await idbGet(DIR_KEY);
-    if (handle) {
-      try {
-        var q = await handle.queryPermission({ mode: "readwrite" });
-        if (q === "granted") return handle;
-        var r = await handle.requestPermission({ mode: "readwrite" });
-        if (r === "granted") return handle;
-      } catch (_) {
-        handle = null;
-      }
+  function forceDownload(filename, text, mime) {
+    try {
+      var blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (_) {}
+        a.remove();
+      }, 1500);
+      return true;
+    } catch (e) {
+      console.error("forceDownload", e);
+      return false;
     }
-    alert(
-      "Лутфан папкаи «" +
-        FOLDER_HINT +
-        "»-ро интихоб кунед.\n\nАгар нест: дар равзана New folder созед, ном гузоред «" +
-        FOLDER_HINT +
-        "», сипас интихоб кунед.\n\nИн фақат дар компютери шумо нигоҳ дошта мешавад (на дар сервер)."
-    );
-    handle = await window.showDirectoryPicker({
-      id: "geografia-students-info",
-      mode: "readwrite",
-      startIn: "documents",
-    });
-    await idbSet(DIR_KEY, handle);
-    return handle;
   }
 
   function safeFileName(s) {
@@ -153,8 +138,10 @@
     var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
     var photo = st.photoData || "";
     var photoBlock = photo
-      ? '<img src="' + photo + '" alt="photo" style="width:140px;height:140px;object-fit:cover;border-radius:8px;border:1px solid #ccc"/>'
-      : '<div style="width:140px;height:140px;border:1px dashed #aaa;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#888">Без сурат</div>';
+      ? '<img src="' +
+        photo +
+        '" alt="photo" style="width:140px;height:140px;object-fit:cover;border-radius:8px;border:1px solid #ccc"/>'
+      : '<div style="width:140px;height:140px;border:1px dashed #aaa;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#888">Бе сурат</div>';
     var rows = [
       ["ID (барои воридшавӣ)", id],
       ["Насаб", st.lastName || ""],
@@ -165,7 +152,7 @@
       ["Муассиса / Мактаб", st.school || ""],
       ["Синф", st.className || ""],
       ["Омӯзгор", st.teacher || ""],
-      ["Санаи бақайдгирӣ", new Date().toLocaleString("tg-TJ")],
+      ["Санаи бақайдгирӣ", new Date().toLocaleString()],
     ];
     var table = rows
       .map(function (r) {
@@ -188,7 +175,7 @@
       "@media print{button{display:none!important}body{margin:0}}</style></head><body>" +
       "<button onclick=\"window.print()\" style=\"padding:8px 14px;margin-bottom:12px;cursor:pointer\">Чоп / Save as PDF</button>" +
       "<h1>Маълумоти хонанда — Geografia</h1>" +
-      "<p style=\"color:#555;margin:0 0 12px\">Ин варақро чоп кунед ё «Save as PDF» интихоб кунед.</p>" +
+      "<p style=\"color:#555\">Чоп кунед ё Save as PDF.</p>" +
       "<div style=\"display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap\">" +
       photoBlock +
       "<div><div class=\"idbox\">" +
@@ -198,29 +185,12 @@
       "</div></div></div>" +
       "<table style=\"width:100%;border-collapse:collapse;margin-top:18px\">" +
       table +
-      "</table>" +
-      "<p style=\"margin-top:24px;font-size:0.85rem;color:#666\">Папка: " +
-      esc(FOLDER_HINT) +
-      " · Фақат дар компютери админ</p>" +
-      "</body></html>"
+      "</table></body></html>"
     );
   }
 
-  async function writeFileToDir(dirHandle, fileName, contents, mime) {
-    var fh = await dirHandle.getFileHandle(fileName, { create: true });
-    var w = await fh.createWritable();
-    await w.write(new Blob([contents], { type: mime || "text/html;charset=utf-8" }));
-    await w.close();
-  }
-
-  async function saveStudentLocalCopy(st) {
-    var html = buildStudentCardHtml(st);
-    var base =
-      safeFileName((st.lastName || "") + "_" + (st.firstName || "") + "_" + (st.id || "")) ||
-      safeFileName(st.id || "student");
-    var htmlName = base + ".html";
-    var txtName = base + ".txt";
-    var txt =
+  function buildStudentTxt(st) {
+    return (
       "ID: " +
       (st.id || "") +
       "\nНасаб: " +
@@ -241,31 +211,112 @@
       (st.teacher || "") +
       "\nСана: " +
       new Date().toISOString() +
-      "\n";
+      "\n"
+    );
+  }
 
+  async function writeFileToDir(dirHandle, fileName, contents, mime) {
+    var fh = await dirHandle.getFileHandle(fileName, { create: true });
+    var w = await fh.createWritable();
+    await w.write(new Blob([contents], { type: mime || "text/plain;charset=utf-8" }));
+    await w.close();
+  }
+
+  async function tryRestoreDir() {
+    if (_dirMemory) return _dirMemory;
+    if (!window.showDirectoryPicker) return null;
     try {
-      var dir = await ensureStudentsDir();
+      var handle = await idbGet(DIR_KEY);
+      if (!handle) return null;
+      var q = await handle.queryPermission({ mode: "readwrite" });
+      if (q === "granted") {
+        _dirMemory = handle;
+        return handle;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /** Must be called from a click handler (user gesture). */
+  async function pickStudentsFolder() {
+    if (!window.showDirectoryPicker) {
+      alert(
+        "Браузери шумо интихоби папкаро дастгирӣ намекунад.\nChrome ё Edge истифода баред.\nҲоло файлҳо ба Downloads зеркашӣ мешаванд."
+      );
+      updateFolderStatus(false);
+      return null;
+    }
+    try {
+      alert(
+        "Папкаи «" +
+          FOLDER_HINT +
+          "»-ро интихоб кунед.\nАгар нест: New folder → ном «" +
+          FOLDER_HINT +
+          "» → Select."
+      );
+      var handle = await window.showDirectoryPicker({
+        id: "geografia-students-info",
+        mode: "readwrite",
+        startIn: "documents",
+      });
+      _dirMemory = handle;
+      await idbSet(DIR_KEY, handle);
+      updateFolderStatus(true);
+      alert("Папка пайваст шуд: «" + FOLDER_HINT + "». Акнун ҳар бақайдгирӣ он ҷо низ захира мешавад.");
+      return handle;
+    } catch (e) {
+      if (e && e.name === "AbortError") {
+        alert("Интихоби папка бекор шуд.");
+      } else {
+        alert("Папка: " + (e && e.message ? e.message : e));
+      }
+      updateFolderStatus(!!_dirMemory);
+      return null;
+    }
+  }
+
+  function updateFolderStatus(ok) {
+    var el = document.getElementById("localFolderStatus");
+    if (!el) return;
+    el.textContent = ok
+      ? "Папка пайваст: «" + FOLDER_HINT + "» ✓"
+      : "Папка ҳанӯз интихоб нашудааст — файлҳо ба Downloads мераванд. Тугмаи «Папкаи маҳаллӣ»-ро пахш кунед.";
+    el.style.color = ok ? "#0a7a4c" : "#a60";
+  }
+
+  async function saveStudentLocalCopy(st) {
+    var html = buildStudentCardHtml(st);
+    var txt = buildStudentTxt(st);
+    var base =
+      safeFileName((st.lastName || "") + "_" + (st.firstName || "") + "_" + (st.id || "")) ||
+      safeFileName(st.id || "student");
+    var htmlName = base + ".html";
+    var txtName = base + ".txt";
+
+    // 1) ALWAYS download (works in all browsers after async)
+    var d1 = forceDownload(htmlName, html, "text/html;charset=utf-8");
+    var d2 = forceDownload(txtName, txt, "text/plain;charset=utf-8");
+
+    // 2) Also write to folder if already connected
+    var folderOk = false;
+    try {
+      var dir = _dirMemory || (await tryRestoreDir());
       if (dir) {
         await writeFileToDir(dir, htmlName, html, "text/html;charset=utf-8");
         await writeFileToDir(dir, txtName, txt, "text/plain;charset=utf-8");
-        return { ok: true, mode: "folder", name: htmlName };
+        folderOk = true;
+        _dirMemory = dir;
       }
     } catch (e) {
-      console.warn("local folder save", e);
+      console.warn("folder write", e);
+      folderOk = false;
     }
 
-    // Fallback: download to Downloads (browser cannot create arbitrary folders without permission)
-    try {
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-      a.download = htmlName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      return { ok: true, mode: "download", name: htmlName };
-    } catch (e2) {
-      return { ok: false, error: String(e2) };
-    }
+    return {
+      ok: d1 || d2 || folderOk,
+      mode: folderOk ? "folder+download" : "download",
+      name: htmlName,
+    };
   }
 
   function csvEscape(v) {
@@ -313,29 +364,28 @@
       );
     });
     var bom = "\ufeff";
-    var blob = new Blob([bom + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "students_" + new Date().toISOString().slice(0, 10) + ".csv";
-    a.click();
+    var body = bom + lines.join("\r\n");
+    var fname = "students_" + new Date().toISOString().slice(0, 10) + ".csv";
+    forceDownload(fname, body, "text/csv;charset=utf-8");
 
-    // Also try save into local folder
     try {
-      var dir = await ensureStudentsDir();
+      var dir = _dirMemory || (await tryRestoreDir());
       if (dir) {
-        await writeFileToDir(
-          dir,
-          "рӯйхат_хонандагон_" + new Date().toISOString().slice(0, 10) + ".csv",
-          bom + lines.join("\r\n"),
-          "text/csv;charset=utf-8"
-        );
+        await writeFileToDir(dir, fname, body, "text/csv;charset=utf-8");
       }
     } catch (_) {}
+
+    alert("CSV зеркашӣ шуд: " + fname + " (" + list.length + " хонанда, сохтори нав).");
   }
+  window.__geoExportStudents = exportStudentsCsv;
+  window.__geoPickStudentsFolder = pickStudentsFolder;
 
   async function registerStudent(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (e && e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (_regLock) return false;
+    _regLock = true;
+
     var msg = document.getElementById("studentFormMsg") || document.getElementById("studentMsg");
     if (msg) msg.classList.add("hidden");
     function val(id) {
@@ -352,25 +402,11 @@
     var teacher = val("stTeacher");
     var photoData = val("stPhotoData");
     var fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
-    if (!lastName || !firstName) {
-      var m1 = "Насаб ва Ном ҳатмӣ мебошанд.";
-      if (msg) {
-        msg.textContent = m1;
-        msg.classList.remove("hidden");
-        msg.classList.add("error");
-      } else alert(m1);
-      return false;
-    }
-    if (!className || !school) {
-      var m2 = "Синф ва Мактаб ҳатмӣ мебошанд.";
-      if (msg) {
-        msg.textContent = m2;
-        msg.classList.remove("hidden");
-        msg.classList.add("error");
-      } else alert(m2);
-      return false;
-    }
+
     try {
+      if (!lastName || !firstName) throw new Error("Насаб ва Ном ҳатмӣ мебошанд.");
+      if (!className || !school) throw new Error("Синф ва Мактаб ҳатмӣ мебошанд.");
+
       var data = await api("/api/admin/students", {
         method: "POST",
         body: JSON.stringify({
@@ -406,15 +442,17 @@
       if (nv) nv.textContent = s.id || "";
 
       var saveRes = await saveStudentLocalCopy(s);
-      if (saveRes && saveRes.ok) {
-        if (msg) {
-          msg.textContent =
-            saveRes.mode === "folder"
-              ? "Сабт шуд. Нусха дар папкаи «" + FOLDER_HINT + "»: " + saveRes.name
-              : "Сабт шуд. Нусхаи HTML зеркашӣ шуд (" + saveRes.name + "). Барои папка Chrome/Edge истифода баред.";
-          msg.classList.remove("hidden", "error");
-          msg.classList.add("ok");
-        }
+      var info =
+        "ID сохта шуд. Файлҳои .html ва .txt ба Downloads зеркашӣ шуданд" +
+        (saveRes && saveRes.mode === "folder+download"
+          ? " ва ба папкаи «" + FOLDER_HINT + "» ҳам навишта шуданд."
+          : ". Барои папка: тугмаи «Папкаи маҳаллӣ».");
+      if (msg) {
+        msg.textContent = info;
+        msg.classList.remove("hidden", "error");
+        msg.classList.add("ok");
+      } else {
+        alert(info);
       }
 
       var formEl = document.getElementById("studentForm");
@@ -427,6 +465,8 @@
         msg.classList.remove("hidden");
         msg.classList.add("error");
       } else alert(err.message || String(err));
+    } finally {
+      _regLock = false;
     }
     return false;
   }
@@ -436,36 +476,41 @@
     var form = document.getElementById("studentForm");
     if (form) {
       form.setAttribute("action", "javascript:void(0)");
-      form.setAttribute("onsubmit", "return false;");
-      form.addEventListener(
-        "submit",
-        function (e) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          registerStudent(e);
-          return false;
-        },
-        true
-      );
+      form.onsubmit = function (e) {
+        e.preventDefault();
+        registerStudent(e);
+        return false;
+      };
     }
     var btnReg = document.getElementById("btnRegisterStudent");
     if (btnReg) {
       btnReg.type = "button";
-      btnReg.addEventListener("click", function (e) {
+      btnReg.onclick = function (e) {
         e.preventDefault();
         registerStudent(e);
-      });
+      };
     }
-
-    document.querySelectorAll(".tab").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        if (btn.dataset.tab === "students") loadStudentsLocal();
-      });
-    });
+    var exportBtn = document.getElementById("exportStudentsBtn");
+    if (exportBtn) {
+      exportBtn.type = "button";
+      exportBtn.onclick = function (e) {
+        e.preventDefault();
+        exportStudentsCsv().catch(function (err) {
+          alert(err.message || String(err));
+        });
+      };
+    }
+    var pickBtn = document.getElementById("btnPickStudentsFolder");
+    if (pickBtn) {
+      pickBtn.onclick = function (e) {
+        e.preventDefault();
+        pickStudentsFolder();
+      };
+    }
 
     var copyBtn = document.getElementById("copyIdBtn");
     if (copyBtn) {
-      copyBtn.addEventListener("click", async function () {
+      copyBtn.onclick = async function () {
         var v = (document.getElementById("newIdValue") || {}).textContent || "";
         if (!v) return;
         try {
@@ -474,19 +519,23 @@
         } catch (_) {
           prompt("Нусха кунед:", v);
         }
-      });
+      };
     }
 
-    var exportBtn = document.getElementById("exportStudentsBtn");
-    if (exportBtn) {
-      exportBtn.addEventListener("click", async function () {
-        try {
-          await exportStudentsCsv();
-        } catch (e) {
-          alert(e.message || String(e));
+    document.querySelectorAll(".tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.dataset.tab === "students") {
+          loadStudentsLocal();
+          tryRestoreDir().then(function (d) {
+            updateFolderStatus(!!d);
+          });
         }
       });
-    }
+    });
+
+    tryRestoreDir().then(function (d) {
+      updateFolderStatus(!!d);
+    });
   }
 
   async function loadStudentsLocal() {
@@ -499,29 +548,21 @@
         ? list
             .map(function (s) {
               return (
-                "<tr>" +
-                "<td><code>" +
+                "<tr><td><code>" +
                 esc(s.id) +
-                "</code></td>" +
-                "<td>" +
-                esc(s.fullName || ((s.lastName || "") + " " + (s.firstName || "")).trim()) +
-                "</td>" +
-                "<td>" +
+                "</code></td><td>" +
+                esc(s.fullName || "") +
+                "</td><td>" +
                 esc(s.className) +
-                "</td>" +
-                "<td>" +
+                "</td><td>" +
                 esc(s.school) +
-                "</td>" +
-                "<td>" +
+                "</td><td>" +
                 esc(s.teacher || "") +
-                "</td>" +
-                "<td>" +
+                "</td><td>" +
                 (s.hasPhoto ? "✓" : "—") +
-                "</td>" +
-                '<td><button type="button" class="btn small danger" data-del-student="' +
+                '</td><td><button type="button" class="btn small danger" data-del-student="' +
                 esc(s.id) +
-                '">Нест</button></td>' +
-                "</tr>"
+                '">Нест</button></td></tr>'
               );
             })
             .join("")
@@ -539,6 +580,5 @@
   }
 
   window.loadStudents = loadStudentsLocal;
-  injectStyle();
   bind();
 })();

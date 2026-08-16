@@ -1,9 +1,17 @@
-"""Geografia entry — Phase A: plain server_core preferred."""
+"""Geografia entry — Phase A: plain server_core.py preferred (no network at boot)."""
 from __future__ import annotations
 
 import base64
 import zlib
 from pathlib import Path
+
+# Ubuntu / local: load .env before server_core imports connection
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+except Exception:
+    pass
 
 _dir = Path(__file__).resolve().parent
 _boot_mode = None
@@ -55,30 +63,45 @@ if app is None:
 
 print(f"[boot] mode={_boot_mode}")
 
+# Static / public assets aligned to current UI (admin registration, platform, etc.)
+_EXTRA_PUBLIC = {
+    # pages
+    "index.html",
+    "admin.html",
+    "student.html",
+    "profile.html",
+    "quiz.html",
+    "courses.html",
+    "leaderboard.html",
+    "countries.html",
+    # css
+    "css.css",
+    "css/admin.css",
+    "css/student.css",
+    "css/quiz.css",
+    "css/platform.css",
+    "css/profile.css",
+    # js — public / shared
+    "js.js",
+    "js/i18n.js",
+    "js/platform-home.js",
+    "js/quiz-platform.js",
+    "js/profile.js",
+    # js — admin modules (needed after login UI load)
+    "js/admin.js",
+    "js/admin-session.js",
+    "js/admin-fixes.js",
+    "js/admin-gmail.js",
+    "js/admin-content.js",
+    "js/admin-leaderboard.js",
+    "js/admin-students-reg.js",
+    "js/admin-audit.js",
+    "js/admin-rbac-ui.js",
+}
+
 try:
-    PUBLIC_PATHS.update(  # noqa: F821
-        {
-            "css/student.css",
-            "css/quiz.css",
-            "css/platform.css",
-            "css/profile.css",
-            "js/i18n.js",
-            "js/platform-home.js",
-            "js/quiz-platform.js",
-            "js/profile.js",
-            "js/admin-fixes.js",
-            "js/admin-gmail.js",
-            "js/admin-content.js",
-            "js/admin-leaderboard.js",
-            "js/admin-students-reg.js",
-            "profile.html",
-            "quiz.html",
-            "courses.html",
-            "leaderboard.html",
-            "countries.html",
-        }
-    )
-    print("[boot] PUBLIC_PATHS: student.css + assets allowed")
+    PUBLIC_PATHS.update(_EXTRA_PUBLIC)  # noqa: F821
+    print("[boot] PUBLIC_PATHS: current static set OK")
 except Exception as e:
     print("[boot] PUBLIC_PATHS update failed:", e)
 
@@ -112,7 +135,7 @@ _boot_patch("patch_students_profile", "patch_students_profile", "db.patch_studen
 
 
 def _install_safety_net() -> None:
-    from flask import request, jsonify
+    from flask import request
 
     if "student_login" in app.view_functions:
         _orig = app.view_functions["student_login"]

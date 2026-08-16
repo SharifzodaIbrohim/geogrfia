@@ -55,7 +55,7 @@ def _save(path: Path, data) -> None:
 
 
 _DEFAULT_SETTINGS = {
-    "public": True,  # show_public_leaderboard
+    "public": True,
     "title": "Leaderboard · Top Rated",
     "hideNames": False,
     "showSchool": True,
@@ -71,7 +71,6 @@ def get_settings() -> dict:
     if not isinstance(data, dict):
         data = dict(_DEFAULT_SETTINGS)
         _save(SETTINGS_FILE, data)
-    # ensure all keys exist
     for k, v in _DEFAULT_SETTINGS.items():
         if k not in data:
             data[k] = v
@@ -108,6 +107,13 @@ def _mask_name(name: str) -> str:
     return parts[0] + " " + parts[-1][:1] + "."
 
 
+def _display_name(raw: str) -> str:
+    name = (raw or "").strip() or "Иштирокчӣ"
+    if name.isdigit() and len(name) >= 10:
+        return "Иштирокчӣ"
+    return name
+
+
 def apply_privacy(entries: list, settings: dict | None = None) -> list:
     s = settings or get_settings()
     hide_names = bool(s.get("hideNames"))
@@ -118,6 +124,7 @@ def apply_privacy(entries: list, settings: dict | None = None) -> list:
     for i, e in enumerate(entries or []):
         row = dict(e) if isinstance(e, dict) else {"name": str(e)}
         row["rank"] = int(row.get("rank") or (i + 1))
+        row["name"] = _display_name(str(row.get("name") or ""))
         if hide_names:
             row["name"] = _mask_name(str(row.get("name") or ""))
             row["displayName"] = row["name"]
@@ -162,19 +169,25 @@ def build_global_leaderboard(*, limit: int = 100, public_only: bool = True) -> d
             with get_session() as s:
                 rws = s.execute(
                     text(
-                        "SELECT COALESCE(student_name, 'Иштирокчӣ') AS name, "
-                        "student_school AS school, student_class AS class_name, "
-                        "MAX(score) AS best, COUNT(*) AS contests "
-                        "FROM attempts WHERE status IN ('passed','failed','submitted','timeout') "
-                        "AND student_name IS NOT NULL "
-                        "GROUP BY student_name, student_school, student_class "
+                        "SELECT COALESCE("
+                        "  NULLIF(TRIM(MAX(st.full_name)), ''), "
+                        "  NULLIF(TRIM(MAX(a.student_name)), ''), "
+                        "  'Иштирокчӣ'"
+                        ") AS name, "
+                        "COALESCE(NULLIF(TRIM(MAX(st.school_name)), ''), MAX(a.student_school), '') AS school, "
+                        "COALESCE(NULLIF(TRIM(MAX(st.class_name)), ''), MAX(a.student_class), '') AS class_name, "
+                        "MAX(a.score) AS best, COUNT(*) AS contests "
+                        "FROM attempts a "
+                        "LEFT JOIN students st ON st.id = a.student_id "
+                        "WHERE a.status IN ('passed','failed','submitted','timeout') "
+                        "GROUP BY COALESCE(a.student_id::text, a.student_name) "
                         "ORDER BY best DESC NULLS LAST LIMIT :lim"
                     ),
                     {"lim": int(limit) or 100},
                 ).mappings().all()
                 for r in rws:
                     rows.append({
-                        "name": r["name"],
+                        "name": _display_name(r["name"] or ""),
                         "school": r["school"] or "",
                         "className": r["class_name"] or "",
                         "rating": int(r["best"] or 0),
@@ -190,14 +203,13 @@ def build_global_leaderboard(*, limit: int = 100, public_only: bool = True) -> d
         rows = [dict(x) for x in _DEMO]
         demo_used = True
 
-    # pinned ranks
     pinned = settings.get("pinned") or []
     for p in pinned:
         rank = int(p.get("rank") or 0)
         if rank < 1:
             continue
         name = p.get("name") or p.get("userId") or "Pinned"
-        entry = {"name": name, "school": "", "className": "", "rating": 0, "pinned": True}
+        entry = {"name": _display_name(str(name)), "school": "", "className": "", "rating": 0, "pinned": True}
         while len(rows) < rank:
             rows.append({"name": "—", "school": "", "className": "", "rating": 0})
         rows.insert(rank - 1, entry)

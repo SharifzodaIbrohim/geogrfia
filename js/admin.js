@@ -95,7 +95,7 @@
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;',
     }[c]));
   }
   function escAttr(s) {
@@ -136,36 +136,8 @@
 
   document.getElementById('refreshLiveBtn')?.addEventListener('click', loadMonitor);
 
-  document.getElementById('studentForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById('studentFormMsg');
-    msg?.classList.add('hidden');
-    try {
-      const data = await api('/api/admin/students', {
-        method: 'POST',
-        body: JSON.stringify({
-          fullName: document.getElementById('fullName').value.trim(),
-          className: document.getElementById('className').value.trim(),
-          school: document.getElementById('school').value.trim(),
-        }),
-      });
-      const s = data.student || data;
-      document.getElementById('newIdBox')?.classList.remove('hidden');
-      const nn = document.getElementById('newIdName');
-      const nv = document.getElementById('newIdValue');
-      if (nn) nn.textContent = s.fullName || '';
-      if (nv) nv.textContent = s.id || '';
-      e.target.reset();
-      loadStudents();
-      loadMonitor();
-    } catch (err) {
-      if (msg) {
-        msg.textContent = err.message;
-        msg.classList.remove('hidden');
-        msg.classList.add('error');
-      }
-    }
-  });
+  // Student registration handled by js/admin-students-reg.js (9-field form).
+  // Do NOT bind #fullName/#className/#school — those inputs no longer exist.
 
   document.getElementById('copyIdBtn')?.addEventListener('click', async () => {
     const id = document.getElementById('newIdValue')?.textContent || '';
@@ -205,12 +177,14 @@
       body.innerHTML = list.length ? list.map((s) => `
         <tr>
           <td><code>${esc(s.id)}</code></td>
-          <td>${esc(s.fullName)}</td>
-          <td>${esc(s.className)}</td>
-          <td>${esc(s.school)}</td>
+          <td>${esc(s.fullName || '')}</td>
+          <td>${esc(s.className || '')}</td>
+          <td>${esc(s.school || '')}</td>
+          <td>${esc(s.teacher || '')}</td>
+          <td>${s.hasPhoto ? '✓' : '—'}</td>
           <td><button type="button" class="btn small danger" data-del-student="${esc(s.id)}">Нест</button></td>
         </tr>
-      `).join('') : '<tr><td colspan="5">Хонанда нест</td></tr>';
+      `).join('') : '<tr><td colspan="7">Хонанда нест</td></tr>';
       body.querySelectorAll('[data-del-student]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           if (!confirm('Хонанда нест карда шавад?')) return;
@@ -346,7 +320,6 @@
           loadMonitor();
         });
       });
-      // fill results select
       const sel = document.getElementById('resultOlympiadSelect');
       if (sel) {
         const cur = sel.value;
@@ -483,7 +456,6 @@
     }
   });
 
-  // Boot: session cookie first, then legacy token
   (async () => {
     try {
       const res = await fetch(API + '/api/admin/me', { credentials: 'include' });

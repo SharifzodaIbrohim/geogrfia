@@ -1,13 +1,4 @@
-"""Geografia entry — Phase A: plain server_core preferred.
-
-Boot order:
-  1) server_core.py if present and valid (plain source)
-  2) materialize server_core.py from _srv_b64_*.txt once, then exec
-  3) fail if neither works
-
-After first successful boot, server_core.py exists as readable Python.
-Safety-net patches follow.
-"""
+"""Geografia entry — Phase A: plain server_core preferred."""
 from __future__ import annotations
 
 import base64
@@ -79,6 +70,7 @@ try:
             "js/admin-gmail.js",
             "js/admin-content.js",
             "js/admin-leaderboard.js",
+            "js/admin-students-reg.js",
             "profile.html",
             "quiz.html",
             "courses.html",
@@ -141,71 +133,6 @@ def _install_safety_net() -> None:
         app.view_functions["student_login"] = student_login_safe
         print("[boot] safety-net: student_login id|studentId|code")
 
-    rules = [r.rule for r in app.url_map.iter_rules()]
-    if not any("/api/student/olympiads" in r for r in rules):
-
-        @app.get("/api/student/olympiads")
-        def student_olympiads_safe():
-            data = request.get_json(silent=True) or {}
-            sid = (
-                data.get("studentId")
-                or data.get("id")
-                or data.get("code")
-                or request.args.get("studentId")
-                or request.args.get("id")
-            )
-            if not sid:
-                return jsonify({"ok": False, "error": "studentId required"}), 400
-            try:
-                from db import repo
-
-                olympiads = []
-                for key in ("list_active_olympiads", "get_active_olympiads", "list_olympiads"):
-                    fn = getattr(repo, key, None)
-                    if callable(fn):
-                        try:
-                            olympiads = fn() or []
-                            break
-                        except Exception:
-                            pass
-                out = [o for o in olympiads if isinstance(o, dict)]
-                return jsonify({"ok": True, "olympiads": out, "studentId": str(sid)})
-            except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
-
-        print("[boot] safety-net: /api/student/olympiads")
-
-    try:
-        for rule in list(app.url_map.iter_rules()):
-            if "DELETE" in (rule.methods or set()) and "student" in rule.rule.lower() and "<" in rule.rule:
-                ep = rule.endpoint
-                orig = app.view_functions.get(ep)
-                if not orig:
-                    continue
-
-                def make_wrapper(original):
-                    def delete_safe(student_id=None, **kw):
-                        sid = student_id or kw.get("id") or kw.get("student_id")
-                        if sid:
-                            try:
-                                from db import repo
-
-                                if hasattr(repo, "soft_delete_student"):
-                                    repo.soft_delete_student(str(sid))
-                                elif hasattr(repo, "update_student"):
-                                    repo.update_student(str(sid), {"status": "inactive"})
-                                return jsonify({"ok": True, "status": "inactive"})
-                            except Exception as e:
-                                return jsonify({"ok": False, "error": str(e)}), 500
-                        return original(student_id, **kw) if student_id is not None else original(**kw)
-
-                    return delete_safe
-
-                app.view_functions[ep] = make_wrapper(orig)
-                print(f"[boot] safety-net: soft-delete {ep}")
-                break
-    except Exception as e:
-        print("[boot] soft-delete skip:", e)
     print("[boot] safety-net OK")
 
 

@@ -11,8 +11,8 @@
 
   const esc = window.esc || function (s) {
     return String(s == null ? "" : s)
-      .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">")
-      .replace(/"/g, """).replace(/'/g, "&#39;");
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   };
 
   function getToken() {
@@ -54,62 +54,107 @@
     var el = document.getElementById("cameraStatus");
     if (!el) return;
     el.textContent = msg || "";
-    el.style.color = isErr ? "#f88" : "";
+    el.style.color = isErr ? "#ff8a8a" : "#8fd4a8";
+    el.style.fontWeight = isErr ? "600" : "500";
+  }
+
+  function secureContextOk() {
+    return !!(window.isSecureContext || location.protocol === "https:" || location.hostname === "localhost");
   }
 
   async function listCameras() {
     var sel = document.getElementById("cameraSelect");
-    if (!sel) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-      camStatus("Камера дастгирӣ намешавад (HTTPS лозим)", true);
-      return;
+    if (!sel) return [];
+    if (!secureContextOk()) {
+      sel.innerHTML = '<option value="">HTTPS лозим аст</option>';
+      camStatus("Камера фақат бо HTTPS кор мекунад", true);
+      return [];
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      sel.innerHTML = '<option value="">Дастгирӣ намешавад</option>';
+      camStatus("Браузер камераро дастгирӣ намекунад (Chrome/Edge)", true);
+      return [];
     }
     try {
       try {
         var tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         tmp.getTracks().forEach(function (t) { t.stop(); });
-      } catch (_) {}
+      } catch (permErr) {
+        camStatus("Иҷозаи камера: " + (permErr.name || permErr.message || permErr) + " — Allow-ро пахш кунед", true);
+      }
       var devices = await navigator.mediaDevices.enumerateDevices();
       var cams = devices.filter(function (d) { return d.kind === "videoinput"; });
       sel.innerHTML = "";
       if (!cams.length) {
         sel.innerHTML = '<option value="">Камера ёфт нашуд</option>';
-        camStatus("Камера ёфт нашуд", true);
-        return;
+        camStatus("Камера ёфт нашуд. Windows: Settings → Privacy → Camera → Allow apps", true);
+        return [];
       }
       cams.forEach(function (d, i) {
         var opt = document.createElement("option");
-        opt.value = d.deviceId;
+        opt.value = d.deviceId || "";
         opt.textContent = d.label || ("Камера " + (i + 1));
         sel.appendChild(opt);
       });
-      camStatus(cams.length + " камера", false);
+      camStatus(cams.length + " камера омода — «Камера»-ро пахш кунед", false);
+      return cams;
     } catch (e) {
+      sel.innerHTML = '<option value="">Хато</option>';
       camStatus("Рӯйхати камера: " + (e.message || e), true);
+      return [];
     }
   }
 
   async function startCamera() {
     var video = document.getElementById("cameraVideo");
     var sel = document.getElementById("cameraSelect");
-    if (!video) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      camStatus("getUserMedia нест — HTTPS / иҷозаи камера", true);
+    if (!video) {
+      camStatus("video элемент нест — Ctrl+F5", true);
       return;
     }
-    stopCamera();
-    var constraints = { audio: false, video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } };
-    if (sel && sel.value) {
-      constraints.video = { deviceId: { exact: sel.value }, width: { ideal: 640 }, height: { ideal: 480 } };
+    if (!secureContextOk()) {
+      camStatus("HTTPS лозим аст", true);
+      return;
     }
-    try {
-      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = _camStream;
-      video.style.display = "block";
-      try { await video.play(); } catch (_) {}
-      camStatus("Камера фаъол — «Акс»-ро пахш кунед", false);
-    } catch (e) {
-      camStatus("Камера кушода нашуд: " + (e.name || "") + " " + (e.message || e), true);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      camStatus("getUserMedia нест", true);
+      return;
+    }
+    if (sel && (!sel.options.length || (sel.options.length === 1 && !sel.value))) {
+      await listCameras();
+    }
+    stopCamera();
+    var attempts = [];
+    if (sel && sel.value) {
+      attempts.push({ audio: false, video: { deviceId: { exact: sel.value }, width: { ideal: 640 }, height: { ideal: 480 } } });
+      attempts.push({ audio: false, video: { deviceId: sel.value } });
+    }
+    attempts.push({ audio: false, video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } });
+    attempts.push({ audio: false, video: true });
+    var lastErr = null;
+    for (var i = 0; i < attempts.length; i++) {
+      try {
+        _camStream = await navigator.mediaDevices.getUserMedia(attempts[i]);
+        video.srcObject = _camStream;
+        video.style.display = "block";
+        video.setAttribute("playsinline", "true");
+        video.muted = true;
+        try { await video.play(); } catch (_) {}
+        try { await listCameras(); } catch (_) {}
+        camStatus("Камера фаъол — «Акс»-ро пахш кунед", false);
+        return;
+      } catch (e) { lastErr = e; }
+    }
+    var name = (lastErr && lastErr.name) || "";
+    var msg = (lastErr && lastErr.message) || String(lastErr || "хато");
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      camStatus("Иҷоза рад шуд. 🔒 → Camera → Allow, баъд боз «Камера»", true);
+    } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      camStatus("Камера пайдо нашуд. Windows Privacy → Camera → Allow", true);
+    } else if (name === "NotReadableError" || name === "TrackStartError") {
+      camStatus("Камера банд аст (Zoom/Teams). Банд кунед ва боз кӯшиш кунед", true);
+    } else {
+      camStatus("Камера: " + name + " " + msg, true);
     }
   }
 
@@ -119,7 +164,10 @@
       try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
       _camStream = null;
     }
-    if (video) { video.srcObject = null; video.style.display = "none"; }
+    if (video) {
+      try { video.srcObject = null; } catch (_) {}
+      video.style.display = "none";
+    }
   }
 
   function capturePhoto() {
@@ -127,7 +175,7 @@
     var canvas = document.getElementById("cameraCanvas");
     if (!video || !canvas) return;
     if (!video.srcObject || video.videoWidth < 2) {
-      camStatus("Аввал «Камера»-ро пахш кунед", true);
+      camStatus("Аввал «Камера» — то тасвир пайдо шавад", true);
       return;
     }
     var w = video.videoWidth || 640, h = video.videoHeight || 480;
@@ -146,21 +194,25 @@
     var d = document.getElementById("btnStopCamera");
     var f = document.getElementById("photoFileInput");
     var s = document.getElementById("cameraSelect");
-    if (a) a.onclick = function (e) { e.preventDefault(); startCamera(); };
-    if (b) b.onclick = function (e) { e.preventDefault(); capturePhoto(); };
-    if (c) c.onclick = function (e) { e.preventDefault(); clearPhoto(); stopCamera(); };
-    if (d) d.onclick = function (e) { e.preventDefault(); stopCamera(); camStatus("Камера қатъ", false); };
-    if (f) f.onchange = function (ev) {
-      var file = ev.target.files && ev.target.files[0];
-      if (!file) return;
-      if (file.size > 4 * 1024 * 1024) { camStatus("Файл хеле калон", true); return; }
-      var r = new FileReader();
-      r.onload = function () { applyPhoto(r.result); camStatus("Аз файл ✓", false); };
-      r.onerror = function () { camStatus("Хониши файл хато", true); };
-      r.readAsDataURL(file);
-    };
+    if (a) { a.type = "button"; a.onclick = function (e) { e.preventDefault(); startCamera(); }; }
+    if (b) { b.type = "button"; b.onclick = function (e) { e.preventDefault(); capturePhoto(); }; }
+    if (c) { c.type = "button"; c.onclick = function (e) { e.preventDefault(); clearPhoto(); stopCamera(); camStatus("Сурат пок шуд", false); }; }
+    if (d) { d.type = "button"; d.onclick = function (e) { e.preventDefault(); stopCamera(); camStatus("Камера қатъ", false); }; }
+    if (f) {
+      f.onchange = function (ev) {
+        var file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) { camStatus("Файл хеле калон (макс 4MB)", true); return; }
+        var r = new FileReader();
+        r.onload = function () { applyPhoto(r.result); camStatus("Аз файл ✓", false); };
+        r.onerror = function () { camStatus("Хониши файл хато", true); };
+        r.readAsDataURL(file);
+      };
+    }
     if (s) s.onchange = function () { if (_camStream) startCamera(); };
-    listCameras();
+    listCameras().catch(function (e) {
+      camStatus("listCameras: " + (e && e.message ? e.message : e), true);
+    });
   }
 
   function forceDownload(filename, text, mime) {
@@ -369,7 +421,8 @@
     document.querySelectorAll(".tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
         if (btn.dataset.tab === "students") {
-          loadStudentsLocal(); listCameras();
+          loadStudentsLocal();
+          listCameras().catch(function () {});
           tryRestoreDir().then(function (d) { updateFolderStatus(!!d); });
         }
       });
@@ -400,5 +453,9 @@
   }
 
   window.loadStudents = loadStudentsLocal;
-  bind();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
 })();

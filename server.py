@@ -1,21 +1,20 @@
-"""Geografia entry — Phase A: plain server_core.py preferred (no network at boot)."""
+"""Geografia entry — Phase A: plain source first (server_core.py or server_core_part*.py).
+
+Boot order:
+  1) server_core.py (single plain file)
+  2) server_core_part*.py (joined plain parts)
+  3) _srv_b64_*.txt (legacy fallback only)
+Then safety-net patches.
+"""
 from __future__ import annotations
 
 import base64
 import zlib
 from pathlib import Path
 
-# Ubuntu / local: load .env before server_core imports connection
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
-except Exception:
-    pass
-
 _dir = Path(__file__).resolve().parent
 _boot_mode = None
-app = None
+app = None  # set by loaders
 
 
 def _exec_src(src: str, label: str) -> None:
@@ -29,75 +28,71 @@ def _exec_src(src: str, label: str) -> None:
     print(f"[boot] Phase A: {label} OK")
 
 
-def _load_b64_src() -> str:
-    parts = sorted(_dir.glob("_srv_b64_*.txt"))
-    if not parts:
-        raise RuntimeError("no _srv_b64_*.txt")
-    raw = "".join(p.read_text(encoding="utf-8").strip() for p in parts)
-    return zlib.decompress(base64.b64decode(raw)).decode("utf-8")
-
-
-def _materialize_core_from_b64() -> Path:
-    src = _load_b64_src()
-    if "app = Flask" not in src and "app=Flask" not in src:
-        raise RuntimeError("b64 payload has no Flask app")
-    out = _dir / "server_core.py"
-    out.write_text(src, encoding="utf-8")
-    print(f"[boot] materialized {out.name} ({len(src)} chars)")
-    return out
-
-
+# 1) Single plain file
 _core = _dir / "server_core.py"
-if _core.is_file() and _core.stat().st_size > 10000:
+if app is None and _core.is_file() and _core.stat().st_size > 10000:
     try:
-        _exec_src(_core.read_text(encoding="utf-8"), "server_core.py (plain)")
+        _exec_src(_core.read_text(encoding="utf-8"), "server_core.py")
     except Exception as e:
-        print("[boot] plain server_core.py failed:", e)
+        print("[boot] server_core.py failed:", e)
 
+# 2) Plain parts (readable, no b64)
+if app is None:
+    _parts = sorted(_dir.glob("server_core_part*.py"))
+    if _parts and sum(p.stat().st_size for p in _parts) > 10000:
+        try:
+            _src = "".join(p.read_text(encoding="utf-8") for p in _parts)
+            _exec_src(_src, f"parts×{len(_parts)}")
+        except Exception as e:
+            print("[boot] parts failed:", e)
+
+# 3) Legacy b64 fallback
 if app is None:
     try:
-        _core = _materialize_core_from_b64()
-        _exec_src(_core.read_text(encoding="utf-8"), "server_core.py (from b64)")
+        _b64 = sorted(_dir.glob("_srv_b64_*.txt"))
+        if not _b64:
+            raise RuntimeError("no _srv_b64_*.txt")
+        _raw = "".join(p.read_text(encoding="utf-8").strip() for p in _b64)
+        _src = zlib.decompress(base64.b64decode(_raw)).decode("utf-8")
+        _exec_src(_src, "b64-fallback")
     except Exception as e:
-        raise RuntimeError(f"Phase A boot failed: {e}") from e
+        raise RuntimeError(f"Phase A boot failed (plain + parts + b64): {e}") from e
 
 print(f"[boot] mode={_boot_mode}")
 
-_EXTRA_PUBLIC = {
-    "index.html",
-    "admin.html",
-    "student.html",
-    "profile.html",
-    "quiz.html",
-    "courses.html",
-    "leaderboard.html",
-    "countries.html",
-    "css.css",
-    "css/admin.css",
-    "css/student.css",
-    "css/quiz.css",
-    "css/platform.css",
-    "css/profile.css",
-    "js.js",
-    "js/i18n.js",
-    "js/platform-home.js",
-    "js/quiz-platform.js",
-    "js/profile.js",
-    "js/admin.js",
-    "js/admin-session.js",
-    "js/admin-fixes.js",
-    "js/admin-gmail.js",
-    "js/admin-content.js",
-    "js/admin-leaderboard.js",
-    "js/admin-students-reg.js",
-    "js/admin-olympiad.js",
-    "js/admin-audit.js",
-    "js/admin-rbac-ui.js",
-}
-
+# --- PUBLIC_PATHS ---
 try:
-    PUBLIC_PATHS.update(_EXTRA_PUBLIC)  # noqa: F821
-    print("[boot] PUBLIC_PATHS: current static set OK")
+    PUBLIC_PATHS.update(  # noqa: F821
+        {
+            "css/student.css",
+            "css/quiz.css",
+            "css/platform.css",
+            "css/profile.css",
+            "js/i18n.js",
+            "js/platform-home.js",
+            "js/quiz-platform.js",
+            "js/profile.js",
+            "js/admin-fixes.js",
+            "js/admin-gmail.js",
+            "js/admin-content.js",
+            "js/admin-leaderboard.js",
+            "profile.html",
+            "quiz.html",
+            "courses.html",
+            "leaderboard.html",
+            "student.html",
+            "admin.html",
+            "countries.html",
+            "js/student.js",
+            "js/admin.js",
+            "js/admin-session.js",
+            "js/admin-students-reg.js",
+            "js/admin-olympiad.js",
+            "js/admin-rbac-ui.js",
+            "js/admin-audit.js",
+        }
+    )
+    print("[boot] PUBLIC_PATHS: student.css + assets allowed")
 except Exception as e:
     print("[boot] PUBLIC_PATHS update failed:", e)
 
@@ -118,7 +113,7 @@ def _boot_patch(name: str, *modules: str) -> None:
             return
         except Exception as e:
             last = e
-    if last is not None:
+    if last:
         print(f"[boot] {name} failed:", last)
 
 
@@ -130,30 +125,10 @@ _boot_patch("patch_names", "patch_names", "db.patch_names")
 _boot_patch("patch_students_profile", "patch_students_profile", "db.patch_students_profile")
 _boot_patch("patch_olympiad_builder", "patch_olympiad_builder", "db.patch_olympiad_builder")
 _boot_patch("patch_olympiad_questions_pg", "patch_olympiad_questions_pg", "db.patch_olympiad_questions_pg")
+_boot_patch("patch_ui_batch", "patch_ui_batch", "db.patch_ui_batch")
 
 
 def _install_safety_net() -> None:
-    from flask import request
-
-    if "student_login" in app.view_functions:
-        _orig = app.view_functions["student_login"]
-
-        def student_login_safe():
-            data = request.get_json(silent=True) or {}
-            sid = data.get("id") or data.get("studentId") or data.get("code")
-            if sid and not data.get("id"):
-                try:
-                    request._cached_json = (  # type: ignore
-                        {**data, "id": str(sid).strip()},
-                        {**data, "id": str(sid).strip()},
-                    )
-                except Exception:
-                    pass
-            return _orig()
-
-        app.view_functions["student_login"] = student_login_safe
-        print("[boot] safety-net: student_login id|studentId|code")
-
     print("[boot] safety-net OK")
 
 

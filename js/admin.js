@@ -1,20 +1,16 @@
 (() => {
-  /* Admin panel — cookie session (credentials:include) + optional legacy token */
   const API = '';
   const TOKEN_KEY = 'geo_admin_token';
   const ADMIN_KEY = 'geo_admin_user';
-
   const loginView = document.getElementById('loginView');
   const appView = document.getElementById('appView');
   const loginForm = document.getElementById('adminLoginForm');
   const loginError = document.getElementById('loginError');
   const adminName = document.getElementById('adminName');
   const logoutBtn = document.getElementById('logoutBtn');
-
   let token = localStorage.getItem(TOKEN_KEY) || '';
   let admin = null;
   try { admin = JSON.parse(localStorage.getItem(ADMIN_KEY) || 'null'); } catch { admin = null; }
-
   async function api(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (token) headers['X-Admin-Token'] = token;
@@ -23,29 +19,19 @@
     if (!res.ok) throw new Error(data.error || 'Хато');
     return data;
   }
-
   function showApp() {
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
     try { if (window.__adminRbacApply) window.__adminRbacApply(); } catch (_) {}
     if (adminName) adminName.textContent = admin ? `· ${admin.name || admin.login}` : '';
-    loadMonitor();
-    loadStudents();
-    loadOlympiads();
-    loadAdmins();
-    loadSchools();
+    loadMonitor(); loadStudents(); loadOlympiads(); loadAdmins(); loadSchools();
   }
-
   function showLogin() {
-    token = '';
-    admin = null;
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ADMIN_KEY);
-    appView.classList.add('hidden');
-    loginView.classList.remove('hidden');
+    token = ''; admin = null;
+    localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(ADMIN_KEY);
+    appView.classList.add('hidden'); loginView.classList.remove('hidden');
     fetch(API + '/api/admin/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   }
-
   loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     loginError?.classList.add('hidden');
@@ -63,15 +49,10 @@
       if (admin) localStorage.setItem(ADMIN_KEY, JSON.stringify(admin));
       showApp();
     } catch (err) {
-      if (loginError) {
-        loginError.textContent = err.message;
-        loginError.classList.remove('hidden');
-      }
+      if (loginError) { loginError.textContent = err.message; loginError.classList.remove('hidden'); }
     }
   });
-
   logoutBtn?.addEventListener('click', showLogin);
-
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
@@ -80,12 +61,11 @@
       const panel = document.getElementById('tab-' + btn.dataset.tab);
       if (panel) panel.classList.remove('hidden');
       if (btn.dataset.tab === 'olympiads') loadOlympiads();
-      if (btn.dataset.tab === 'results') loadOlympiadsForResults();
+      if (btn.dataset.tab === 'results') loadOlympiads();
       if (btn.dataset.tab === 'students') loadStudents();
       if (btn.dataset.tab === 'monitor') loadMonitor();
     });
   });
-
   async function loadMonitor() {
     try {
       const data = await api('/api/admin/monitor');
@@ -95,9 +75,8 @@
         grid.innerHTML = `
           <div class="stat"><div class="num">${s.students ?? s.studentCount ?? '—'}</div><div class="lbl">Хонандагон</div></div>
           <div class="stat"><div class="num">${s.activeOlympiads ?? s.olympiads ?? '—'}</div><div class="lbl">Олимпиада</div></div>
-          <div class="stat"><div class="num">${s.liveSessions ?? s.inProgress ?? '—'}</div><div class="lbl">Live</div></div>
-          <div class="stat"><div class="num">${s.resultsToday ?? s.results ?? '—'}</div><div class="lbl">Натиҷа</div></div>
-        `;
+          <div class="stat"><div class="num">${(data.liveSessions || []).length || s.liveSessions || s.inProgress || '—'}</div><div class="lbl">Live</div></div>
+          <div class="stat"><div class="num">${s.resultsToday ?? s.results ?? '—'}</div><div class="lbl">Натиҷа</div></div>`;
       }
       const liveBody = document.getElementById('liveSessionsBody');
       if (liveBody) {
@@ -113,19 +92,16 @@
           ? rows.map((r) => `<tr><td>${esc(r.studentName || r.name || r.studentId || '—')}</td><td>${esc((r.school || '') + (r.className ? ' / ' + r.className : ''))}</td><td>${esc(r.olympiadTitle || r.title || '')}</td><td>${r.score ?? '—'}%</td><td>${esc(r.status || '')}</td><td>${esc(r.finishedAt || r.time || '')}</td></tr>`).join('')
           : '<tr><td colspan="6" class="muted">Холӣ</td></tr>';
       }
-    } catch (err) {
-      console.warn(err);
-    }
+    } catch (err) { console.warn(err); }
   }
-
   document.getElementById('refreshLiveBtn')?.addEventListener('click', loadMonitor);
   document.getElementById('clearRecentBtn')?.addEventListener('click', async () => {
     try {
       await api('/api/admin/monitor/clear-recent', { method: 'POST' });
       loadMonitor();
-    } catch (err) { alert(err.message); }
+    } catch (err) { alert(err.message || 'Пок карда нашуд');
+    }
   });
-
   async function loadStudents() {
     try {
       const data = await api('/api/admin/students');
@@ -148,26 +124,14 @@
           } catch (err) { alert(err.message); }
         });
       });
-    } catch (err) {
-      console.warn(err);
-    }
+    } catch (err) { console.warn(err); }
   }
-
-  /* Olympiad builder: js/admin-olympiad.js */
   document.getElementById('olympiadForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (typeof window.__geoSaveOlympiad === 'function') {
-      window.__geoSaveOlympiad(e);
-      return;
-    }
+    if (typeof window.__geoSaveOlympiad === 'function') { window.__geoSaveOlympiad(e); return; }
     const msg = document.getElementById('olyFormMsg') || document.getElementById('olyMsg');
-    if (msg) {
-      msg.textContent = 'Скрипти олимпиада бор нашуд — Ctrl+F5';
-      msg.classList.remove('hidden');
-      msg.classList.add('error');
-    }
+    if (msg) { msg.textContent = 'Скрипти олимпиада бор нашуд — Ctrl+F5'; msg.classList.remove('hidden'); msg.classList.add('error'); }
   });
-
   async function loadOlympiads() {
     try {
       const data = await api('/api/admin/olympiads');
@@ -175,17 +139,13 @@
       if (!body) return;
       const list = data.olympiads || [];
       body.innerHTML = list.length
-        ? list.map((o) => `
-        <tr>
-          <td>${esc(o.title)}</td>
-          <td>${esc(o.type || 'olympiad')}</td>
-          <td>${o.passScore ?? 70}%</td>
+        ? list.map((o) => `<tr>
+          <td>${esc(o.title)}</td><td>${esc(o.type || 'olympiad')}</td><td>${o.passScore ?? 70}%</td>
           <td>${o.isActive ? 'Фаъол' : 'Хомӯш'}</td>
           <td>
             <button type="button" class="btn small" data-toggle-oly="${esc(o.id)}">${o.isActive ? 'Хомӯш' : 'Фаъол'}</button>
             <button type="button" class="btn small danger" data-del-oly="${esc(o.id)}">Нест</button>
-          </td>
-        </tr>`).join('')
+          </td></tr>`).join('')
         : '<tr><td colspan="5" class="muted">Холӣ</td></tr>';
       body.querySelectorAll('[data-toggle-oly]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -218,13 +178,8 @@
       if (String(err.message).includes('рад')) showLogin();
     }
   }
-
-  function loadOlympiadsForResults() {
-    loadOlympiads();
-  }
   window.loadOlympiads = loadOlympiads;
   window.loadMonitor = loadMonitor;
-
   document.getElementById('resultOlympiadSelect')?.addEventListener('change', async (e) => {
     const id = e.target.value;
     if (!id) return;
@@ -239,31 +194,32 @@
     } catch (err) { console.warn(err); }
   });
   document.getElementById('loadResultsBtn')?.addEventListener('click', () => {
-    const sel = document.getElementById('resultOlympiadSelect');
-    if (sel) sel.dispatchEvent(new Event('change'));
+    document.getElementById('resultOlympiadSelect')?.dispatchEvent(new Event('change'));
   });
-
   async function loadAdmins() {
     try {
       const data = await api('/api/admin/admins');
       const body = document.getElementById('adminsBody');
       if (!body) return;
       const list = data.admins || [];
-      body.innerHTML = list.map((a) => `
-        <tr><td>${esc(a.login)}</td><td>${esc(a.name || '')}</td><td>${esc(a.role || '')}</td>
-        <td><button type="button" class="btn small danger" data-del-admin="${esc(a.id || a.login)}">Нест</button></td></tr>`).join('');
+      body.innerHTML = list.map((a) => {
+        const role = a.role || a.Role || '—';
+        return `<tr><td>${esc(a.login)}</td><td>${esc(a.name || '')}</td><td>${esc(role)}</td>
+        <td><button type="button" class="btn small danger" data-del-admin="${esc(a.id || a.login)}">Нест</button></td></tr>`;
+      }).join('');
       body.querySelectorAll('[data-del-admin]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          if (!confirm('Нест?')) return;
+          if (!confirm('Нест кардани ин админ?')) return;
           try {
-            await api('/api/admin/admins/' + btn.dataset.delAdmin, { method: 'DELETE' });
+            await api('/api/admin/admins/' + encodeURIComponent(btn.dataset.delAdmin), { method: 'DELETE' });
             loadAdmins();
-          } catch (err) { alert(err.message); }
+          } catch (err) {
+            alert(err.message || 'Нест карда нашуд (ҳуқуқ / охирин админ / худ)');
+          }
         });
       });
     } catch (err) { console.warn(err); }
   }
-
   document.getElementById('adminForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -280,7 +236,6 @@
       loadAdmins();
     } catch (err) { alert(err.message); }
   });
-
   async function loadSchools() {
     try {
       const data = await api('/api/admin/schools');
@@ -300,7 +255,6 @@
       });
     } catch (err) { console.warn(err); }
   }
-
   document.getElementById('schoolForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -315,27 +269,19 @@
       loadSchools();
     } catch (err) { alert(err.message); }
   });
-
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-
   (async () => {
     if (token && admin) {
-      try {
-        await api('/api/admin/me');
-        showApp();
-        return;
-      } catch (_) {}
+      try { await api('/api/admin/me'); showApp(); return; } catch (_) {}
     }
-    // cookie session fallback
     try {
       const me = await api('/api/admin/me');
       if (me && (me.admin || me.login || me.ok)) {
         admin = me.admin || me;
         if (admin) localStorage.setItem(ADMIN_KEY, JSON.stringify(admin));
-        showApp();
-        return;
+        showApp(); return;
       }
     } catch (_) {}
     showLogin();

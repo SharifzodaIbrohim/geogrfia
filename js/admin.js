@@ -27,6 +27,7 @@
   function showApp() {
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
+    try { if (window.__adminRbacApply) window.__adminRbacApply(); } catch (_) {}
     if (adminName) adminName.textContent = admin ? `· ${admin.name || admin.login}` : '';
     loadMonitor();
     loadStudents();
@@ -152,8 +153,7 @@
     }
   }
 
-  /* Olympiad builder moved to js/admin-olympiad.js (multi-type).
-     Do NOT collect single-only questions here — that broke short/match/text save. */
+  /* Olympiad builder: js/admin-olympiad.js */
   document.getElementById('olympiadForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     if (typeof window.__geoSaveOlympiad === 'function') {
@@ -167,13 +167,8 @@
       msg.classList.add('error');
     }
   });
-  document.getElementById('addQuestionBtn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (typeof window.__geoAddOlympiadQuestion === 'function') window.__geoAddOlympiadQuestion('single');
-  });
 
   async function loadOlympiads() {
-    // exposed for admin-olympiad.js
     try {
       const data = await api('/api/admin/olympiads');
       const body = document.getElementById('olympiadsBody');
@@ -228,7 +223,7 @@
     loadOlympiads();
   }
   window.loadOlympiads = loadOlympiads;
-  window.loadMonitor = typeof loadMonitor === 'function' ? loadMonitor : window.loadMonitor;
+  window.loadMonitor = loadMonitor;
 
   document.getElementById('resultOlympiadSelect')?.addEventListener('change', async (e) => {
     const id = e.target.value;
@@ -324,7 +319,6 @@
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-  function escAttr(s) { return esc(s); }
 
   (async () => {
     if (token && admin) {
@@ -334,6 +328,16 @@
         return;
       } catch (_) {}
     }
+    // cookie session fallback
+    try {
+      const me = await api('/api/admin/me');
+      if (me && (me.admin || me.login || me.ok)) {
+        admin = me.admin || me;
+        if (admin) localStorage.setItem(ADMIN_KEY, JSON.stringify(admin));
+        showApp();
+        return;
+      }
+    } catch (_) {}
     showLogin();
   })();
 })();

@@ -1,7 +1,7 @@
 (() => {
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c])
     );
   }
   function set(id, v) {
@@ -11,16 +11,16 @@
 
   async function loadHome() {
     try {
-      const [quizzesRes, olyRes, lbRes] = await Promise.all([
+      const [quizzesRes, olyRes, lbRes, statsRes] = await Promise.all([
         fetch('/api/quizzes').then((r) => r.json()).catch(() => ({ quizzes: [] })),
         fetch('/api/olympiads/active').then((r) => r.json()).catch(() => ({ olympiads: [] })),
         fetch('/api/leaderboard?limit=3').then((r) => r.json()).catch(() => ({ entries: [] })),
+        fetch('/api/public/stats').then((r) => r.json()).catch(() => ({ students: 0 })),
       ]);
 
       const quizzesRaw = quizzesRes.quizzes || [];
       const olympiadsRaw = olyRes.olympiads || [];
 
-      // Pure olympiads only (exclude type=quiz — those belong under quizzes)
       const olympiads = [];
       const seenO = new Set();
       for (const o of olympiadsRaw) {
@@ -31,7 +31,6 @@
         olympiads.push(o);
       }
 
-      // Quizzes: only /api/quizzes, deduped by id
       const quizzes = [];
       const seenQ = new Set();
       for (const q of quizzesRaw) {
@@ -44,6 +43,7 @@
       set('pfMQuizzes', String(quizzes.length));
       set('pfMOlympiads', String(olympiads.length));
       set('pfMCountries', '195+');
+      set('pfMStudents', String((statsRes && statsRes.students) != null ? statsRes.students : '—'));
 
       const qBox = document.getElementById('pfFeaturedQuizzes');
       if (qBox) {

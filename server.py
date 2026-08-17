@@ -129,6 +129,7 @@ _boot_patch("patch_admin_students", "patch_admin_students", "db.patch_admin_stud
 _boot_patch("patch_names", "patch_names", "db.patch_names")
 _boot_patch("patch_students_profile", "patch_students_profile", "db.patch_students_profile")
 _boot_patch("patch_olympiad_builder", "patch_olympiad_builder", "db.patch_olympiad_builder")
+_boot_patch("patch_olympiad_questions_pg", "patch_olympiad_questions_pg", "db.patch_olympiad_questions_pg")
 
 
 def _install_safety_net() -> None:

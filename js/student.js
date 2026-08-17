@@ -171,13 +171,34 @@
   }
   const LETTERS = ['A','B','C','D','E','F','G','H'];
   function answerKey(qid) { const num = Number(qid); return Number.isNaN(num) ? qid : num; }
-  function setAnswer(qid, oi) { answers.set(answerKey(qid), oi); answers.set(String(qid), oi); updateProgress(); doAutosave(); }
+  function setAnswer(qid, val) {
+    answers.set(answerKey(qid), val);
+    answers.set(String(qid), val);
+    updateProgress();
+    doAutosave();
+  }
   function getAnswer(qid) {
     if (answers.has(qid)) return answers.get(qid);
     if (answers.has(String(qid))) return answers.get(String(qid));
     const num = Number(qid);
     if (!Number.isNaN(num) && answers.has(num)) return answers.get(num);
     return null;
+  }
+  function isAnswered(qid) {
+    const v = getAnswer(qid);
+    if (v == null) return false;
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      return Object.keys(v).some((k) => v[k] !== '' && v[k] != null);
+    }
+    if (typeof v === 'string') return v.trim().length > 0;
+    return true;
+  }
+  function typeLabel(t) {
+    t = String(t || 'single').toLowerCase();
+    if (t === 'short') return 'Ҷавоби кӯтоҳ / рақамӣ';
+    if (t === 'matching') return 'Мувофиқат';
+    if (t === 'text') return 'Шарҳ / мафҳум';
+    return 'Интихоб';
   }
   function renderExamQuestions() {
     const pane = document.getElementById('examQuestionPane') || document.getElementById('examQuestions');
@@ -186,39 +207,111 @@
     if (currentQIndex < 0) currentQIndex = 0;
     if (currentQIndex >= qs.length) currentQIndex = qs.length - 1;
     const q = qs[currentQIndex];
+    const qid = String(q.id);
+    const qtype = String(q.type || 'single').toLowerCase();
     const selected = getAnswer(q.id);
-    const opts = q.options || [];
-    pane.innerHTML = `<div class="exam-q-num">Савол ${currentQIndex + 1} / ${qs.length}</div><p class="exam-q-text">${esc(q.text)}</p><div class="exam-opts" role="listbox">${opts.map((opt, oi) => `<button type="button" class="exam-opt-btn ${selected === oi ? 'selected' : ''}" data-oi="${oi}" data-qid="${esc(String(q.id))}"><span class="exam-opt-letter">${LETTERS[oi] || (oi + 1)}</span><span class="exam-opt-label">${esc(opt)}</span></button>`).join('')}</div>`;
-    pane.querySelectorAll('.exam-opt-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        setAnswer(btn.dataset.qid, Number(btn.dataset.oi));
-        pane.querySelectorAll('.exam-opt-btn').forEach((b) => b.classList.remove('selected'));
-        btn.classList.add('selected'); renderDots();
+    let body = '';
+
+    if (qtype === 'short') {
+      const val = selected != null ? String(selected) : '';
+      body = `<div class="exam-input-wrap" style="margin-top:.75rem">
+        <label class="muted" style="display:block;margin-bottom:.35rem">Ҷавоби худро нависед (матн ё рақам)</label>
+        <input type="text" id="ansInput" class="exam-text-input" inputmode="text"
+          style="width:100%;max-width:420px;padding:.65rem .75rem;font-size:1.05rem;border:1px solid #c5d0c8;border-radius:8px"
+          value="${esc(val)}" placeholder="Ҷавоб…" autocomplete="off" />
+      </div>`;
+    } else if (qtype === 'text') {
+      const val = selected != null ? String(selected) : '';
+      body = `<div class="exam-input-wrap" style="margin-top:.75rem">
+        <label class="muted" style="display:block;margin-bottom:.35rem">Шарҳ / мафҳумро нависед</label>
+        <textarea id="ansInput" class="exam-text-input" rows="5"
+          style="width:100%;padding:.65rem .75rem;font-size:1rem;border:1px solid #c5d0c8;border-radius:8px;resize:vertical"
+          placeholder="Ҷавоби муфассал…">${esc(val)}</textarea>
+      </div>`;
+    } else if (qtype === 'matching') {
+      const left = q.leftItems || [];
+      const right = q.rightItems || [];
+      const cur = (selected && typeof selected === 'object') ? selected : {};
+      body = `<div class="exam-match" style="margin-top:.75rem;display:flex;flex-direction:column;gap:.6rem">
+        <p class="muted" style="margin:0">Барои ҳар банди чап ҷавоби мувофиқро аз рост интихоб кунед</p>
+        ${left.map((L, li) => {
+          const sel = cur[String(li)] != null ? String(cur[String(li)]) : (cur[li] != null ? String(cur[li]) : '');
+          return `<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.5rem .6rem;background:#f7faf8;border-radius:8px;border:1px solid #e0ebe4">
+            <span style="flex:1;min-width:140px;font-weight:500">${li + 1}. ${esc(L)}</span>
+            <select data-left="${li}" class="match-select" style="min-width:180px;padding:.4rem .5rem;border-radius:6px;border:1px solid #c5d0c8">
+              <option value="">— интихоб —</option>
+              ${right.map((r, ri) => `<option value="${ri}" ${sel === String(ri) ? 'selected' : ''}>${esc(LETTERS[ri] || (ri + 1))}. ${esc(r)}</option>`).join('')}
+            </select>
+          </div>`;
+        }).join('')}
+      </div>`;
+    } else {
+      const opts = q.options || [];
+      body = `<div class="exam-opts" role="listbox">${opts.map((opt, oi) => {
+        const lab = typeof opt === 'string' ? opt : (opt && (opt.text || opt.label)) || String(opt);
+        return `<button type="button" class="exam-opt-btn ${selected === oi ? 'selected' : ''}" data-oi="${oi}" data-qid="${esc(qid)}"><span class="exam-opt-letter">${LETTERS[oi] || (oi + 1)}</span><span class="exam-opt-label">${esc(lab)}</span></button>`;
+      }).join('')}</div>`;
+    }
+
+    pane.innerHTML = `<div class="exam-q-num">Савол ${currentQIndex + 1} / ${qs.length} · <span class="muted">${esc(typeLabel(qtype))}</span></div>
+      <p class="exam-q-text">${esc(q.text)}</p>${body}`;
+
+    if (qtype === 'short' || qtype === 'text') {
+      const inp = pane.querySelector('#ansInput');
+      if (inp) {
+        const save = () => setAnswer(qid, inp.value);
+        inp.addEventListener('input', save);
+        inp.addEventListener('change', save);
+        setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+      }
+    } else if (qtype === 'matching') {
+      pane.querySelectorAll('.match-select').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          const map = Object.assign({}, getAnswer(qid) && typeof getAnswer(qid) === 'object' ? getAnswer(qid) : {});
+          const li = String(sel.dataset.left);
+          if (sel.value === '') delete map[li];
+          else map[li] = Number(sel.value);
+          setAnswer(qid, map);
+          renderDots();
+        });
       });
-    });
+    } else {
+      pane.querySelectorAll('.exam-opt-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          setAnswer(btn.dataset.qid, Number(btn.dataset.oi));
+          pane.querySelectorAll('.exam-opt-btn').forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          renderDots();
+        });
+      });
+    }
+
     const prev = document.getElementById('examPrevBtn');
     const next = document.getElementById('examNextBtn');
     if (prev) prev.disabled = currentQIndex <= 0;
     if (next) { next.disabled = false; next.textContent = currentQIndex >= qs.length - 1 ? 'Охирин' : 'Next →'; }
-    updateProgress(); renderDots();
+    updateProgress();
+    renderDots();
   }
   function renderDots() {
     const dots = document.getElementById('examDots');
     const qs = currentOlympiad?.questions || [];
     if (!dots) return;
     dots.innerHTML = qs.map((q, i) => {
-      const answered = getAnswer(q.id) != null;
-      return `<button type="button" class="exam-dot ${i === currentQIndex ? 'current' : ''} ${answered ? 'answered' : ''}" data-qi="${i}" title="Савол ${i + 1}"></button>`;
+      const answered = isAnswered(q.id);
+      return `<button type="button" class="exam-dot ${i === currentQIndex ? 'current' : ''} ${answered ? 'done' : ''}" data-i="${i}" title="Савол ${i + 1}"></button>`;
     }).join('');
-    dots.querySelectorAll('.exam-dot').forEach((d) => {
-      d.addEventListener('click', () => { currentQIndex = Number(d.dataset.qi) || 0; renderExamQuestions(); });
+    dots.querySelectorAll('.exam-dot').forEach((b) => {
+      b.addEventListener('click', () => { currentQIndex = Number(b.dataset.i); renderExamQuestions(); });
     });
   }
   function updateProgress() {
-    const total = (currentOlympiad?.questions || []).length;
+    const qs = currentOlympiad?.questions || [];
+    const done = qs.filter((q) => isAnswered(q.id)).length;
     const el = document.getElementById('examProgress');
-    if (el) el.textContent = `Савол ${Math.min(currentQIndex + 1, total)} / ${total} · ҷавоб ${answers.size}/${total}`;
+    if (el) el.textContent = `Савол ${currentQIndex + 1} / ${qs.length} · ҷавоб: ${done}`;
   }
+
   document.getElementById('examPrevBtn')?.addEventListener('click', () => { if (currentQIndex > 0) { currentQIndex -= 1; renderExamQuestions(); } });
   document.getElementById('examNextBtn')?.addEventListener('click', () => {
     const total = (currentOlympiad?.questions || []).length;
@@ -227,6 +320,13 @@
   function showResult(r, auto) {
     r = r || {};
     examView.classList.add('hidden'); resultView.classList.remove('hidden');
+    if (r.pendingReview || r.message) {
+      document.getElementById('resultScore').textContent = '✓';
+      document.getElementById('resultDetail').textContent = r.message || 'Шумо бо муваффақият супоридед. Лутфан интизор шавед, то баллҳоятон муайян шаванд.';
+      const st = document.getElementById('resultStatus');
+      if (st) { st.textContent = 'Интизор'; st.className = 'badge'; }
+      return;
+    }
     const scoreVal = r.score ?? r.percent ?? null;
     document.getElementById('resultScore').textContent = (scoreVal != null && scoreVal !== '' ? scoreVal : '—') + '%';
     document.getElementById('resultDetail').textContent = `Дуруст: ${r.correct ?? 0} аз ${r.total ?? 0} · ҳад: ${r.passScore ?? r.pass_score ?? 70}%` + (r.timedOut ? ' · вақт тамом' : '') + (auto ? ' · худкор' : '');
@@ -241,13 +341,14 @@
     if (!examSession || !currentOlympiad) return;
     stopExamTimers();
     const payload = {};
-    (examSession.questions || []).forEach((q) => {
+    const qs = examSession.questions || currentOlympiad.questions || [];
+    qs.forEach((q) => {
       const sel = getAnswer(q.id);
-      if (sel != null) {
-        const oi = q.originalIndex != null ? q.originalIndex : q.id;
-        payload[String(oi)] = sel;
-        if (q.id != null) payload[String(q.id)] = sel;
-      }
+      if (sel == null) return;
+      if (typeof sel === 'string' && !sel.trim()) return;
+      const oi = q.originalIndex != null ? q.originalIndex : q.id;
+      payload[String(oi)] = sel;
+      if (q.id != null) payload[String(q.id)] = sel;
     });
     try {
       const data = await api('/api/olympiads/' + currentOlympiad.id + '/exam-submit', {
@@ -265,11 +366,12 @@
   document.getElementById('submitExamBtn')?.addEventListener('click', async () => {
     if (!examSession || !currentOlympiad) return;
     const total = (currentOlympiad.questions || []).length;
-    if (answers.size < total) { if (!confirm('Баъзе саволҳо ҷавоб надоранд. Ба ҳар ҳол супоред?')) return; }
+    const answered = (currentOlympiad.questions || []).filter((q) => isAnswered(q.id)).length;
+    if (answered < total) { if (!confirm('Баъзе саволҳо ҷавоб надоранд. Ба ҳар ҳол супоред?')) return; }
     await submitExam(false);
   });
   function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
   if (student && student.id) showApp();
 })();

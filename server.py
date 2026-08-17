@@ -63,9 +63,7 @@ if app is None:
 
 print(f"[boot] mode={_boot_mode}")
 
-# Static / public assets aligned to current UI (admin registration, platform, etc.)
 _EXTRA_PUBLIC = {
-    # pages
     "index.html",
     "admin.html",
     "student.html",
@@ -74,20 +72,17 @@ _EXTRA_PUBLIC = {
     "courses.html",
     "leaderboard.html",
     "countries.html",
-    # css
     "css.css",
     "css/admin.css",
     "css/student.css",
     "css/quiz.css",
     "css/platform.css",
     "css/profile.css",
-    # js — public / shared
     "js.js",
     "js/i18n.js",
     "js/platform-home.js",
     "js/quiz-platform.js",
     "js/profile.js",
-    # js — admin modules (needed after login UI load)
     "js/admin.js",
     "js/admin-session.js",
     "js/admin-fixes.js",
@@ -95,6 +90,7 @@ _EXTRA_PUBLIC = {
     "js/admin-content.js",
     "js/admin-leaderboard.js",
     "js/admin-students-reg.js",
+    "js/admin-olympiad.js",
     "js/admin-audit.js",
     "js/admin-rbac-ui.js",
 }
@@ -132,6 +128,7 @@ _boot_patch("patch_student_portal", "patch_student_portal", "db.patch_student_po
 _boot_patch("patch_admin_students", "patch_admin_students", "db.patch_admin_students")
 _boot_patch("patch_names", "patch_names", "db.patch_names")
 _boot_patch("patch_students_profile", "patch_students_profile", "db.patch_students_profile")
+_boot_patch("patch_olympiad_builder", "patch_olympiad_builder", "db.patch_olympiad_builder")
 
 
 def _install_safety_net() -> None:

@@ -23,7 +23,7 @@ def install(app=None):
             log.warning("repo import failed: %s", e)
             return
 
-    # Ensure columns exist (migration 010 may not have run yet)
+    # Schema ensure is optional — never block boot if PG is waking up
     try:
         if repo.use_pg():
             from sqlalchemy import text
@@ -31,17 +31,19 @@ def install(app=None):
                 from db.connection import get_session
             except Exception:
                 from connection import get_session  # type: ignore
-            with get_session() as s:
-                for ddl in (
-                    "ALTER TABLE olympiads ADD COLUMN IF NOT EXISTS questions_json JSONB",
-                    "ALTER TABLE olympiads ADD COLUMN IF NOT EXISTS show_results_to_students BOOLEAN DEFAULT true",
-                    "ALTER TABLE olympiad_questions ADD COLUMN IF NOT EXISTS qtype TEXT DEFAULT 'single'",
-                    "ALTER TABLE olympiad_questions ADD COLUMN IF NOT EXISTS payload JSONB",
-                ):
-                    try:
-                        s.execute(text(ddl))
-                    except Exception as e:
-                        log.warning("ddl: %s", e)
+            try:
+                with get_session() as s:
+                    s.execute(text("SELECT 1"))
+                    for ddl in (
+                        "ALTER TABLE olympiads ADD COLUMN IF NOT EXISTS questions_json JSONB",
+                        "ALTER TABLE olympiads ADD COLUMN IF NOT EXISTS show_results_to_students BOOLEAN DEFAULT true",
+                    ):
+                        try:
+                            s.execute(text(ddl))
+                        except Exception as e:
+                            log.warning("ddl: %s", e)
+            except Exception as e:
+                log.warning("schema ensure skipped (DB not ready): %s", e)
     except Exception as e:
         log.warning("schema ensure: %s", e)
 

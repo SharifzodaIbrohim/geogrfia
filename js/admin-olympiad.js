@@ -48,21 +48,18 @@
       setTimeout(function () {
         try {
           URL.revokeObjectURL(url);
-        } catch (_) {}
-        a.remove();
-      }, 1200);
-      return true;
+          a.remove();
+        } catch (e) {}
+      }, 1500);
     } catch (e) {
-      console.error(e);
-      return false;
+      console.warn(e);
     }
   }
 
   function safeName(s) {
-    return String(s || "olympiad")
-      .replace(/[\\/:*?"<>|]+/g, "_")
-      .replace(/\s+/g, "_")
-      .slice(0, 80);
+    return String(s || "file")
+      .replace(/[^\w\u0400-\u04FF\-]+/g, "_")
+      .slice(0, 60);
   }
 
   function listEl() {
@@ -72,7 +69,7 @@
   function typeLabel(t) {
     return (
       {
-        single: "Интихоби як ҷавоб (A–D)",
+        single: "Интихоб (A–D)",
         short: "Ҷавоби кӯтоҳ / рақамӣ",
         matching: "Мувофиқат",
         text: "Шарҳ / мафҳум (матн)",
@@ -80,94 +77,78 @@
     );
   }
 
-  function addOptionRow(box, name, val, checked) {
-    var row = document.createElement("div");
-    row.className = "opt-row";
-    row.style.cssText = "display:flex;gap:.4rem;align-items:center;margin:.25rem 0";
-    row.innerHTML =
+  function optRow(name, checked, val) {
+    return (
+      '<div class="opt-row" style="display:flex;gap:.4rem;align-items:center;margin:.25rem 0">' +
       '<input type="radio" name="' +
       name +
       '" ' +
       (checked ? "checked" : "") +
-      ' title="Ҷавоби дуруст" />' +
+      " />" +
       '<input type="text" class="opt-text" placeholder="Вариант" value="' +
       esc(val || "") +
       '" style="flex:1" />' +
-      '<button type="button" class="btn small danger opt-del">×</button>';
-    row.querySelector(".opt-del").onclick = function () {
-      if (box.querySelectorAll(".opt-row").length <= 2) {
-        alert("Ҳадди ақал 2 вариант");
-        return;
-      }
-      row.remove();
-    };
-    box.appendChild(row);
+      '<button type="button" class="btn small danger opt-del">×</button></div>'
+    );
   }
 
-  function buildSingleBody(n, pre) {
-    var div = document.createElement("div");
-    div.innerHTML =
+  function singleBody(pre) {
+    var name = "corr-" + qSeq;
+    var opts = (pre && pre.options) || ["", "", "", ""];
+    var html =
       '<input class="q-text" placeholder="Матни савол" style="width:100%;margin:.35rem 0" value="' +
       esc((pre && pre.text) || "") +
       '" />' +
       '<div class="q-options"></div>' +
-      '<button type="button" class="btn small add-opt">+ Вариант</button>' +
-      '<p class="muted" style="font-size:.85rem;margin:.25rem 0">Радио = ҷавоби дуруст</p>';
-    var box = div.querySelector(".q-options");
-    var opts = (pre && pre.options) || ["", "", "", ""];
+      '<button type="button" class="btn small add-opt">+ Вариант</button>';
+    var wrap = document.createElement("div");
+    wrap.innerHTML = html;
+    var box = wrap.querySelector(".q-options");
     var ans = pre && typeof pre.answer === "number" ? pre.answer : 0;
-    opts.forEach(function (v, i) {
-      addOptionRow(box, "correct-" + n, v, i === ans);
+    opts.forEach(function (o, i) {
+      box.insertAdjacentHTML("beforeend", optRow(name, i === ans, o));
     });
-    div.querySelector(".add-opt").onclick = function () {
-      addOptionRow(box, "correct-" + n, "", false);
-    };
-    return div;
+    return wrap.innerHTML;
   }
 
-  function buildShortBody(pre) {
-    var div = document.createElement("div");
-    div.innerHTML =
+  function shortBody(pre) {
+    return (
       '<textarea class="q-text" rows="2" placeholder="Матни савол" style="width:100%;margin:.35rem 0">' +
       esc((pre && pre.text) || "") +
       "</textarea>" +
-      '<label>Ҷавоби дуруст (админ)<input class="q-correct" style="width:100%;margin-top:.25rem" placeholder="масалан: 42" value="' +
+      '<label>Ҷавоби дуруст <input class="q-correct" style="width:100%" value="' +
       esc((pre && pre.correctText) || "") +
-      '" /></label>';
-    return div;
+      '" placeholder="масалан: 42 ё Душанбе" /></label>'
+    );
   }
 
-  function buildMatchingBody(pre) {
-    var div = document.createElement("div");
-    div.innerHTML =
+  function matchBody(pre) {
+    return (
       '<textarea class="q-text" rows="2" placeholder="Мувофиқатро муайян намоед" style="width:100%;margin:.35rem 0">' +
       esc((pre && pre.text) || "Мувофиқатро муайян намоед") +
       "</textarea>" +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">' +
-      '<div><strong>Чап</strong><textarea class="q-left" rows="5" style="width:100%">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">' +
+      '<div><strong>Чап</strong><textarea class="q-left" rows="5" style="width:100%" placeholder="ҳар банд дар сатри нав">' +
       esc(((pre && pre.leftItems) || []).join("\n")) +
       "</textarea></div>" +
-      '<div><strong>Рост</strong><textarea class="q-right" rows="5" style="width:100%">' +
+      '<div><strong>Рост</strong><textarea class="q-right" rows="5" style="width:100%" placeholder="ҳар банд дар сатри нав">' +
       esc(((pre && pre.rightItems) || []).join("\n")) +
       "</textarea></div></div>" +
-      '<label style="display:block;margin-top:.5rem">Ҷуфтҳо (A=1,B=2)' +
-      '<input class="q-pairs" style="width:100%;margin-top:.25rem" value="' +
+      '<label style="display:block;margin-top:.35rem">Ҷуфтҳо (1-2, 2-1…) <input class="q-pairs" style="width:100%" value="' +
       esc((pre && pre.pairsText) || "") +
-      '" /></label>';
-    return div;
+      '" /></label>'
+    );
   }
 
-  function buildTextBody(pre) {
-    var div = document.createElement("div");
-    div.innerHTML =
+  function textBody(pre) {
+    return (
       '<textarea class="q-text" rows="2" placeholder="Мафҳум" style="width:100%;margin:.35rem 0">' +
       esc((pre && pre.text) || "") +
       "</textarea>" +
-      '<label>Калидҳо (ихтиёрӣ, | ҷудо)' +
-      '<input class="q-correct" style="width:100%;margin-top:.25rem" value="' +
+      '<label>Калимаҳои калидӣ (ихтиёрӣ, | ҷудо) <input class="q-correct" style="width:100%" value="' +
       esc((pre && pre.correctText) || "") +
-      '" /></label>';
-    return div;
+      '" /></label>'
+    );
   }
 
   function addQuestion(type, prefill) {
@@ -175,48 +156,59 @@
     if (!list) return;
     type = type || "single";
     qSeq += 1;
-    var n = qSeq;
-    var wrap = document.createElement("div");
-    wrap.className = "question-card card";
-    wrap.dataset.q = String(n);
-    wrap.dataset.type = type;
-    wrap.style.cssText = "margin:.6rem 0;padding:.75rem;border:1px solid #ddd;border-radius:8px";
-    wrap.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      "<strong>Савол " +
-      n +
-      " — " +
+    var card = document.createElement("div");
+    card.className = "question-card card";
+    card.dataset.type = type;
+    card.style.marginBottom = ".75rem";
+    card.style.padding = ".75rem";
+    var head =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">' +
+      "<strong>Савол · " +
       esc(typeLabel(type)) +
       "</strong>" +
       '<button type="button" class="btn small danger q-remove">×</button></div>';
     var body =
       type === "short"
-        ? buildShortBody(prefill)
+        ? shortBody(prefill)
         : type === "matching"
-          ? buildMatchingBody(prefill)
+          ? matchBody(prefill)
           : type === "text"
-            ? buildTextBody(prefill)
-            : buildSingleBody(n, prefill);
-    wrap.appendChild(body);
-    wrap.querySelector(".q-remove").onclick = function () {
-      wrap.remove();
+            ? textBody(prefill)
+            : singleBody(prefill);
+    card.innerHTML = head + body;
+    list.appendChild(card);
+    card.querySelector(".q-remove").onclick = function () {
+      card.remove();
     };
-    list.appendChild(wrap);
+    var addOpt = card.querySelector(".add-opt");
+    if (addOpt) {
+      var name = "corr-" + qSeq;
+      addOpt.onclick = function () {
+        card.querySelector(".q-options").insertAdjacentHTML("beforeend", optRow(name, false, ""));
+        bindOptDel(card);
+      };
+      bindOptDel(card);
+    }
+  }
+
+  function bindOptDel(card) {
+    card.querySelectorAll(".opt-del").forEach(function (b) {
+      b.onclick = function () {
+        b.parentElement.remove();
+      };
+    });
   }
 
   function parsePairs(text, leftLen) {
     var map = {};
     String(text || "")
-      .split(/[,;]+/)
-      .forEach(function (part) {
-        var m = part.trim().match(/^([A-Za-zА-Яа-яЁё]|(\d+))\s*[=:]\s*(\d+)$/);
+      .split(/[,;\s]+/)
+      .forEach(function (p) {
+        var m = p.match(/(\d+)\D+(\d+)/);
         if (!m) return;
-        var left = m[1];
-        var right = parseInt(m[3], 10) - 1;
-        var li;
-        if (/^\d+$/.test(left)) li = parseInt(left, 10) - 1;
-        else li = left.toUpperCase().charCodeAt(0) - 65;
-        if (li >= 0 && li < leftLen && right >= 0) map[String(li)] = right;
+        var a = parseInt(m[1], 10) - 1;
+        var b = parseInt(m[2], 10) - 1;
+        if (a >= 0 && a < leftLen && b >= 0) map[String(a)] = b;
       });
     return map;
   }
@@ -318,17 +310,11 @@
       })
       .join("");
     return (
-      "<!DOCTYPE html><html lang=tg><head><meta charset=utf-8><title>" +
+      "<!DOCTYPE html><html><head><meta charset=UTF-8><title>" +
       esc(payload.title) +
       "</title></head><body><h1>" +
       esc(payload.title) +
-      "</h1><p>Навъ: " +
-      esc(payload.type) +
-      " | Ҳад: " +
-      payload.passScore +
-      "% | Натиҷа: " +
-      (payload.showResultsToStudents ? "ҳа" : "не") +
-      "</p><p>ID: " +
+      "</h1><p>ID: " +
       esc((saved && saved.id) || "") +
       "</p>" +
       rows +
@@ -337,24 +323,16 @@
   }
 
   function buildLocalTxt(payload, saved) {
-    var lines = [
-      "Унвон: " + payload.title,
-      "ID: " + ((saved && saved.id) || ""),
-      "Навъ: " + payload.type,
-      "Ҳад: " + payload.passScore + "%",
-      "Натиҷа: " + (payload.showResultsToStudents ? "ҳа" : "не"),
-      "Сана: " + new Date().toISOString(),
-      "",
-    ];
+    var lines = [payload.title, "ID: " + ((saved && saved.id) || ""), ""];
     (payload.questions || []).forEach(function (q, i) {
       lines.push(i + 1 + ". [" + q.type + "] " + q.text);
-      if (q.type === "single") {
+      if (q.type === "single")
         (q.options || []).forEach(function (o, j) {
-          lines.push("   " + (j === q.answer ? "*" : "-") + " " + o);
+          lines.push("  " + (j === q.answer ? ">" : "-") + " " + o);
         });
-      } else {
-        lines.push("   Ҷавоб: " + (q.correctText || q.pairsText || ""));
-      }
+      if (q.correctText) lines.push("  Ҷавоб: " + q.correctText);
+      if (q.leftItems) lines.push("  Чап: " + q.leftItems.join(" | "));
+      if (q.rightItems) lines.push("  Рост: " + q.rightItems.join(" | "));
       lines.push("");
     });
     return lines.join("\n");
@@ -375,15 +353,19 @@
       var title = String((document.getElementById("olyTitle") || {}).value || "").trim();
       if (!title) throw new Error("Унвонро ворид кунед");
       var questions = collectQuestions();
-      if (!questions.length) throw new Error("Ҳадди ақал 1 савол");
+      if (!questions.length) throw new Error("Ҳадди ақал 1 савол — тугмаҳои + Интихоб / + Ҷавоби кӯтоҳ / …");
       for (var i = 0; i < questions.length; i++) {
         var q = questions[i];
         if (!q.text) throw new Error("Саволи " + (i + 1) + ": матн холӣ");
         if (q.type === "single" && (!q.options || q.options.length < 2))
           throw new Error("Саволи " + (i + 1) + ": ҳадди ақал 2 вариант");
         if (q.type === "short" && !q.correctText) throw new Error("Саволи " + (i + 1) + ": ҷавоби дуруст лозим");
-        if (q.type === "matching" && (!q.leftItems || q.leftItems.length < 2))
-          throw new Error("Саволи " + (i + 1) + ": мувофиқат");
+        if (q.type === "matching") {
+          if (!q.leftItems || q.leftItems.length < 2)
+            throw new Error("Саволи " + (i + 1) + ": мувофиқат — ҳадди ақал 2 банди чап (ҳар сатр)");
+          if (!q.rightItems || q.rightItems.length < 1)
+            throw new Error("Саволи " + (i + 1) + ": мувофиқат — бандҳои рост лозим");
+        }
       }
       var showRes = !!(document.getElementById("olyShowResults") || {}).checked;
       var payload = {
@@ -425,15 +407,33 @@
     var form = document.getElementById("olympiadForm");
     if (form) {
       form.setAttribute("action", "javascript:void(0)");
+      form.setAttribute("onsubmit", "return false;");
       form.onsubmit = function (ev) {
+        if (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
         onSubmit(ev);
         return false;
       };
+      form.addEventListener(
+        "submit",
+        function (ev) {
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          onSubmit(ev);
+        },
+        true
+      );
     }
     var saveBtn = document.getElementById("btnSaveOlympiad");
     if (saveBtn) {
       saveBtn.type = "button";
       saveBtn.onclick = function (ev) {
+        if (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
         onSubmit(ev);
       };
     }
@@ -461,4 +461,9 @@
   window.__geoAddOlympiadQuestion = addQuestion;
   window.__geoSaveOlympiad = onSubmit;
   wire();
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (b.getAttribute("data-tab") === "olympiads") setTimeout(wire, 30);
+    });
+  });
 })();

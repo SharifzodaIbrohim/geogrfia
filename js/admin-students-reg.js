@@ -9,9 +9,13 @@
   var _camStream = null;
 
   const esc = window.esc || function (s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">")
-      .replace(/"/g, """).replace(/'/g, "&#39;");
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      if (c === '"') return "&" + "quot;";
+      return "&#39;";
+    });
   };
 
   function getToken() {
@@ -141,7 +145,7 @@
     var name = (lastErr && lastErr.name) || "";
     var msg = (lastErr && lastErr.message) || String(lastErr || "хато");
     if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      camStatus("Иҷоза рад шуд. 🔒 → Camera → Allow, баъд боз «Камера»", true);
+      camStatus("Иҷоза рад шуд. Camera → Allow, баъд боз «Камера»", true);
     } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
       camStatus("Камера пайдо нашуд. Windows Privacy → Camera → Allow", true);
     } else if (name === "NotReadableError" || name === "TrackStartError") {
@@ -178,7 +182,19 @@
     var ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     applyPhoto(canvas.toDataURL("image/jpeg", 0.92));
-    camStatus("Акс гирифта шуд ✓", false);
+    camStatus("Акс гирифта шуд", false);
+  }
+
+  if (!window.__geoCamBound) {
+    window.__geoCamBound = true;
+    document.addEventListener("click", function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+      if (!t || !t.id) return;
+      if (t.id === "btnStartCamera") { ev.preventDefault(); try { startCamera(); } catch (e) { camStatus(String(e), true); } }
+      else if (t.id === "btnCapturePhoto") { ev.preventDefault(); try { capturePhoto(); } catch (e) { camStatus(String(e), true); } }
+      else if (t.id === "btnStopCamera") { ev.preventDefault(); stopCamera(); camStatus("Камера қатъ", false); }
+      else if (t.id === "btnClearPhoto") { ev.preventDefault(); clearPhoto(); stopCamera(); camStatus("Сурат пок шуд", false); }
+    }, true);
   }
 
   function bindCamera() {
@@ -198,7 +214,7 @@
         if (!file) return;
         if (file.size > 4 * 1024 * 1024) { camStatus("Файл хеле калон (макс 4MB)", true); return; }
         var r = new FileReader();
-        r.onload = function () { applyPhoto(r.result); camStatus("Аз файл ✓", false); };
+        r.onload = function () { applyPhoto(r.result); camStatus("Аз файл", false); };
         r.onerror = function () { camStatus("Хониши файл хато", true); };
         r.readAsDataURL(file);
       };
@@ -218,7 +234,7 @@
     var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
     var photo = st.photoData || "";
     var photoBlock = photo
-      ? '<img src="' + photo + '" alt="Сурат" style="width:120px;height:120px;object-fit:cover;border-radius:10px;border:1px solid #ddd;display:block"/>'
+      ? '<img src="' + photo + '" alt="photo" style="width:120px;height:120px;object-fit:cover;border-radius:10px;border:1px solid #ddd;display:block"/>'
       : '<div style="width:120px;height:120px;border:1px dashed #bbb;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#888;font-size:13px">Бе сурат</div>';
     var rows = [
       ["ID (барои воридшавӣ)", id],
@@ -356,7 +372,7 @@
     var el = document.getElementById("localFolderStatus");
     if (!el) return;
     el.textContent = ok
-      ? ("Папка пайваст ✓" + (name ? (" — " + name) : "") + " (танҳо дар ҳамин ҷо захира мешавад)")
+      ? ("Папка пайваст" + (name ? (" — " + name) : "") + " (танҳо дар ҳамин ҷо захира мешавад)")
       : "Папка интихоб нашудааст — аввал папкаро интихоб кунед";
     el.style.color = ok ? "#8fd4a8" : "#ffb86b";
   }
@@ -590,7 +606,7 @@
           "<td>" + esc(s.className || "") + "</td>" +
           "<td>" + esc(s.school || "") + "</td>" +
           "<td>" + esc(s.teacher || "") + "</td>" +
-          "<td>" + (s.hasPhoto || s.photoData ? "✓" : "—") + "</td>" +
+          "<td>" + (s.hasPhoto || s.photoData ? "+" : "-") + "</td>" +
           "<td><button type=\"button\" class=\"btn small danger\" data-del-student=\"" + esc(id) + "\">Нест</button></td>" +
           "</tr>";
       }).join("") : '<tr><td colspan="7">Хонанда нест</td></tr>';

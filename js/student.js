@@ -73,8 +73,8 @@
       if (!Array.isArray(olympiads)) olympiads = [];
       const olyBox = document.getElementById('olympiadList');
       const quizBox = document.getElementById('quizList');
-      const emptyOly = document.getElementById('emptyOlympiads');
-      const emptyQuiz = document.getElementById('emptyQuizzes');
+      const emptyOly = document.getElementById('emptyOly');
+      const emptyQuiz = document.getElementById('emptyQuiz');
       if (olyBox) { olyBox.innerHTML = olympiads.map((o) => card(o, false)).join('') || ''; emptyOly?.classList.toggle('hidden', olympiads.length > 0); }
       if (quizBox) { quizBox.innerHTML = quizzes.map((o) => card(o, true)).join('') || ''; emptyQuiz?.classList.toggle('hidden', quizzes.length > 0); }
       document.querySelectorAll('.start-btn').forEach((btn) => {
@@ -183,7 +183,8 @@
     const qs = examSession?.questions || [];
     const q = qs[currentQIndex];
     if (!q) return;
-    const pane = document.getElementById('examPane');
+    const pane = document.getElementById('examQuestionPane');
+    if (!pane) return;
     const qid = String(q.id);
     const selected = getAnswer(q.id);
     let body = '';
@@ -235,6 +236,8 @@
     const next = document.getElementById('examNextBtn');
     if (prev) prev.disabled = currentQIndex <= 0;
     if (next) next.disabled = currentQIndex >= qs.length - 1;
+    const prog = document.getElementById('examProgress');
+    if (prog) prog.textContent = 'Савол ' + (currentQIndex + 1) + ' / ' + qs.length;
     renderDots();
   }
   document.getElementById('examPrevBtn')?.addEventListener('click', () => { if (currentQIndex > 0) { currentQIndex--; renderQuestion(); } });

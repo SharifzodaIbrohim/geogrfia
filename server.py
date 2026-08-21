@@ -72,7 +72,6 @@ _EXTRA_PUBLIC = {
 }
 
 try:
-    # static_proxy checks module-level PUBLIC_PATHS (set), not only app.config
     g = globals()
     if "PUBLIC_PATHS" in g and isinstance(g["PUBLIC_PATHS"], set):
         g["PUBLIC_PATHS"].update(_EXTRA_PUBLIC)
@@ -118,6 +117,7 @@ _boot_patch("patch_score_text", "patch_score_text", "db.patch_score_text")
 _boot_patch("force_olympiad_routes", "force_olympiad_routes", "db.force_olympiad_routes")
 _boot_patch("patch_attempts_kind", "patch_attempts_kind", "db.patch_attempts_kind")
 _boot_patch("patch_duration", "patch_duration", "db.patch_duration")
+_boot_patch("patch_duration_api", "patch_duration_api", "db.patch_duration_api")
 
 
 def _install_safety_net() -> None:

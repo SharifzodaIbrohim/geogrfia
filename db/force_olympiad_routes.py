@@ -1,11 +1,8 @@
-"""Force-register olympiad exam POST routes after boot.
-
-Production returned 405 on POST /api/olympiads/<id>/start (Allow: GET,HEAD only).
-This patch drops any existing rules for those paths and re-binds POST handlers.
-"""
+"""Force-register olympiad POST routes — always JSON, never HTML 500."""
 from __future__ import annotations
 
 import logging
+import traceback
 
 log = logging.getLogger("geografia.force_olympiad_routes")
 
@@ -17,12 +14,27 @@ def install(app=None):
 
     from flask import jsonify, request
 
+    engine_err = None
     try:
         from db import olympiad_engine
         from db.repo import find_olympiad
+        print("[boot] force_olympiad_routes: engine import OK")
     except Exception as e:
+        engine_err = e
         log.exception("force routes import failed: %s", e)
         print("[boot] force_olympiad_routes IMPORT FAILED:", e)
+
+        def _diag_start(olympiad_id):
+            return jsonify({"error": "engine_import_failed", "reason": str(engine_err)[:400]}), 503
+
+        _drop_olympiad_post_rules(app)
+        app.add_url_rule(
+            "/api/olympiads/<olympiad_id>/start",
+            endpoint="oe_force_start",
+            view_func=_diag_start,
+            methods=["POST"],
+        )
+        print("[boot] force_olympiad_routes: diagnostic start bound")
         return
 
     def _student_id(payload):
@@ -64,52 +76,69 @@ def install(app=None):
             return "open" if oly.get("isActive") else "inactive"
 
     def olympiad_start(olympiad_id):
-        payload = request.get_json(silent=True) or {}
-        student_id = _student_id(payload)
-        if not student_id:
-            return jsonify({"error": "studentId лозим аст.", "reason": "student_id_required"}), 400
-        oly = find_olympiad(olympiad_id)
-        if not oly:
-            return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
-        win = _window_ok(oly)
-        if win != "open":
-            msgs = {
-                "inactive": "Олимпиада фаъол нест.",
-                "not_started": "Ҳанӯз оғоз нашудааст.",
-                "ended": "Вақт ба охир расид.",
-            }
-            return jsonify({"error": msgs.get(win, win), "windowStatus": win}), 403
         try:
-            session = olympiad_engine.start_exam(
-                olympiad_id, student_id, client_fingerprint=_fp(), fingerprint=_fp()
-            )
-            return jsonify(session)
-        except ValueError as e:
-            code = str(e)
-            messages = {
-                "rate_limited": "Зиёд дархост — каме интизор шавед.",
-                "already_submitted": "Шумо аллакай супоридаед (як маротиба).",
-                "not_assigned": "Шумо ба ин олимпиада таъин нашудаед.",
-                "student_not_found": "ID нодуруст аст.",
-                "student_id_required": "Student ID лозим аст.",
-                "no_questions": "Саволҳо нестанд.",
-                "not_found": "Олимпиада ёфт нашуд.",
-                "session_save_failed": "Сессия захира нашуд.",
-            }
-            status = 404 if code == "not_found" else 403
-            return jsonify({"error": messages.get(code, code), "reason": code}), status
+            payload = request.get_json(silent=True) or {}
+            student_id = _student_id(payload)
+            if not student_id:
+                return jsonify({"error": "studentId лозим аст.", "reason": "student_id_required"}), 400
+            oly = find_olympiad(olympiad_id)
+            if not oly:
+                return jsonify({"error": "Олимпиада ёфт нашуд."}), 404
+            win = _window_ok(oly)
+            if win != "open":
+                msgs = {
+                    "inactive": "Олимпиада фаъол нест.",
+                    "not_started": "Ҳанӯз оғоз нашудааст.",
+                    "ended": "Вақт ба охир расид.",
+                }
+                return jsonify({"error": msgs.get(win, win), "windowStatus": win}), 403
+            try:
+                session = olympiad_engine.start_exam(
+                    olympiad_id, student_id, client_fingerprint=_fp(), fingerprint=_fp()
+                )
+            except ValueError as e:
+                code = str(e)
+                messages = {
+                    "rate_limited": "Зиёд дархост — каме интизор шавед.",
+                    "already_submitted": "Шумо аллакай супоридаед (як маротиба).",
+                    "not_assigned": "Шумо ба ин олимпиада таъин нашудаед.",
+                    "student_not_found": "ID нодуруст аст.",
+                    "student_id_required": "Student ID лозим аст.",
+                    "no_questions": "Саволҳо нестанд.",
+                    "not_found": "Олимпиада ёфт нашуд.",
+                    "session_save_failed": "Сессия захира нашуд.",
+                    "not_started": "Ҳанӯз оғоз нашудааст.",
+                    "ended": "Вақт ба охир расид.",
+                    "closed": "Олимпиада фаъол нест.",
+                }
+                status = 404 if code == "not_found" else 403
+                return jsonify({"error": messages.get(code, code), "reason": code}), status
+            if not isinstance(session, dict):
+                return jsonify({"error": "bad_session", "type": str(type(session))}), 500
+            safe = {}
+            for k, v in session.items():
+                try:
+                    jsonify({k: v})
+                    safe[k] = v
+                except Exception:
+                    safe[k] = str(v)
+            return jsonify(safe)
         except Exception as e:
             log.exception("force start failed")
-            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
+            return jsonify({
+                "error": "Хатои дохилӣ.",
+                "reason": str(e)[:400],
+                "trace": traceback.format_exc()[-1500:],
+            }), 500
 
     def olympiad_autosave(olympiad_id):
-        payload = request.get_json(silent=True) or {}
-        session_id = str(payload.get("sessionId") or payload.get("attemptId") or "").strip()
-        session_token = str(payload.get("sessionToken") or "").strip()
-        answers = payload.get("answers") or {}
-        if not session_id or not session_token:
-            return jsonify({"error": "sessionId ва sessionToken лозиманд."}), 400
         try:
+            payload = request.get_json(silent=True) or {}
+            session_id = str(payload.get("sessionId") or payload.get("attemptId") or "").strip()
+            session_token = str(payload.get("sessionToken") or "").strip()
+            answers = payload.get("answers") or {}
+            if not session_id or not session_token:
+                return jsonify({"error": "sessionId ва sessionToken лозиманд."}), 400
             return jsonify(
                 olympiad_engine.autosave(session_id, session_token, answers, fingerprint=_fp())
             )
@@ -117,44 +146,44 @@ def install(app=None):
             return jsonify({"error": str(e)}), 400
         except Exception as e:
             log.exception("force autosave failed")
-            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
+            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:300]}), 500
 
     def _do_submit(olympiad_id):
-        payload = request.get_json(silent=True) or {}
-        session_id = str(payload.get("sessionId") or payload.get("attemptId") or "").strip()
-        session_token = str(payload.get("sessionToken") or "").strip()
-        student_id = _student_id(payload)
-        answers = payload.get("answers")
-        if isinstance(answers, list):
-            amap = {}
-            for i, a in enumerate(answers):
-                if isinstance(a, dict):
-                    qid = a.get("questionId", a.get("id", i))
-                    sel = a.get("selected", a.get("selectedIndex", a.get("answer")))
-                    if qid is not None and sel is not None:
-                        amap[str(qid)] = sel
-                else:
-                    try:
-                        amap[str(i)] = int(a)
-                    except (TypeError, ValueError):
-                        pass
-            answers = amap
-        if not isinstance(answers, dict):
-            answers = {}
-        if not session_id or not session_token:
-            try:
-                resolved = olympiad_engine.resolve_session_for_submit(
-                    olympiad_id, student_code=student_id or None, session_id=session_id or None
-                )
-            except Exception:
-                resolved = None
-            if not resolved:
-                return jsonify(
-                    {"error": "Сессия ёфт нашуд. Аввал start кунед.", "reason": "session_not_found"}
-                ), 400
-            session_id = resolved["sessionId"]
-            session_token = resolved["sessionToken"]
         try:
+            payload = request.get_json(silent=True) or {}
+            session_id = str(payload.get("sessionId") or payload.get("attemptId") or "").strip()
+            session_token = str(payload.get("sessionToken") or "").strip()
+            student_id = _student_id(payload)
+            answers = payload.get("answers")
+            if isinstance(answers, list):
+                amap = {}
+                for i, a in enumerate(answers):
+                    if isinstance(a, dict):
+                        qid = a.get("questionId", a.get("id", i))
+                        sel = a.get("selected", a.get("selectedIndex", a.get("answer")))
+                        if qid is not None and sel is not None:
+                            amap[str(qid)] = sel
+                    else:
+                        try:
+                            amap[str(i)] = int(a)
+                        except (TypeError, ValueError):
+                            pass
+                answers = amap
+            if not isinstance(answers, dict):
+                answers = {}
+            if not session_id or not session_token:
+                try:
+                    resolved = olympiad_engine.resolve_session_for_submit(
+                        olympiad_id, student_code=student_id or None, session_id=session_id or None
+                    )
+                except Exception:
+                    resolved = None
+                if not resolved:
+                    return jsonify(
+                        {"error": "Сессия ёфт нашуд. Аввал start кунед.", "reason": "session_not_found"}
+                    ), 400
+                session_id = resolved["sessionId"]
+                session_token = resolved["sessionToken"]
             result = olympiad_engine.submit_exam(
                 session_id, session_token, answers, fingerprint=_fp()
             )
@@ -163,16 +192,8 @@ def install(app=None):
             body = {"ok": True, "result": result.get("result") if isinstance(result, dict) else result}
             if isinstance(result, dict):
                 for k in (
-                    "score",
-                    "correct",
-                    "total",
-                    "passScore",
-                    "status",
-                    "finishedAt",
-                    "hideScore",
-                    "pendingReview",
-                    "message",
-                    "showResultsToStudents",
+                    "score", "correct", "total", "passScore", "status", "finishedAt",
+                    "hideScore", "pendingReview", "message", "showResultsToStudents",
                 ):
                     if k in result:
                         body[k] = result[k]
@@ -190,7 +211,11 @@ def install(app=None):
             return jsonify({"error": messages.get(code, code), "reason": code}), 400
         except Exception as e:
             log.exception("force submit failed")
-            return jsonify({"error": "Хатои дохилӣ.", "reason": str(e)[:200]}), 500
+            return jsonify({
+                "error": "Хатои дохилӣ.",
+                "reason": str(e)[:300],
+                "trace": traceback.format_exc()[-800:],
+            }), 500
 
     def olympiad_exam_submit(olympiad_id):
         return _do_submit(olympiad_id)
@@ -198,27 +223,7 @@ def install(app=None):
     def olympiad_submit(olympiad_id):
         return _do_submit(olympiad_id)
 
-    # Drop existing rules so POST is not shadowed
-    rules_to_drop = []
-    for rule in list(app.url_map.iter_rules()):
-        rule_s = str(rule)
-        if rule_s in (
-            "/api/olympiads/<olympiad_id>/start",
-            "/api/olympiads/<olympiad_id>/exam-submit",
-            "/api/olympiads/<olympiad_id>/autosave",
-            "/api/olympiads/<olympiad_id>/submit",
-        ):
-            rules_to_drop.append(rule)
-    for rule in rules_to_drop:
-        try:
-            app.url_map._rules.remove(rule)
-            if rule.endpoint in app.url_map._rules_by_endpoint:
-                app.url_map._rules_by_endpoint[rule.endpoint] = [
-                    r for r in app.url_map._rules_by_endpoint[rule.endpoint] if r is not rule
-                ]
-            app.view_functions.pop(rule.endpoint, None)
-        except Exception as e:
-            log.warning("drop rule %s: %s", rule, e)
+    _drop_olympiad_post_rules(app)
 
     app.add_url_rule(
         "/api/olympiads/<olympiad_id>/start",
@@ -251,3 +256,26 @@ def install(app=None):
 
     print("[boot] force_olympiad_routes: POST start/exam-submit/submit/autosave bound")
     log.info("force olympiad routes installed")
+
+
+def _drop_olympiad_post_rules(app):
+    rules_to_drop = []
+    for rule in list(app.url_map.iter_rules()):
+        rule_s = str(rule)
+        if "/olympiads/" in rule_s and (
+            rule_s.rstrip("/").endswith("/start")
+            or rule_s.rstrip("/").endswith("/exam-submit")
+            or rule_s.rstrip("/").endswith("/autosave")
+            or rule_s.rstrip("/").endswith("/submit")
+        ):
+            rules_to_drop.append(rule)
+    for rule in rules_to_drop:
+        try:
+            app.url_map._rules.remove(rule)
+            if rule.endpoint in getattr(app.url_map, "_rules_by_endpoint", {}):
+                app.url_map._rules_by_endpoint[rule.endpoint] = [
+                    r for r in app.url_map._rules_by_endpoint[rule.endpoint] if r is not rule
+                ]
+            app.view_functions.pop(rule.endpoint, None)
+        except Exception as e:
+            log.warning("drop rule %s: %s", rule, e)

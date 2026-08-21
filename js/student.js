@@ -1,4 +1,4 @@
-// Student portal — olympiad/quiz taking UI (multi-type + one question view)
+// Student portal — olympiad UI (aligned with student.html IDs)
 (function () {
   'use strict';
 
@@ -6,15 +6,15 @@
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   let student = null;
-  let exam = null; // { olympiadId, attemptId, sessionToken, questions, remainingSec, answers, idx }
+  let exam = null;
   let timerId = null;
   let autosaveId = null;
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
   function show(el, on) {
     if (!el) return;
@@ -37,7 +37,8 @@
   }
 
   function fmtTime(sec) {
-    sec = Math.max(0, Math.floor(sec || 0));
+    if (sec == null || sec < 0) return '—';
+    sec = Math.floor(sec);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
@@ -80,17 +81,22 @@
   function startTimers() {
     stopTimers();
     if (!exam) return;
-    timerId = setInterval(function () {
-      if (!exam) return;
-      exam.remainingSec = Math.max(0, (exam.remainingSec || 0) - 1);
+    if (exam.noTimeLimit) {
       const el = $('examTimer');
-      if (el) el.textContent = fmtTime(exam.remainingSec);
-      if (exam.remainingSec <= 0) {
-        stopTimers();
-        submitExam(true);
-      }
-    }, 1000);
-    autosaveId = setInterval(function () { autosave(false); }, 15000);
+      if (el) el.textContent = 'Бе маҳдуд';
+    } else {
+      timerId = setInterval(function () {
+        if (!exam || exam.noTimeLimit) return;
+        exam.remainingSec = Math.max(0, (exam.remainingSec || 0) - 1);
+        const el = $('examTimer');
+        if (el) el.textContent = fmtTime(exam.remainingSec);
+        if (exam.remainingSec <= 0) {
+          stopTimers();
+          submitExam(true);
+        }
+      }, 1000);
+    }
+    autosaveId = setInterval(function () { autosave(true); }, 15000);
   }
 
   async function loadList() {
@@ -109,12 +115,14 @@
       const id = o.id;
       const title = esc(o.title || o.name || 'Олимпиада');
       const nq = o.questionCount || (o.questions && o.questions.length) || '?';
+      const dur = o.durationMin != null ? o.durationMin : o.duration;
+      const durTxt = (dur === 0 || dur === '0') ? 'Бе вақт' : (dur ? (dur + ' дақ') : '');
       const done = o.alreadySubmitted || o.finished;
       const btn = done
         ? '<button class="btn" disabled>Супорида шуд</button>'
         : '<button class="btn primary" data-start="' + esc(id) + '">Оғоз</button>';
       return '<div class="card"><h3>' + title + '</h3><p class="muted">Саволҳо: ' + nq +
-        (o.durationMin ? (' · ' + o.durationMin + ' дақ') : '') + '</p>' + btn + '</div>';
+        (durTxt ? (' · ' + durTxt) : '') + '</p>' + btn + '</div>';
     }).join('');
     box.querySelectorAll('[data-start]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -130,18 +138,29 @@
         method: 'POST',
         body: JSON.stringify({ studentId: sid, id: sid }),
       });
+      const durationMin = data.durationMin != null ? Number(data.durationMin) : null;
+      const noTimeLimit = durationMin === 0;
+      let remaining = data.remainingSec;
+      if (!noTimeLimit && remaining == null && durationMin > 0) remaining = durationMin * 60;
+      if (!noTimeLimit && remaining == null) remaining = 60 * 60;
+      if (noTimeLimit) remaining = null;
+
       exam = {
         olympiadId: olympiadId,
         attemptId: data.attemptId,
         sessionToken: data.sessionToken,
         questions: data.questions || [],
-        remainingSec: data.remainingSec != null ? data.remainingSec : ((data.durationMin || 60) * 60),
+        remainingSec: remaining,
+        noTimeLimit: noTimeLimit,
+        durationMin: durationMin,
         answers: {},
         idx: 0,
-        title: data.title || '',
+        title: data.title || 'Олимпиада',
       };
       show($('listView'), false);
+      show($('resultView'), false);
       show($('examView'), true);
+      if ($('examTitle')) $('examTitle').textContent = exam.title;
       renderExam();
       startTimers();
     } catch (e) {
@@ -189,17 +208,23 @@
     const q = currentQ();
     const total = exam.questions.length;
     const n = exam.idx + 1;
-    const titleEl = $('examTitle');
-    if (titleEl) titleEl.textContent = exam.title || 'Олимпиада';
-    const meta = $('examMeta');
-    if (meta) meta.textContent = fmtTime(exam.remainingSec) + ' · Савол ' + n + ' / ' + total;
+
     const progress = $('examProgress');
-    if (progress) {
-      progress.innerHTML = exam.questions.map(function (_, i) {
-        const cls = i === exam.idx ? 'active' : (exam.answers[String(exam.questions[i].id)] != null ? 'done' : '');
-        return '<button type="button" class="prog ' + cls + '" data-i="' + i + '">' + (i + 1) + '</button>';
+    if (progress) progress.textContent = 'Савол ' + n + ' / ' + total;
+
+    const timerEl = $('examTimer');
+    if (timerEl) {
+      timerEl.textContent = exam.noTimeLimit ? 'Бе маҳдуд' : fmtTime(exam.remainingSec);
+    }
+
+    const dots = $('examDots');
+    if (dots) {
+      dots.innerHTML = exam.questions.map(function (_, i) {
+        const answered = exam.answers[String(exam.questions[i].id)] != null;
+        const cls = i === exam.idx ? 'dot active' : (answered ? 'dot done' : 'dot');
+        return '<button type="button" class="' + cls + '" data-i="' + i + '">' + (i + 1) + '</button>';
       }).join('');
-      progress.querySelectorAll('[data-i]').forEach(function (b) {
+      dots.querySelectorAll('[data-i]').forEach(function (b) {
         b.addEventListener('click', function () {
           collectCurrentAnswer();
           exam.idx = parseInt(b.getAttribute('data-i'), 10);
@@ -207,47 +232,64 @@
         });
       });
     }
-    const bodyEl = $('examBody');
-    if (!bodyEl || !q) return;
+
+    const pane = $('examQuestionPane');
+    if (!pane || !q) {
+      if (pane) pane.innerHTML = '<p class="muted">Савол нест</p>';
+      return;
+    }
+
     const selected = exam.answers[String(q.id)];
     let body = '';
     const qtype = String(q.type || 'single').toLowerCase();
-    body += '<div class="exam-qtext">Савол ' + n + ' / ' + total + '</div>';
     body += '<div class="exam-q">' + esc(q.text || '') + '</div>';
+
     if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
       const val = selected != null ? String(selected.t || selected.text || selected || '') : '';
-      body += '<input type="text" class="exam-text-input" id="examTextInput" value="' + esc(val) + '" placeholder="Ҷавоб..." />';
+      body += '<input type="text" class="exam-text-input" id="examTextInput" value="' + esc(val) + '" placeholder="Ҷавобро нависед..." autocomplete="off" />';
     } else if (qtype === 'matching' || qtype === 'match') {
       const left = q.leftItems || q.left || [];
       const right = q.rightItems || q.right || [];
-      const cur = (selected && typeof selected === 'object') ? selected : {};
-      body += '<div class="exam-match">' + left.map(function (L, li) {
-        const sel = cur[String(li)] != null ? String(cur[String(li)]) : '';
-        return '<div class="exam-match-row"><span>' + esc(L) + '</span><select data-left="' + li + '" class="match-select"><option value="">—</option>' +
-          right.map(function (r, ri) {
-            return '<option value="' + ri + '"' + (sel === String(ri) ? ' selected' : '') + '>' + esc((LETTERS[ri] || (ri + 1)) + '. ' + r) + '</option>';
-          }).join('') +
-          '</select></div>';
-      }).join('') + '</div>';
+      const cur = (selected && typeof selected === 'object' && !Array.isArray(selected)) ? selected : {};
+      if (!left.length) {
+        body += '<p class="muted">Банди matching холӣ аст</p>';
+      } else {
+        body += '<div class="exam-match">' + left.map(function (L, li) {
+          const sel = cur[String(li)] != null ? String(cur[String(li)]) : '';
+          return '<div class="exam-match-row"><span class="match-left">' + esc(L) + '</span>' +
+            '<select data-left="' + li + '" class="match-select"><option value="">— интихоб —</option>' +
+            right.map(function (r, ri) {
+              return '<option value="' + ri + '"' + (sel === String(ri) ? ' selected' : '') + '>' +
+                esc((LETTERS[ri] || (ri + 1)) + '. ' + r) + '</option>';
+            }).join('') +
+            '</select></div>';
+        }).join('') + '</div>';
+      }
     } else {
       const opts = q.options || [];
       body += '<div class="exam-opts" role="listbox">' + opts.map(function (opt, oi) {
         const lab = typeof opt === 'object' ? (opt.text || opt.label || '') : String(opt);
-        const isSel = selected && (selected.i === oi || selected.t === lab);
-        return '<button type="button" class="exam-opt' + (isSel ? ' selected' : '') + '" data-i="' + oi + '" data-t="' + esc(lab) + '">' +
-          '<span class="opt-letter">' + (LETTERS[oi] || (oi + 1)) + '</span> ' + esc(lab) + '</button>';
+        const isSel = selected && (Number(selected.i) === oi || selected.t === lab);
+        return '<button type="button" class="exam-opt' + (isSel ? ' selected' : '') +
+          '" data-i="' + oi + '" data-t="' + esc(lab) + '">' +
+          '<span class="opt-letter">' + (LETTERS[oi] || (oi + 1)) + '</span><span>' + esc(lab) + '</span></button>';
       }).join('') + '</div>';
     }
-    bodyEl.innerHTML = body;
-    bodyEl.querySelectorAll('.exam-opt').forEach(function (btn) {
+
+    pane.innerHTML = body;
+    pane.querySelectorAll('.exam-opt').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        bodyEl.querySelectorAll('.exam-opt').forEach(function (b) { b.classList.remove('selected'); });
+        pane.querySelectorAll('.exam-opt').forEach(function (b) { b.classList.remove('selected'); });
         btn.classList.add('selected');
-        exam.answers[String(q.id)] = { i: parseInt(btn.getAttribute('data-i'), 10), t: btn.getAttribute('data-t') || '' };
+        exam.answers[String(q.id)] = {
+          i: parseInt(btn.getAttribute('data-i'), 10),
+          t: btn.getAttribute('data-t') || '',
+        };
       });
     });
-    const prev = $('examPrev');
-    const next = $('examNext');
+
+    const prev = $('examPrevBtn');
+    const next = $('examNextBtn');
     if (prev) prev.disabled = exam.idx <= 0;
     if (next) next.disabled = exam.idx >= total - 1;
   }
@@ -292,18 +334,27 @@
       });
       exam = null;
       show($('examView'), false);
-      show($('listView'), true);
+
       const hide = data.hideScore || (data.result && data.result.hideScore);
+      show($('resultView'), true);
       if (hide) {
-        alert(data.message || 'Шумо бо муваффақият супоридед. Натиҷа баъдтар эълон мешавад.');
+        if ($('resultScore')) $('resultScore').textContent = '✓';
+        if ($('resultDetail')) $('resultDetail').textContent =
+          data.message || 'Шумо бо муваффақият супоридед. Натиҷа баъдтар эълон мешавад.';
+        if ($('resultStatus')) $('resultStatus').textContent = 'Интизор';
       } else {
         const score = data.score != null ? data.score : (data.result && data.result.score);
         const correct = data.correct != null ? data.correct : (data.result && data.result.correct);
         const total = data.total != null ? data.total : (data.result && data.result.total);
-        alert('Супорида шуд. Балл: ' + (score != null ? score : '—') +
-          (correct != null && total != null ? (' (' + correct + '/' + total + ')') : ''));
+        if ($('resultScore')) $('resultScore').textContent = (score != null ? score : '—') + '%';
+        if ($('resultDetail')) {
+          $('resultDetail').textContent =
+            (correct != null && total != null) ? (correct + ' аз ' + total + ' дуруст') : '';
+        }
+        if ($('resultStatus')) {
+          $('resultStatus').textContent = (data.status || (data.result && data.result.status) || '') + '';
+        }
       }
-      loadList();
     } catch (e) {
       alert(e.message || 'Супориш нашуд');
       if (!autoTimeout) startTimers();
@@ -333,8 +384,9 @@
     }
     const logoutBtn = $('logoutBtn');
     if (logoutBtn) logoutBtn.addEventListener('click', logout);
-    const prev = $('examPrev');
-    const next = $('examNext');
+
+    const prev = $('examPrevBtn');
+    const next = $('examNextBtn');
     if (prev) prev.addEventListener('click', function () {
       collectCurrentAnswer();
       if (exam && exam.idx > 0) { exam.idx -= 1; renderExam(); }
@@ -343,9 +395,15 @@
       collectCurrentAnswer();
       if (exam && exam.idx < exam.questions.length - 1) { exam.idx += 1; renderExam(); }
     });
-    const submitBtn = $('examSubmit');
+    const submitBtn = $('submitExamBtn');
     if (submitBtn) submitBtn.addEventListener('click', function () {
       if (confirm('Супоридан?')) submitExam(false);
+    });
+    const back = $('backToListBtn');
+    if (back) back.addEventListener('click', function () {
+      show($('resultView'), false);
+      show($('listView'), true);
+      loadList();
     });
   }
 

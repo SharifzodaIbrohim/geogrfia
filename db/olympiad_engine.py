@@ -1,14 +1,13 @@
-"""Olympiad engine — plain source parts (no zlib/b64)."""
+"""Olympiad engine mini loader — oe_mini_*.txt zlib+b64."""
 from __future__ import annotations
+import zlib, base64
 from pathlib import Path
 _dir = Path(__file__).resolve().parent
-def _key(p):
-    try:
-        return int(p.stem.rsplit("_", 1)[-1])
-    except Exception:
-        return p.name
-_parts = sorted(_dir.glob("olympiad_engine_src_*.py"), key=_key)
+_parts = sorted(_dir.glob("oe_mini_*.txt"))
 if not _parts:
-    raise RuntimeError("olympiad_engine_src_*.py missing")
-_src = "".join(p.read_text(encoding="utf-8") for p in _parts)
+    raise RuntimeError("oe_mini_*.txt missing")
+_b64 = "".join(p.read_text(encoding="utf-8").strip() for p in _parts)
+# pad if needed (should not be required for verified stream)
+_b64 += "=" * ((4 - len(_b64) % 4) % 4)
+_src = zlib.decompress(base64.b64decode(_b64)).decode("utf-8")
 exec(compile(_src, "db/olympiad_engine.py", "exec"), globals())

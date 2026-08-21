@@ -1,1 +1,277 @@
-PLACEHOLDER
+/* Student exam UI — one question at a time */
+
+.exam-shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 32px;
+}
+
+.exam-card {
+  background: var(--surface, #1e221e);
+  border: 1px solid var(--border, #2e362e);
+  border-radius: 14px;
+  padding: 20px 18px 24px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.exam-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text, #e8eee8);
+}
+
+.exam-meta {
+  color: var(--muted, #9aa69a);
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+
+.exam-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.exam-progress .prog {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #3a453a);
+  background: #151915;
+  color: var(--text, #e8eee8);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.exam-progress .prog.active {
+  background: #2d6a4f;
+  border-color: #40916c;
+}
+
+.exam-progress .prog.done {
+  background: #1b4332;
+  border-color: #2d6a4f;
+}
+
+.exam-qtext {
+  color: var(--muted, #9aa69a);
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.exam-q {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  margin-bottom: 14px;
+  color: var(--text, #e8eee8);
+}
+
+.exam-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exam-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #3a453a);
+  background: #151915;
+  color: var(--text, #e8eee8);
+  cursor: pointer;
+  width: 100%;
+  font-size: 0.98rem;
+}
+
+.exam-opt:hover {
+  border-color: #52796f;
+}
+
+.exam-opt.selected {
+  border-color: #40916c;
+  background: #1b4332;
+}
+
+.exam-opt .opt-letter {
+  font-weight: 700;
+  color: #95d5b2;
+  min-width: 1.2em;
+}
+
+.exam-text-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #121612;
+  color: #e8eee8;
+  border: 1px solid #3a453a;
+  font-size: 1rem;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+.exam-match {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.exam-match-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.exam-match-row span {
+  min-width: 120px;
+  font-weight: 600;
+  color: var(--text, #e8eee8);
+}
+
+.exam-match-row select,
+.match-select {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #121612;
+  color: #e8eee8;
+  border: 1px solid #3a453a;
+}
+
+.exam-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  align-items: center;
+}
+
+.auth-shell {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface, #1e221e);
+  border: 1px solid var(--border, #2e362e);
+  border-radius: 14px;
+  padding: 24px 20px;
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+}
+
+.auth-card label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 0.9rem;
+  color: var(--muted, #9aa69a);
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #3a453a;
+  background: #121612;
+  color: #e8eee8;
+  box-sizing: border-box;
+}
+
+.cards {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--surface, #1e221e);
+  border: 1px solid var(--border, #2e362e);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.card h3 {
+  margin: 0 0 8px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border, #2e362e);
+  background: #151915;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.panel {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.error {
+  color: #f07178;
+  margin-top: 10px;
+}
+
+.muted {
+  color: var(--muted, #9aa69a);
+}
+
+.center {
+  text-align: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #3a453a;
+  background: #1e221e;
+  color: #e8eee8;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.btn.primary {
+  background: #2d6a4f;
+  border-color: #40916c;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

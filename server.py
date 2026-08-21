@@ -72,6 +72,11 @@ _EXTRA_PUBLIC = {
 }
 
 try:
+    # static_proxy checks module-level PUBLIC_PATHS (set), not only app.config
+    g = globals()
+    if "PUBLIC_PATHS" in g and isinstance(g["PUBLIC_PATHS"], set):
+        g["PUBLIC_PATHS"].update(_EXTRA_PUBLIC)
+        print("[boot] PUBLIC_PATHS set += extras (%d)" % len(g["PUBLIC_PATHS"]))
     if app is not None and hasattr(app, "config"):
         existing = set(app.config.get("PUBLIC_PATHS") or [])
         app.config["PUBLIC_PATHS"] = existing | _EXTRA_PUBLIC

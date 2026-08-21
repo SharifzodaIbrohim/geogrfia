@@ -1,4 +1,4 @@
-"""Force-register olympiad POST routes — always JSON, never HTML 500."""
+"""Force-register olympiad POST routes — override view_functions, never orphan rules."""
 from __future__ import annotations
 
 import logging
@@ -14,26 +14,18 @@ def install(app=None):
 
     from flask import jsonify, request
 
-    engine_err = None
     try:
         from db import olympiad_engine
         from db.repo import find_olympiad
         print("[boot] force_olympiad_routes: engine import OK")
     except Exception as e:
-        engine_err = e
         log.exception("force routes import failed: %s", e)
         print("[boot] force_olympiad_routes IMPORT FAILED:", e)
 
         def _diag_start(olympiad_id):
-            return jsonify({"error": "engine_import_failed", "reason": str(engine_err)[:400]}), 503
+            return jsonify({"error": "engine_import_failed", "reason": str(e)[:400]}), 503
 
-        _drop_olympiad_post_rules(app)
-        app.add_url_rule(
-            "/api/olympiads/<olympiad_id>/start",
-            endpoint="oe_force_start",
-            view_func=_diag_start,
-            methods=["POST"],
-        )
+        _bind_start_handlers(app, _diag_start, _diag_start, _diag_start, _diag_start)
         print("[boot] force_olympiad_routes: diagnostic start bound")
         return
 
@@ -223,59 +215,53 @@ def install(app=None):
     def olympiad_submit(olympiad_id):
         return _do_submit(olympiad_id)
 
-    _drop_olympiad_post_rules(app)
-
-    app.add_url_rule(
-        "/api/olympiads/<olympiad_id>/start",
-        endpoint="oe_force_start",
-        view_func=olympiad_start,
-        methods=["POST"],
-    )
-    app.add_url_rule(
-        "/api/olympiads/<olympiad_id>/autosave",
-        endpoint="oe_force_autosave",
-        view_func=olympiad_autosave,
-        methods=["POST"],
-    )
-    app.add_url_rule(
-        "/api/olympiads/<olympiad_id>/exam-submit",
-        endpoint="oe_force_exam_submit",
-        view_func=olympiad_exam_submit,
-        methods=["POST"],
-    )
-    app.add_url_rule(
-        "/api/olympiads/<olympiad_id>/submit",
-        endpoint="oe_force_submit",
-        view_func=olympiad_submit,
-        methods=["POST"],
-    )
-    try:
-        app.view_functions["submit_olympiad"] = olympiad_submit
-    except Exception:
-        pass
+    _bind_start_handlers(app, olympiad_start, olympiad_autosave, olympiad_exam_submit, olympiad_submit)
 
     print("[boot] force_olympiad_routes: POST start/exam-submit/submit/autosave bound")
     log.info("force olympiad routes installed")
 
 
-def _drop_olympiad_post_rules(app):
-    rules_to_drop = []
+def _bind_start_handlers(app, start_fn, autosave_fn, exam_submit_fn, submit_fn):
+    """Override existing endpoints in place — never orphan a Rule without a view."""
     for rule in list(app.url_map.iter_rules()):
-        rule_s = str(rule)
-        if "/olympiads/" in rule_s and (
-            rule_s.rstrip("/").endswith("/start")
-            or rule_s.rstrip("/").endswith("/exam-submit")
-            or rule_s.rstrip("/").endswith("/autosave")
-            or rule_s.rstrip("/").endswith("/submit")
-        ):
-            rules_to_drop.append(rule)
-    for rule in rules_to_drop:
-        try:
-            app.url_map._rules.remove(rule)
-            if rule.endpoint in getattr(app.url_map, "_rules_by_endpoint", {}):
-                app.url_map._rules_by_endpoint[rule.endpoint] = [
-                    r for r in app.url_map._rules_by_endpoint[rule.endpoint] if r is not rule
-                ]
-            app.view_functions.pop(rule.endpoint, None)
-        except Exception as e:
-            log.warning("drop rule %s: %s", rule, e)
+        rule_s = str(rule).rstrip("/")
+        if "/olympiads/" not in rule_s:
+            continue
+        if rule_s.endswith("/start"):
+            app.view_functions[rule.endpoint] = start_fn
+            log.info("override endpoint %s -> start", rule.endpoint)
+        elif rule_s.endswith("/autosave"):
+            app.view_functions[rule.endpoint] = autosave_fn
+        elif rule_s.endswith("/exam-submit"):
+            app.view_functions[rule.endpoint] = exam_submit_fn
+        elif rule_s.endswith("/submit"):
+            app.view_functions[rule.endpoint] = submit_fn
+
+    for name, fn in (
+        ("olympiad_start", start_fn),
+        ("oe_force_start", start_fn),
+        ("start_olympiad", start_fn),
+        ("olympiad_autosave", autosave_fn),
+        ("oe_force_autosave", autosave_fn),
+        ("olympiad_exam_submit", exam_submit_fn),
+        ("oe_force_exam_submit", exam_submit_fn),
+        ("olympiad_submit", submit_fn),
+        ("oe_force_submit", submit_fn),
+        ("submit_olympiad", submit_fn),
+    ):
+        app.view_functions[name] = fn
+
+    existing = {str(r).rstrip("/") for r in app.url_map.iter_rules()}
+    pairs = [
+        ("/api/olympiads/<olympiad_id>/start", "oe_force_start", start_fn),
+        ("/api/olympiads/<olympiad_id>/autosave", "oe_force_autosave", autosave_fn),
+        ("/api/olympiads/<olympiad_id>/exam-submit", "oe_force_exam_submit", exam_submit_fn),
+        ("/api/olympiads/<olympiad_id>/submit", "oe_force_submit", submit_fn),
+    ]
+    for path, endpoint, fn in pairs:
+        if path.rstrip("/") not in existing:
+            try:
+                app.add_url_rule(path, endpoint=endpoint, view_func=fn, methods=["POST"])
+            except Exception as e:
+                log.warning("add_url_rule %s: %s", path, e)
+                app.view_functions[endpoint] = fn

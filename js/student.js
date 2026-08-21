@@ -13,8 +13,8 @@
   function $(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>')
+      .replace(/"/g, '"');
   }
   function show(el, on) {
     if (!el) return;
@@ -99,21 +99,17 @@
     autosaveId = setInterval(function () { autosave(true); }, 15000);
   }
 
-  async function loadList() {
-    const sid = student && (student.id || student.studentId || student.code);
-    const data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid));
-    const list = data.olympiads || data.items || [];
-    const box = $('olympiadList');
+  function renderEventCards(box, list, emptyEl, kindLabel) {
     if (!box) return;
-    if (!list.length) {
+    if (!list || !list.length) {
       box.innerHTML = '';
-      show($('emptyOly'), true);
+      show(emptyEl, true);
       return;
     }
-    show($('emptyOly'), false);
+    show(emptyEl, false);
     box.innerHTML = list.map(function (o) {
       const id = o.id;
-      const title = esc(o.title || o.name || 'Олимпиада');
+      const title = esc(o.title || o.name || kindLabel);
       const nq = o.questionCount || (o.questions && o.questions.length) || '?';
       const dur = o.durationMin != null ? o.durationMin : o.duration;
       const durTxt = (dur === 0 || dur === '0') ? 'Бе вақт' : (dur ? (dur + ' дақ') : '');
@@ -129,6 +125,25 @@
         startExam(btn.getAttribute('data-start'));
       });
     });
+  }
+
+  async function loadList() {
+    const sid = student && (student.id || student.studentId || student.code);
+    const data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid));
+    const oly = data.olympiads || data.items || [];
+    let quizzes = data.quizzes || [];
+    if (!quizzes.length) {
+      quizzes = oly.filter(function (o) {
+        const t = String(o.type || '').toLowerCase();
+        return t === 'quiz' || t === 'викторина';
+      });
+    }
+    const pureOly = oly.filter(function (o) {
+      const t = String(o.type || '').toLowerCase();
+      return t !== 'quiz' && t !== 'викторина';
+    });
+    renderEventCards($('olympiadList'), pureOly, $('emptyOly'), 'Олимпиада');
+    renderEventCards($('quizList'), quizzes, $('emptyQuiz'), 'Викторина');
   }
 
   async function startExam(olympiadId) {
@@ -344,7 +359,7 @@
         if ($('resultStatus')) $('resultStatus').textContent = 'Интизор';
       } else {
         const score = data.score != null ? data.score : (data.result && data.result.score);
-        const correct = data.correct != null ? data.correct : (data.result && data.result.correct);
+        const correct = data.correct != null ? data.correct : (data.result && data.result.total);
         const total = data.total != null ? data.total : (data.result && data.result.total);
         if ($('resultScore')) $('resultScore').textContent = (score != null ? score : '—') + '%';
         if ($('resultDetail')) {

@@ -10,11 +10,12 @@ def install(app=None):
 
         def _show_results_flag(oly):
             if not oly or not isinstance(oly, dict):
-                return True
+                return False
             if "showResultsToStudents" in oly:
                 return bool(oly.get("showResultsToStudents"))
             if "show_results_to_students" in oly:
                 return bool(oly.get("show_results_to_students"))
+            # try enrich from PG
             try:
                 oid = oly.get("id")
                 if oid:
@@ -32,7 +33,7 @@ def install(app=None):
                         return bool(row.get("show_results_to_students"))
             except Exception as e:
                 log.warning("show flag lookup: %s", e)
-            return True
+            return False
 
         def submit_exam(*args, **kwargs):
             out = _submit(*args, **kwargs)
@@ -47,7 +48,7 @@ def install(app=None):
                         "Шумо бо муваффақият супоридед. "
                         "Лутфан интизор шавед, то баллҳоятон муайян шаванд."
                     )
-                    return {
+                    hidden = {
                         "ok": True,
                         "pendingReview": True,
                         "hideScore": True,
@@ -64,6 +65,7 @@ def install(app=None):
                             "olympiadId": oly_id,
                         },
                     }
+                    return hidden
             except Exception as e:
                 log.warning("showResults filter: %s", e)
             return out

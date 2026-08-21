@@ -128,12 +128,15 @@ def install(app=None):
         eng = None
 
     if eng is not None:
-        _orig_resolve = eng._resolve_selection
+        _orig_resolve = getattr(eng, "_resolve_selection", None)
 
         def _resolve_selection(q, selected):
             qtype = str((q or {}).get("type") or "single")
-            if qtype == "single":
-                return _orig_resolve(q, selected)
+            if qtype == "single" and callable(_orig_resolve):
+                try:
+                    return _orig_resolve(q, selected)
+                except TypeError:
+                    pass
             earned, _ = score_question(q or {}, selected)
             return selected, earned > 0
 
@@ -149,11 +152,12 @@ def install(app=None):
                 if qid is None:
                     qid = str(orig_i)
                 qtype = str(q.get("type") or "single")
+                sanitize = getattr(eng, "_sanitize_options", lambda x: list(x or []))
                 item = {
                     "id": str(qid),
                     "type": qtype,
                     "text": q.get("text"),
-                    "options": eng._sanitize_options(q.get("options")),
+                    "options": sanitize(q.get("options")),
                     "originalIndex": orig_i,
                 }
                 if qtype == "matching":
@@ -161,120 +165,15 @@ def install(app=None):
                     item["rightItems"] = list(q.get("rightItems") or [])
                 if qtype in ("short", "text"):
                     item["inputType"] = "text"
-                for bad in eng._FORBIDDEN_Q_KEYS:
+                forbidden = getattr(eng, "_FORBIDDEN", getattr(eng, "_FORBIDDEN_Q_KEYS", set()))
+                for bad in forbidden:
                     item.pop(bad, None)
                 out.append(item)
             return out
 
-        def submit_exam(session_id: str, session_token=None, answers=None, fingerprint=None, **kwargs):
-            if isinstance(session_token, dict) and answers is None:
-                answers = session_token
-                session_token = kwargs.get("sessionToken") or kwargs.get("session_token")
-            if session_token is None:
-                session_token = kwargs.get("sessionToken") or kwargs.get("session_token")
-            session = eng._load_session(session_id)
-            if not session:
-                raise ValueError("session_not_found")
-            if session.get("status") in ("passed", "failed", "timeout", "submitted", "finished"):
-                raise ValueError("already_submitted")
-            tok = session.get("sessionToken") or session.get("session_token")
-            if session_token and tok and str(session_token).strip() and str(tok).strip() and str(session_token) != str(tok):
-                raise ValueError("invalid token")
-            oly = eng.find_olympiad(session.get("olympiadId"))
-            qs_src = (oly or {}).get("questions") or []
-            answers = answers or {}
-            if not isinstance(answers, dict):
-                answers = {}
-            earned_sum = 0.0
-            max_sum = 0.0
-            timed_out = False
-            rem = eng._remaining_sec(session.get("expiresAt"))
-            if rem is not None and rem <= 0:
-                timed_out = True
-            for i, q in enumerate(qs_src):
-                qid = str(q.get("id") if q.get("id") is not None else i)
-                sel = answers.get(qid)
-                if sel is None:
-                    sel = answers.get(str(i))
-                e, m = score_question(q, sel)
-                earned_sum += e
-                max_sum += m
-            total = len(qs_src) or 1
-            score = int(round((earned_sum / max_sum) * 100)) if max_sum else 0
-            pass_score = int((oly or {}).get("passScore") or 70)
-            status = "timeout" if timed_out else ("passed" if score >= pass_score else "failed")
-            session["status"] = status
-            session["score"] = score
-            session["correct"] = int(round(earned_sum))
-            session["total"] = total
-            session["finishedAt"] = eng._utc_now()
-            try:
-                sessions = eng._load_sessions()
-                if session_id in sessions:
-                    sessions[session_id].update(session)
-                    eng._save_sessions(sessions)
-            except Exception:
-                pass
-            try:
-                from db.connection import is_postgres_enabled, get_session
-                from sqlalchemy import text
-
-                if is_postgres_enabled():
-                    with get_session() as s:
-                        st = status if status in ("passed", "failed", "timeout", "submitted") else "failed"
-                        try:
-                            s.execute(
-                                text(
-                                    "UPDATE attempts SET status = CAST(:st AS attempt_status), "
-                                    "score = :score, correct = :c, total = :t, pass_score = :ps, "
-                                    "finished_at = NOW() WHERE id::text = :id"
-                                ),
-                                {"st": st, "score": score, "c": int(round(earned_sum)), "t": total, "ps": pass_score, "id": session_id},
-                            )
-                        except Exception:
-                            s.execute(
-                                text(
-                                    "UPDATE attempts SET status = :st, score = :score, correct = :c, "
-                                    "total = :t, pass_score = :ps, finished_at = NOW() WHERE id::text = :id"
-                                ),
-                                {
-                                    "st": "passed" if status == "passed" else "failed",
-                                    "score": score,
-                                    "c": int(round(earned_sum)),
-                                    "t": total,
-                                    "ps": pass_score,
-                                    "id": session_id,
-                                },
-                            )
-            except Exception as e:
-                log.error("submit persist: %s", e)
-
-            show = True if oly is None else bool(oly.get("showResultsToStudents", True))
-            if not show:
-                return {
-                    "attemptId": session_id,
-                    "olympiadId": session.get("olympiadId"),
-                    "studentId": session.get("studentId"),
-                    "submitted": True,
-                    "pendingReview": True,
-                    "message": PENDING_MSG,
-                    "status": "submitted",
-                }
-            return {
-                "attemptId": session_id,
-                "olympiadId": session.get("olympiadId"),
-                "studentId": session.get("studentId"),
-                "score": score,
-                "correct": int(round(earned_sum)),
-                "total": total,
-                "passScore": pass_score,
-                "status": status,
-            }
-
         eng._resolve_selection = _resolve_selection
         eng._public_questions = _public_questions
-        eng.submit_exam = submit_exam
-        log.info("olympiad_engine multi-type + hide-results patched")
+        log.info("olympiad_engine multi-type resolve patched")
 
     if app is None:
         return
@@ -331,7 +230,7 @@ def install(app=None):
 
         show_results = payload.get("showResultsToStudents")
         if show_results is None:
-            show_results = True
+            show_results = False
 
         olympiad = repo.create_olympiad(
             {
@@ -348,7 +247,7 @@ def install(app=None):
         )
         po = public_olympiad(olympiad, include_answers=True) if public_olympiad else olympiad
         if isinstance(po, dict):
-            po["showResultsToStudents"] = bool(olympiad.get("showResultsToStudents", True))
+            po["showResultsToStudents"] = bool(olympiad.get("showResultsToStudents", False))
         return jsonify({"olympiad": po})
 
     app.view_functions["admin_create_olympiad"] = admin_create_olympiad
@@ -378,7 +277,7 @@ def install(app=None):
                 return jsonify({"error": "Навсозӣ нашуд"}), 400
             po = public_olympiad(o, include_answers=True) if public_olympiad else o
             if isinstance(po, dict):
-                po["showResultsToStudents"] = bool(o.get("showResultsToStudents", True))
+                po["showResultsToStudents"] = bool(o.get("showResultsToStudents", False))
             return jsonify({"olympiad": po})
 
         app.view_functions["admin_patch_olympiad"] = admin_patch_wrap
@@ -390,7 +289,7 @@ def install(app=None):
         def public_olympiad(o, include_answers=False):
             base = _po(o, include_answers=include_answers) if _po else dict(o)
             if isinstance(base, dict):
-                base["showResultsToStudents"] = bool(o.get("showResultsToStudents", True))
+                base["showResultsToStudents"] = bool(o.get("showResultsToStudents", False))
                 if include_answers and base.get("questions"):
                     src = {str(q.get("id")): q for q in (o.get("questions") or [])}
                     rich = []

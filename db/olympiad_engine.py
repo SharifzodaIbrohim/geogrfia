@@ -1,11 +1,9 @@
-"""Olympiad engine - multi-part zlib+b64 loader."""
+"""Olympiad engine — plain multi-part source loader (no zlib)."""
 from __future__ import annotations
-import zlib, base64
 from pathlib import Path
 _dir = Path(__file__).resolve().parent
-_parts = sorted(_dir.glob("olympiad_engine_p*.txt"))
+_parts = sorted(_dir.glob("olympiad_engine_src_*.py"))
 if not _parts:
-    raise RuntimeError("olympiad_engine_p*.txt missing")
-_b64 = "".join(p.read_text(encoding="utf-8").strip() for p in _parts)
-_src = zlib.decompress(base64.b64decode(_b64)).decode("utf-8")
+    raise RuntimeError("olympiad_engine_src_*.py missing")
+_src = "".join(p.read_text(encoding="utf-8") for p in _parts)
 exec(compile(_src, "db/olympiad_engine.py", "exec"), globals())

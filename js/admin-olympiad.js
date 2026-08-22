@@ -376,6 +376,13 @@
         endTime: (document.getElementById("olyEnd") || {}).value || null,
         isActive: !!(document.getElementById("olyActive") || {}).checked,
         showResultsToStudents: showRes,
+        durationMin: (function () {
+          var el = document.getElementById("olyDurationMin");
+          if (!el || el.value === "") return 60;
+          var n = Number(el.value);
+          if (isNaN(n) || n < 0) return 60;
+          return Math.floor(n);
+        })(),
         questions: questions,
       };
       var data = await api("/api/admin/olympiads", { method: "POST", body: JSON.stringify(payload) });

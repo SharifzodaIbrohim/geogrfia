@@ -6,8 +6,9 @@
   <title>Admin — Geografia</title>
   <link rel="stylesheet" href="css/admin.css" />
 <style id="student-reg-style">
-.student-reg-form.grid-form{grid-template-columns:1fr 1fr;gap:.75rem 1rem}
+.student-reg-form.grid-form{grid-template-columns:1fr 1fr;gap:.65rem .9rem}
 .student-reg-form .full-row{grid-column:1/-1}
+.student-reg-form input,.student-reg-form select{padding:9px 12px;font-size:14px;border-radius:10px}
 @media(max-width:700px){.student-reg-form.grid-form{grid-template-columns:1fr}}
 </style>
 </head>
@@ -45,7 +46,7 @@
       <button type="button" class="tab" data-tab="audit">Audit</button>
     </nav>
 
-    <main>
+    <main class="panel">
       <section id="tab-monitor" class="tab-panel">
         <h2>Монитори зинда</h2>
         <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>ID</th><th>Олимпиада</th><th>Ҷавоб</th><th>Оғоз</th><th>Анҷом</th></tr></thead><tbody id="liveSessionsBody"></tbody></table></div>

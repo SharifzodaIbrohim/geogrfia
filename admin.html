@@ -140,6 +140,7 @@
             <div><label>Унвон</label><input id="olyTitle" required /></div>
             <div><label>Навъ</label><select id="olyType"><option value="olympiad">Олимпиада</option><option value="quiz">Викторина</option></select></div>
             <div><label>Ҳадди гузаштан (%)</label><input id="olyPass" type="number" min="1" max="100" value="70" /></div>
+            <div><label>Вақт (дақиқа)</label><input id="olyDurationMin" type="number" min="0" max="600" value="60" title="0 = бе маҳдудият" /><span class="muted" style="font-size:.85rem">0 = бе вақт · масалан 30, 60, 90</span></div>
             <div><label>Оғоз</label><input id="olyStart" type="datetime-local" /></div>
             <div><label>Анҷом</label><input id="olyEnd" type="datetime-local" /></div>
             <div style="display:flex;align-items:flex-end"><label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" id="olyActive" checked /> Фавран фаъол</label></div>
@@ -165,7 +166,7 @@
           </div>
           <p id="olyFormMsg" class="msg hidden"></p>
         </form>
-        <div class="table-wrap" style="margin-top:1rem"><table><thead><tr><th>Унвон</th><th>Навъ</th><th>Ҳад</th><th>Ҳолат</th><th></th></tr></thead><tbody id="olympiadsBody"></tbody></table></div>
+        <div class="table-wrap" style="margin-top:1rem"><table><thead><tr><th>Унвон</th><th>Навъ</th><th>Ҳад</th><th>Вақт</th><th>Ҳолат</th><th></th></tr></thead><tbody id="olympiadsBody"></tbody></table></div>
       </section>
 
       <section id="tab-results" class="tab-panel hidden">

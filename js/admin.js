@@ -197,14 +197,20 @@
       if (!body) return;
       const list = data.olympiads || [];
       body.innerHTML = list.length
-        ? list.map((o) => `<tr>
+        ? list.map((o) => {
+            const dm = o.durationMin != null ? o.durationMin
+              : (o.durationSec != null ? (o.durationSec === 0 ? 0 : Math.round(o.durationSec / 60)) : null);
+            const durTxt = dm === 0 ? 'Бе вақт' : (dm != null ? (dm + ' дақ') : '—');
+            return `<tr>
           <td>${esc(o.title)}</td><td>${esc(o.type || 'olympiad')}</td><td>${o.passScore ?? 70}%</td>
+          <td>${esc(durTxt)}</td>
           <td>${o.isActive ? 'Фаъол' : 'Хомӯш'}</td>
           <td>
             <button type="button" class="btn small" data-toggle-oly="${esc(o.id)}">${o.isActive ? 'Хомӯш' : 'Фаъол'}</button>
             <button type="button" class="btn small danger" data-del-oly="${esc(o.id)}">Нест</button>
-          </td></tr>`).join('')
-        : '<tr><td colspan="5" class="muted">Холӣ</td></tr>';
+          </td></tr>`;
+          }).join('')
+        : '<tr><td colspan="6" class="muted">Холӣ</td></tr>';
       body.querySelectorAll('[data-toggle-oly]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           try {

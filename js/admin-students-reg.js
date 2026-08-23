@@ -1,7 +1,7 @@
-/* admin-students-reg loader */
+/* admin-students-reg — 1-page Даватнома + black IG QR */
 (function () {
-  var files = ["js/_asr_b64_00.txt", "js/_asr_b64_01.txt", "js/_asr_b64_02.txt"];
-  Promise.all(files.map(function (f) {
+  var FILES = ["/js/_asr_b64_00.txt", "/js/_asr_b64_01.txt", "/js/_asr_b64_02.txt"];
+  Promise.all(FILES.map(function (f) {
     return fetch(f, { credentials: "same-origin" }).then(function (r) {
       if (!r.ok) throw new Error(f + " " + r.status);
       return r.text();

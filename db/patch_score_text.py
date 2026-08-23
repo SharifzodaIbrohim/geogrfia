@@ -1,5 +1,5 @@
 """Boot patch: rebuild scoreMap on submit when session file lost (Render ephemeral).
-Also grade by option text + optionMap; persist scoreMap to attempts if possible.
+Also grade by option text + optionMap; align answer keys 1/2 vs UUID.
 """
 from __future__ import annotations
 import logging
@@ -18,7 +18,6 @@ def install(app=None):
         return " ".join(str(v or "").strip().split()).lower()
 
     def _rebuild_score_map(session):
-        """Deterministic rebuild of scoreMap from olympiad + student seed."""
         try:
             from db.repo import find_olympiad
             oid = session.get("olympiadId")
@@ -141,6 +140,30 @@ def install(app=None):
 
         pub_qs = session.get("questions") or []
         pub_by_id = {str(q.get("id")): q for q in pub_qs if isinstance(q, dict)}
+
+        smap_keys = list(score_map.keys())
+        if answers and smap_keys and not any(str(k) in answers for k in smap_keys):
+            aligned = {}
+            if pub_qs and len(pub_qs) == len(smap_keys):
+                for q in pub_qs:
+                    pqid = str(q.get("id"))
+                    if pqid in answers and pqid in score_map:
+                        aligned[pqid] = answers[pqid]
+            if not aligned:
+                ordered = sorted(
+                    smap_keys,
+                    key=lambda k: (score_map[k] or {}).get("originalIndex", 999),
+                )
+                ans_keys = sorted(
+                    answers.keys(),
+                    key=lambda x: (not str(x).isdigit(), int(x) if str(x).isdigit() else str(x)),
+                )
+                for i, sk in enumerate(ordered):
+                    if i < len(ans_keys):
+                        aligned[str(sk)] = answers[ans_keys[i]]
+            if aligned:
+                answers = aligned
+                log.info("aligned answer keys for session %s", session_id)
 
         correct = 0
         total = len(score_map)

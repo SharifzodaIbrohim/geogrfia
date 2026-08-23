@@ -1,4 +1,4 @@
-/** Admin fixes: LB save, clear recent, filter Gmail from ID results */
+/** Admin fixes: LB save, clear recent (real delete), filter Gmail from ID results */
 (() => {
   function tok() {
     return localStorage.getItem('geo_admin_token') || '';
@@ -6,7 +6,7 @@
   async function api(path, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
     if (tok()) headers['X-Admin-Token'] = tok();
-    const res = await fetch(path, { ...opts, headers });
+    const res = await fetch(path, { ...opts, headers, credentials: 'include' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Хато');
     return data;
@@ -22,7 +22,29 @@
     return n;
   }
 
+  async function doClearRecent() {
+    if (!confirm('Натиҷаҳои охирин (то 30) аз база пок шаванд? Ин бебозгашт аст.')) return;
+    try {
+      try {
+        await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' });
+      } catch (_) {
+        await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' });
+      }
+      const body = document.getElementById('recentResultsBody');
+      if (body) body.innerHTML = '<tr><td colspan="6">Пок шуд</td></tr>';
+      if (typeof window.loadMonitor === 'function') {
+        window.loadMonitor();
+      } else {
+        const refresh = document.getElementById('refreshLiveBtn');
+        if (refresh) refresh.click();
+      }
+    } catch (e) {
+      alert(e.message || 'Пок карда нашуд');
+    }
+  }
+
   function wire() {
+    // Нигоҳ доштан Leaderboard public
     const saveLb = document.getElementById('saveLbVisBtn');
     if (saveLb && !saveLb._fixed) {
       saveLb._fixed = true;
@@ -56,14 +78,25 @@
             document.getElementById('leaderboardPublicChk').checked = !!data.leaderboardPublic;
           }
           body.innerHTML = rows.length
-            ? rows.map((r, i) => '<tr><td>' + (r.rank || i + 1) + '</td><td>' + displayName(r) + '</td><td>' + (r.studentClass || '') + '</td><td>' + (r.studentSchool || '') + '</td><td><b>' + (r.score ?? '—') + '%</b></td><td>' + (r.status || '') + '</td></tr>').join('')
+            ? rows.map((r, i) => `<tr><td>${r.rank || i + 1}</td><td>${displayName(r)}</td><td>${r.studentClass || ''}</td><td>${r.studentSchool || ''}</td><td><b>${r.score ?? '—'}%</b></td><td>${r.status || ''}</td></tr>`).join('')
             : '<tr><td colspan="6">Холӣ</td></tr>';
         } catch (e) {
-          body.innerHTML = '<tr><td colspan="6">' + e.message + '</td></tr>';
+          body.innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
         }
       });
     }
 
+    // Пок кардан recent — real delete (top 30 finished)
+    ['clearRecentResultsBtn', 'clearRecentBtn', 'btnClearRecent'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && !el._fixed) {
+        el._fixed = true;
+        el.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          doClearRecent();
+        });
+      }
+    });
     let clearBtn = document.getElementById('clearRecentResultsBtn');
     if (!clearBtn) {
       const h3s = [...document.querySelectorAll('h3')].filter((h) => h.textContent.includes('Натиҷаҳои охирин'));
@@ -75,18 +108,15 @@
         clearBtn.textContent = 'Пок кардан';
         clearBtn.style.marginLeft = '0.5rem';
         h3s[0].appendChild(clearBtn);
+        clearBtn._fixed = true;
+        clearBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          doClearRecent();
+        });
       }
     }
-    if (clearBtn && !clearBtn._fixed) {
-      clearBtn._fixed = true;
-      clearBtn.addEventListener('click', async () => {
-        if (!confirm('Рӯйхати натиҷаҳои охиринро пок кунем?')) return;
-        try { await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' }); } catch (_) {}
-        const body = document.getElementById('recentResultsBody');
-        if (body) body.innerHTML = '<tr><td colspan="6">Пок шуд</td></tr>';
-      });
-    }
 
+    // Clear all results button
     let clearAll = document.getElementById('clearAllResultsBtn');
     if (!clearAll) {
       const save = document.getElementById('saveLbVisBtn');
@@ -116,6 +146,7 @@
       });
     }
 
+    // Filter Gmail names from recent results table (MutationObserver)
     const recent = document.getElementById('recentResultsBody');
     if (recent && !recent._obs) {
       recent._obs = new MutationObserver(() => {
@@ -127,6 +158,7 @@
       recent._obs.observe(recent, { childList: true, subtree: true });
     }
 
+    // Note under results
     const resultsTab = document.getElementById('tab-results');
     if (resultsTab && !document.getElementById('resultsGmailNote')) {
       const note = document.createElement('p');

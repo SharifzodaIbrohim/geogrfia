@@ -69,7 +69,6 @@ _EXTRA_PUBLIC = {
     "js/admin.js", "js/admin-session.js", "js/admin-fixes.js", "js/admin-gmail.js",
     "js/admin-content.js", "js/admin-leaderboard.js", "js/admin-olympiad.js",
     "js/admin-students-reg.js", "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js", "js/admin-audit.js", "js/student.js",
-    "js/_asr_b64_00.txt", "js/_asr_b64_01.txt", "js/_asr_b64_02.txt", "js/_asr_b64_03.txt",
 }
 
 try:

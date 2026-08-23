@@ -1,5 +1,5 @@
-"""Boot patch: rebuild scoreMap on submit when session file lost (Render ephemeral).
-Also grade by option text + optionMap; align answer keys 1/2 vs UUID.
+"""Boot patch: grade olympiad by option TEXT against source answers.
+Works even when scoreMap/session file is lost on Render.
 """
 from __future__ import annotations
 import logging
@@ -11,15 +11,14 @@ def install(app=None):
     try:
         from db import olympiad_engine as oe
     except Exception as e:
-        log.warning("patch_score_text: %s", e)
+        log.warning("patch_score_text import: %s", e)
         return
 
     def _nt(v):
         return " ".join(str(v or "").strip().split()).lower()
 
     def _student_code_from_session(session):
-        """Prefer long numeric student code (seed); resolve UUID via students table."""
-        code = str(session.get("studentId") or session.get("student_code") or "").strip()
+        code = str((session or {}).get("studentId") or (session or {}).get("student_code") or "").strip()
         if code.isdigit() and len(code) >= 10:
             return code
         try:
@@ -39,99 +38,127 @@ def install(app=None):
             log.warning("resolve student_code: %s", e)
         return code
 
-    def _rebuild_score_map(session):
-        try:
-            from db.repo import find_olympiad
-            oid = session.get("olympiadId")
-            code = _student_code_from_session(session or {})
-            oly = find_olympiad(oid) if oid else None
-            qs = (oly or {}).get("questions") or []
-            if not qs:
-                return {}, []
-            public, smap = oe._build_pack(qs, code, oid)
-            return smap or {}, public or []
-        except Exception as e:
-            log.warning("rebuild scoreMap: %s", e)
-            return {}, []
-
-    def _ensure_score_map(session, session_id):
-        score_map = (session or {}).get("scoreMap") or {}
-        if score_map:
-            return session, score_map
-        try:
-            stored = oe._load_sessions().get(str(session_id)) or {}
-            if stored.get("scoreMap"):
-                session = dict(session or {})
-                session["scoreMap"] = stored["scoreMap"]
-                if stored.get("questions") and not session.get("questions"):
-                    session["questions"] = stored["questions"]
-                return session, session["scoreMap"]
-        except Exception:
-            pass
-        smap, public = _rebuild_score_map(session or {})
-        if smap:
-            session = dict(session or {})
-            session["scoreMap"] = smap
-            if public and not session.get("questions"):
-                session["questions"] = public
+    def _src_correct_text(q):
+        if not isinstance(q, dict):
+            return None
+        opts = q.get("options") or []
+        opts = [str(o.get("text") if isinstance(o, dict) else o) for o in opts]
+        for k in ("correctIndex", "correct_index", "answerIndex", "answer"):
+            v = q.get(k)
+            if v is None:
+                continue
             try:
-                sessions = oe._load_sessions()
-                if str(session_id) in sessions:
-                    sessions[str(session_id)]["scoreMap"] = smap
-                    if public:
-                        sessions[str(session_id)]["questions"] = public
-                    oe._save_sessions(sessions)
+                i = int(v)
+                if 0 <= i < len(opts):
+                    return opts[i]
             except Exception:
-                pass
-        return session, smap
+                s = str(v).strip()
+                if s and not s.isdigit():
+                    return s
+        for k in ("correctText", "answerText", "correct"):
+            if q.get(k) is not None and str(q.get(k)).strip() != "":
+                return str(q.get(k))
+        return None
 
-    def _grade_one(qid, a, meta, pub_by_id):
-        if not meta:
-            return False
-        qt = str(meta.get("type") or "single").lower()
-        cidx = meta.get("correctIndex")
-        ctext = meta.get("correctText")
-        omap = meta.get("optionMap") or []
-        if isinstance(a, dict):
-            ci, ct = a.get("i", a.get("index")), a.get("t", a.get("text"))
-        else:
-            ci, ct = a, None
-        if qt in ("short", "text", "number", "numeric", "open", "essay", "written"):
-            return _nt(ct if ct is not None else ci) == _nt(meta.get("answer") or ctext)
-        if qt in ("matching", "match"):
-            expected = meta.get("pairs") or meta.get("answer") or {}
-            if not isinstance(expected, dict) or not expected:
-                return False
-            sel = a if isinstance(a, dict) else {}
-            sel = {str(k): v for k, v in sel.items() if str(k) not in ("i", "t", "index", "text")}
-            ok_n = 0
-            for k, v in expected.items():
+    def _grade_answers(session, answers, oly):
+        qs_src = (oly or {}).get("questions") or []
+        if not qs_src:
+            return 0, 0
+
+        answers = answers or {}
+        if not isinstance(answers, dict):
+            answers = {}
+        answers = {str(k): v for k, v in answers.items()}
+
+        pub_qs = list(session.get("questions") or [])
+        if not pub_qs:
+            try:
+                code = _student_code_from_session(session)
+                oid = session.get("olympiadId")
+                pub_qs, _smap = oe._build_pack(qs_src, code, oid)
+            except Exception as e:
+                log.warning("rebuild public qs: %s", e)
+                pub_qs = []
+
+        src_by_text = {}
+        src_by_id = {}
+        for q in qs_src:
+            if not isinstance(q, dict):
+                continue
+            src_by_id[str(q.get("id"))] = q
+            t = _nt(q.get("text"))
+            if t:
+                src_by_text[t] = q
+
+        correct = 0
+        total = len(qs_src)
+        graded_src_ids = set()
+
+        for pq in pub_qs:
+            if not isinstance(pq, dict):
+                continue
+            pqid = str(pq.get("id"))
+            a = answers.get(pqid)
+            if a is None:
+                continue
+            opts = pq.get("options") or []
+            sel_text = None
+            if isinstance(a, dict):
+                sel_text = a.get("t") or a.get("text")
                 try:
-                    if int(sel.get(str(k), sel.get(k, -999))) == int(v):
-                        ok_n += 1
+                    ci = int(a.get("i", a.get("index")))
+                    if sel_text is None and 0 <= ci < len(opts):
+                        sel_text = opts[ci]
+                except Exception:
+                    pass
+            else:
+                try:
+                    ci = int(a)
+                    if 0 <= ci < len(opts):
+                        sel_text = opts[ci]
+                except Exception:
+                    sel_text = str(a) if a is not None else None
+            if sel_text is None:
+                continue
+
+            src = src_by_id.get(pqid) or src_by_text.get(_nt(pq.get("text")))
+            if not src:
+                continue
+            ctext = _src_correct_text(src)
+            if ctext is None:
+                continue
+            sid = str(src.get("id"))
+            if sid in graded_src_ids:
+                continue
+            if _nt(sel_text) == _nt(ctext):
+                correct += 1
+                graded_src_ids.add(sid)
+
+        if correct == 0 and answers and pub_qs:
+            ans_items = sorted(
+                answers.items(),
+                key=lambda kv: (not str(kv[0]).isdigit(), int(kv[0]) if str(kv[0]).isdigit() else str(kv[0])),
+            )
+            for i, pq in enumerate(pub_qs):
+                if i >= len(ans_items):
+                    break
+                a = ans_items[i][1]
+                opts = (pq or {}).get("options") or []
+                try:
+                    ci = int(a) if not isinstance(a, dict) else int(a.get("i", a.get("index")))
                 except Exception:
                     continue
-            return ok_n == len(expected)
-        if ct is not None and ctext is not None and _nt(ct) == _nt(ctext):
-            return True
-        try:
-            ci = int(ci) if ci is not None else None
-        except Exception:
-            ci = None
-        if ci is not None and omap and 0 <= ci < len(omap) and cidx is not None:
-            try:
-                if int(omap[ci]) == int(cidx):
-                    return True
-            except Exception:
-                if omap[ci] == cidx:
-                    return True
-        if ci is not None and cidx is not None and ci == cidx and not omap:
-            return True
-        if ci is not None and pub_by_id.get(str(qid)):
-            opts = pub_by_id[str(qid)].get("options") or []
-            if 0 <= ci < len(opts) and ctext is not None and _nt(opts[ci]) == _nt(ctext):
-                return True
-        return False
+                if not (0 <= ci < len(opts)):
+                    continue
+                sel_text = opts[ci]
+                src = src_by_text.get(_nt((pq or {}).get("text")))
+                if not src:
+                    continue
+                ctext = _src_correct_text(src)
+                if ctext and _nt(sel_text) == _nt(ctext):
+                    correct += 1
+
+        return correct, total
 
     _orig = oe.submit_exam
 
@@ -144,84 +171,34 @@ def install(app=None):
 
         session = oe._load_session(session_id)
         if not session:
+            try:
+                session = oe._load_sessions().get(str(session_id))
+            except Exception:
+                session = None
+        if not session:
             raise ValueError("session_not_found")
-
-        session, score_map = _ensure_score_map(session, session_id)
-
-        if not score_map:
-            log.warning("submit without scoreMap session=%s", session_id)
-            return _orig(session_id, session_token, answers, fingerprint=fingerprint, **kwargs)
 
         if session.get("status") in ("passed", "failed", "timeout", "submitted", "finished"):
             raise ValueError("already_submitted")
+
         tok = session.get("sessionToken") or session.get("session_token")
-        if session_token and tok and str(session_token).strip() and str(tok).strip() and str(session_token) != str(tok):
-            raise ValueError("invalid token")
+        if session_token and tok and str(session_token).strip() and str(tok).strip():
+            if str(session_token) != str(tok):
+                raise ValueError("invalid token")
 
         from db.repo import find_olympiad
         oly = find_olympiad(session.get("olympiadId"))
+
         answers = answers or {}
         if not isinstance(answers, dict):
             answers = {}
-        answers = {str(k): v for k, v in answers.items()}
 
-        pub_qs = session.get("questions") or []
-        # Always ensure public questions match scoreMap (rebuild if empty)
-        if not pub_qs and score_map:
-            _, pub_qs = _rebuild_score_map(session)
-            if pub_qs:
-                session["questions"] = pub_qs
-        pub_by_id = {str(q.get("id")): q for q in pub_qs if isinstance(q, dict)}
+        correct, total = _grade_answers(session, answers, oly)
 
-        smap_keys = list(score_map.keys())
-        if answers and smap_keys and not any(str(k) in answers for k in smap_keys):
-            aligned = {}
-            if pub_qs and len(pub_qs) == len(smap_keys):
-                for q in pub_qs:
-                    pqid = str(q.get("id"))
-                    if pqid in answers and pqid in score_map:
-                        aligned[pqid] = answers[pqid]
-            if not aligned:
-                ordered = sorted(
-                    smap_keys,
-                    key=lambda k: (score_map[k] or {}).get("originalIndex", 999),
-                )
-                ans_keys = sorted(
-                    answers.keys(),
-                    key=lambda x: (not str(x).isdigit(), int(x) if str(x).isdigit() else str(x)),
-                )
-                for i, sk in enumerate(ordered):
-                    if i < len(ans_keys):
-                        aligned[str(sk)] = answers[ans_keys[i]]
-            if aligned:
-                answers = aligned
-                log.info("aligned answer keys for session %s", session_id)
-
-        correct = 0
-        total = len(score_map)
         timed_out = False
         rem = oe._remaining_sec(session.get("expiresAt"))
         if rem is not None and rem <= 0:
             timed_out = True
-
-        for qid, meta in score_map.items():
-            a = answers.get(str(qid))
-            if a is None:
-                a = answers.get(qid)
-            ok = False
-            try:
-                ci = int(a) if a is not None and not isinstance(a, dict) else None
-            except Exception:
-                ci = None
-            ctext = (meta or {}).get("correctText")
-            opts = (pub_by_id.get(str(qid)) or {}).get("options") or []
-            if ci is not None and opts and 0 <= ci < len(opts) and ctext is not None:
-                if _nt(opts[ci]) == _nt(ctext):
-                    ok = True
-            if not ok and _grade_one(qid, a, meta, pub_by_id):
-                ok = True
-            if ok:
-                correct += 1
 
         score = int(round(100.0 * correct / total)) if total else 0
         pass_score = int((oly or {}).get("passScore") or (oly or {}).get("pass_score") or 50)
@@ -273,7 +250,7 @@ def install(app=None):
                     except Exception:
                         pass
         except Exception as e:
-            log.error("patch_score_text persist: %s", e)
+            log.error("persist score: %s", e)
 
         result = {
             "attemptId": session_id,
@@ -288,13 +265,11 @@ def install(app=None):
             "finishedAt": finished,
             "serverNow": oe._utc_now(),
         }
-        show = False
-        if isinstance(oly, dict):
-            show = bool(
-                oly.get("showResultsToStudents")
-                or oly.get("show_results_to_students")
-                or oly.get("olyShowResults")
-            )
+        show = bool(
+            (oly or {}).get("showResultsToStudents")
+            or (oly or {}).get("show_results_to_students")
+            or (oly or {}).get("olyShowResults")
+        )
         result["showResultsToStudents"] = show
         if not show:
             return {
@@ -338,9 +313,8 @@ def install(app=None):
                 log.warning("student_uuid: %s", e)
                 return None
         oe._student_uuid = _student_uuid
-        print("[boot] patch_score_text: _student_uuid uses student_code")
     except Exception as e:
         log.warning("student_uuid patch: %s", e)
 
-    print("[boot] patch_score_text: rebuild scoreMap + text grade installed")
-    log.info("patch_score_text installed")
+    print("[boot] patch_score_text: TEXT-based grading (shuffle-safe) installed")
+    log.info("patch_score_text text-grade installed")

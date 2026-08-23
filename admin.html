@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Geografia</title>
+  <link rel="stylesheet" href="css/admin.css" />
+  <link rel="stylesheet" href="css/platform.css" />
+</head>
+<body class="admin-body">
+  <div id="loginView" class="auth-shell">
+    <div class="auth-card card">
+      <h1>Admin — Geografia</h1>
+      <p class="muted">Воридшавӣ ба панели идоракунӣ</p>
+      <form id="adminLoginForm" onsubmit="return false;">
+        <label>Логин<input id="adminLogin" type="text" autocomplete="username" required /></label>
+        <label>Рамз<input id="adminPassword" type="password" autocomplete="current-password" required /></label>
+        <button type="submit" class="btn primary" id="adminLoginBtn">Даромад</button>
+        <p id="loginMsg" class="msg hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="appView" class="hidden">
+    <header class="admin-header">
+      <div class="brand">Geografia Admin</div>
+      <nav class="tabs" id="adminTabs">
+        <button type="button" class="tab active" data-tab="students">Хонандагон</button>
+        <button type="button" class="tab" data-tab="olympiads">Олимпиадаҳо</button>
+        <button type="button" class="tab" data-tab="results">Натиҷаҳо</button>
+        <button type="button" class="tab" data-tab="leaderboard">Leaderboard</button>
+        <button type="button" class="tab" data-tab="gmail">Gmail</button>
+        <button type="button" class="tab" data-tab="content">Контент</button>
+        <button type="button" class="tab" data-tab="admins">Админҳо</button>
+        <button type="button" class="tab" data-tab="audit">Audit</button>
+      </nav>
+      <button type="button" class="btn" id="adminLogoutBtn">Баромад</button>
+    </header>
+
+    <main class="panel">
+      <section id="tab-students" class="tab-panel active">
+        <h2>Хонандагон — Бақайдгирӣ</h2>
+        <form id="studentForm" class="card grid-form student-reg-form" action="javascript:void(0)" method="post" onsubmit="return false;">
+          <label>Насаб<input id="stLastName" required /></label>
+          <label>Ном<input id="stFirstName" required /></label>
+          <label>Номи падар<input id="stPatronymic" /></label>
+          <label>Ҷинс
+            <select id="stGender">
+              <option value="">—</option>
+              <option value="male">Мард</option>
+              <option value="female">Зан</option>
+            </select>
+          </label>
+          <label>Синф<input id="stClass" /></label>
+          <label>Мактаб<input id="stSchool" /></label>
+          <label>Ноҳия / шаҳр<input id="stRegion" /></label>
+          <label>Телефон<input id="stPhone" /></label>
+          <label>Унвони олимпиада<input id="stOlympiadTitle" placeholder="Мас. Олимпиадаи география 2026" /></label>
+          <label>Санаи оғози олимпиада<input id="stOlympiadStart" type="date" /></label>
+          <label>Суроға<input id="stAddress" class="full-row" /></label>
+          <label>Санаи таваллуд<input id="stBirth" type="date" /></label>
+
+          <div class="full-row card" style="padding:0.75rem;margin-top:0.5rem">
+            <strong>Акс / Камера</strong>
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;margin-top:0.5rem">
+              <div>
+                <select id="cameraSelect" style="width:100%;margin-top:0.25rem;padding:0.4rem"></select>
+                <video id="cameraVideo" autoplay playsinline muted style="width:100%;max-width:280px;margin-top:.5rem;border-radius:8px;background:#000;display:none"></video>
+                <canvas id="cameraCanvas" style="display:none"></canvas>
+                <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+                  <button type="button" id="btnStartCamera" class="btn">Камера</button>
+                  <button type="button" id="btnCapturePhoto" class="btn">Гирифтани акс</button>
+                  <button type="button" id="btnClearPhoto" class="btn">Тоза кардан</button>
+                  <label class="btn" style="cursor:pointer">Файл<input type="file" id="photoFileInput" accept="image/*" style="display:none" /></label>
+                </div>
+                <p id="cameraStatus" class="muted" style="font-size:.85rem"></p>
+              </div>
+              <div>
+                <div id="photoPlaceholder" class="muted">Акс нест</div>
+                <img id="photoImg" alt="photo" style="display:none;max-width:160px;border-radius:8px" />
+                <input type="hidden" id="stPhotoData" />
+              </div>
+            </div>
+          </div>
+
+          <div class="full-row" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:0.75rem">
+            <button type="button" id="btnRegisterStudent" class="btn primary">Бақайдгирӣ + Сохтани ID</button>
+            <button type="button" id="exportStudentsBtn" class="btn">Export CSV</button>
+            <button type="button" id="pickFolderBtn" class="btn">Папкаи маҳаллӣ</button>
+            <span id="folderStatus" class="muted" style="align-self:center"></span>
+          </div>
+          <p id="studentFormMsg" class="msg hidden full-row"></p>
+          <div id="newIdBox" class="full-row hidden card" style="padding:0.75rem;margin-top:0.5rem">
+            <strong>ID-и нав:</strong> <code id="newIdValue"></code>
+            <button type="button" id="copyIdBtn" class="btn">Нусха</button>
+          </div>
+        </form>
+
+        <h3 style="margin-top:1.5rem">Рӯйхати хонандагон</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="studentsTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>Ном</th><th>Ҷинс</th><th>Синф</th><th>Мактаб</th><th>Олимпиада</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="studentsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-olympiads" class="tab-panel">
+        <h2>Олимпиадаҳо / Викторинаҳо</h2>
+        <div id="olympiadBuilderMount"></div>
+        <div id="olympiadsList"></div>
+      </section>
+
+      <section id="tab-results" class="tab-panel">
+        <h2>Натиҷаҳо</h2>
+        <div id="resultsMount"></div>
+      </section>
+
+      <section id="tab-leaderboard" class="tab-panel">
+        <h2>Leaderboard</h2>
+        <div id="leaderboardMount"></div>
+      </section>
+
+      <section id="tab-gmail" class="tab-panel">
+        <h2>Gmail корбарон</h2>
+        <div id="gmailMount"></div>
+      </section>
+
+      <section id="tab-content" class="tab-panel">
+        <h2>Контент / Courses</h2>
+        <div id="contentMount"></div>
+      </section>
+
+      <section id="tab-admins" class="tab-panel">
+        <h2>Админҳо</h2>
+        <div id="adminsMount"></div>
+      </section>
+
+      <section id="tab-audit" class="tab-panel">
+        <h2>Audit</h2>
+        <div id="auditMount"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/admin-session.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/admin-students-reg.js"></script>
+  <script src="js/admin-davotnoma-print.js"></script>
+  <script src="js/admin-audit.js"></script>
+  <script src="js/admin-gmail.js"></script>
+  <script src="js/admin-content.js"></script>
+  <script src="js/admin-leaderboard.js"></script>
+  <script src="js/admin-rbac-ui.js"></script>
+  <script src="js/admin-fixes.js"></script>
+  <script src="js/admin-olympiad.js"></script>
+</body>
+</html>

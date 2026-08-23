@@ -1,0 +1,67 @@
+          if (perm !== "granted") return null;
+        }
+      }
+      _dirMemory = handle;
+      updateFolderStatus(true, handle.name || "папка");
+      return handle;
+    } catch (_) { return null; }
+  }
+  async function pickStudentsFolder() {
+    if (!window.showDirectoryPicker) {
+      alert("Chrome/Edge лозим барои папкаи маҳаллӣ."); return;
+    }
+    try {
+      var handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      _dirMemory = handle;
+      await idbSet(DIR_KEY, handle);
+      updateFolderStatus(true, handle.name || "папка");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      alert("Папка: " + (e.message || e));
+    }
+  }
+  function formatTgDate(v) {
+    if (!v) return "—";
+    var s = String(v).trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return s;
+    var months = ["январ","феврал","март","апрел","май","июн","июл","август","сентябр","октябр","ноябр","декабр"];
+    return parseInt(m[3], 10) + " " + (months[parseInt(m[2], 10) - 1] || m[2]) + "и соли " + m[1];
+  }
+  function buildStudentCardHtml(st) {
+    var id = st.id || "";
+    var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
+    var photo = st.photoData || "";
+    var genderLabel = st.gender === "male" ? "Мард" : (st.gender === "female" ? "Зан" : (st.gender || "—"));
+    var olyTitle = st.olympiadTitle || "—";
+    var olyStart = st.olympiadStart ? formatTgDate(st.olympiadStart) : "—";
+    var birthFmt = st.birthDate ? formatTgDate(st.birthDate) : "—";
+    var webUrl = "https://geografia-19tf.onrender.com";
+    var igUrl = "https://www.instagram.com/geografia.tj/";
+    var webQr = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=10&color=0b3d2e&bgcolor=ffffff&data=" + encodeURIComponent(webUrl);
+    var igQr = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=10&color=000000&bgcolor=ffffff&data=" + encodeURIComponent(igUrl);
+    var photoBlock = photo
+      ? ('<div class="photo-wrap"><img src="' + photo + '" alt="photo"/></div>')
+      : '<div class="photo-wrap placeholder"><span>Бе сурат</span></div>';
+    var rows = [
+      ["ID (барои воридшавӣ)", id],
+      ["Насаб", st.lastName || ""],
+      ["Ном", st.firstName || ""],
+      ["Номи падар", st.patronymic || ""],
+      ["Ҷинс", genderLabel],
+      ["Таваллуд", birthFmt],
+      ["Суроға", st.address || ""],
+      ["Муассиса / Мактаб", st.school || ""],
+      ["Синф", st.className || ""],
+      ["Омӯзгор", st.teacher || ""],
+      ["Унвони олимпиада", olyTitle],
+      ["Санаи оғози олимпиада", olyStart],
+      ["Санаи бақайдгирӣ", st.createdAt || st.registeredAt || new Date().toLocaleString()]
+    ];
+    var table = rows.map(function (r) {
+      return "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1] || "—") + "</td></tr>";
+    }).join("");
+    var subLine = olyTitle !== "—" ? olyTitle : "Иштирокчӣ · Geografia.tj";
+    var chips = "";
+    if (genderLabel !== "—") chips += '<span class="chip">' + esc(genderLabel) + "</span>";
+    if (olyStart !== "—") chips += '<span class="chip">Санаи оғоз: ' + esc(olyStart) + "</span>";

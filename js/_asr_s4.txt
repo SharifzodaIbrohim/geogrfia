@@ -1,0 +1,42 @@
+      "tr:nth-child(even) td{background:#fafdfb}",
+      ".foot{margin-top:8px;padding:18px 28px 22px;border-top:1px dashed var(--line);background:linear-gradient(180deg,#fbfefc,#f2f8f5);position:relative;z-index:1}",
+      ".qr-title{text-align:center;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}",
+      ".qr-row{display:flex;gap:40px;flex-wrap:wrap;justify-content:center}",
+      ".qr{text-align:center;width:172px}",
+      ".qr img{width:150px;height:150px;border-radius:12px;border:2px solid var(--line);background:#fff;padding:8px}",
+      ".qr .lbl{margin-top:9px;font-size:.9rem;font-weight:800;color:var(--g1)}",
+      ".qr .url{font-size:.72rem;color:var(--muted);word-break:break-all}",
+      ".seal{text-align:center;margin-top:16px;font-weight:800;color:var(--g1);letter-spacing:.12em;font-size:1rem}",
+      ".seal span{color:var(--gold);margin:0 8px}",
+      ".note{text-align:center;margin:10px auto 0;color:var(--muted);font-size:.82rem;max-width:540px}",
+      "@media print{body{background:#fff}.toolbar{display:none!important}.page{margin:0;padding:0;max-width:none}.pass{box-shadow:none;border-radius:0}}"
+    ].join("");
+    return [
+      '<!DOCTYPE html><html lang="tg"><head><meta charset="utf-8"/>',
+      '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
+      "<title>Даватнома — ", esc(full), " | Geografia.tj</title><style>", css, "</style></head><body>",
+      '<div class="page"><div class="toolbar"><button type="button" onclick="window.print()">🖨 Чоп / Save as PDF</button></div>',
+      '<article class="pass"><header class="head"><div class="brand">GEOGRAFIA.TJ</div>',
+      '<div class="badge">ДАВАТНОМА · ИҶОЗАТНОМА</div><h1>Даватнома</h1>',
+      '<p class="tagline">Ҳуҷҷати расмии иштирок дар олимпиада / викторина</p></header>',
+      '<div class="gold-line"></div><div class="body"><div class="top">', photoBlock,
+      '<div class="meta"><div class="id-label">ID барои воридшавӣ</div>',
+      '<div class="idbox">', esc(id), '</div>',
+      '<p class="name">', esc(full), '</p>',
+      '<p class="sub">', esc(subLine), '</p>',
+      '<div class="chips">', chips, '</div></div></div>',
+      '<table>', table, '</table></div>',
+      '<footer class="foot"><div class="qr-title">Пайвандҳо · QR-код</div><div class="qr-row">',
+      '<div class="qr"><img src="', igQr, '" alt="IG"/><div class="lbl">📷 Instagram</div>',
+      '<div class="url">instagram.com/geografia.tj</div></div>',
+      '<div class="qr"><img src="', webQr, '" alt="Web"/><div class="lbl">🌐 Веб-саҳифа</div>',
+      '<div class="url">', esc(webUrl), '</div></div></div>',
+      '<p class="seal">GEOGRAFIA.TJ <span>·</span> Платформаи география</p>',
+      '<p class="note">Ин даватнома ҳуҷҷати расмии иштирок аст. ID-ро нигоҳ доред ва барои воридшавӣ ба платформа истифода баред.</p>',
+      '</footer></article></div></body></html>'
+    ].join("");
+  }
+  async function saveStudentLocalCopy(st) {
+    try {
+      var dir = _dirMemory || (await tryRestoreDir());
+      if (!dir) return { ok: false, error: "Папка интихоб нашудааст — тугмаи «Папкаи маҳаллӣ»-ро пахш кунед" };

@@ -1,0 +1,69 @@
+          olympiadTitle: olympiadTitle, olympiadStart: olympiadStart,
+          photoData: photoData, fullName: fullName
+        })
+      });
+      var s = data.student || data;
+      Object.assign(s, {
+        lastName: lastName, firstName: firstName, patronymic: patronymic,
+        birthDate: birthDate, address: address, school: school, className: className,
+        teacher: teacher, gender: gender, olympiadTitle: olympiadTitle,
+        olympiadStart: olympiadStart, photoData: photoData,
+        fullName: s.fullName || fullName,
+        createdAt: s.createdAt || new Date().toLocaleString()
+      });
+      var box = document.getElementById("newIdBox");
+      if (box) box.classList.remove("hidden");
+      var nv = document.getElementById("newIdValue");
+      if (nv) nv.textContent = s.id || "";
+
+      var saved = await saveStudentLocalCopy(s);
+      var extra = "";
+      if (saved && saved.ok) extra = " · файл: " + (saved.fileName || "OK");
+      else if (saved && saved.error) extra = " · папка: " + saved.error;
+
+      try {
+        var htmlUrl = URL.createObjectURL(new Blob([buildStudentCardHtml(s)], { type: "text/html;charset=utf-8" }));
+        window.open(htmlUrl, "_blank");
+        setTimeout(function () { try { URL.revokeObjectURL(htmlUrl); } catch (_) {} }, 60000);
+      } catch (_) {}
+
+      if (msg) {
+        msg.textContent = "ID: " + (s.id || "") + " · Даватнома кушода шуд" + extra;
+        msg.classList.remove("hidden", "error");
+        msg.classList.add("ok");
+      }
+      var formEl = document.getElementById("studentForm");
+      if (formEl) formEl.reset();
+      clearPhoto(); stopCamera();
+      loadStudentsLocal();
+    } catch (err) {
+      if (msg) {
+        msg.textContent = err.message || String(err);
+        msg.classList.remove("hidden");
+        msg.classList.add("error");
+      } else alert(err.message || String(err));
+    } finally { _regLock = false; }
+    return false;
+  }
+  async function loadStudentsLocal() {
+    try {
+      var data = await api("/api/admin/students");
+      var body = document.getElementById("studentsBody");
+      if (!body) return;
+      var list = data.students || [];
+      body.innerHTML = list.length ? list.map(function (s) {
+        var id = s.id || "";
+        var g = s.gender === "male" ? "Мард" : (s.gender === "female" ? "Зан" : (s.gender || "—"));
+        return "<tr><td><code>" + esc(id) + "</code></td><td>" + esc(s.fullName || "") + "</td><td>" + esc(g) +
+          "</td><td>" + esc(s.className || "") + "</td><td>" + esc(s.school || "") +
+          "</td><td>" + esc(s.olympiadTitle || "—") + "</td><td>" + (s.hasPhoto || s.photoData ? "+" : "-") +
+          "</td><td><button type=\"button\" class=\"btn small danger\" data-del-student=\"" + esc(id) + "\">Нест</button></td></tr>";
+      }).join("") : '<tr><td colspan="8">Хонанда нест</td></tr>';
+    } catch (e) {
+      var body = document.getElementById("studentsBody");
+      if (body) body.innerHTML = '<tr><td colspan="8">Хато: ' + esc(e.message || e) + "</td></tr>";
+    }
+  }
+  async function deleteStudent(id) {
+    id = String(id || "").trim();
+    if (!id || !confirm("Нест кунем?\n" + id)) return;

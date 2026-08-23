@@ -1,0 +1,80 @@
+    var video = document.getElementById("cameraVideo");
+    if (!video) return;
+    var constraints = { video: { facingMode: "user" }, audio: false };
+    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
+    try {
+      setCamStatus("Кушода истодааст…");
+      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = _camStream;
+      video.style.display = "block";
+      await video.play().catch(function () {});
+      setCamStatus("Камера фаъол");
+      await listCameras();
+    } catch (e) {
+      setCamStatus("Хато: " + (e.message || e));
+      _camStream = null;
+    }
+  }
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      _camStream = null;
+    }
+    var video = document.getElementById("cameraVideo");
+    if (video) { video.srcObject = null; video.style.display = "none"; }
+    setCamStatus("");
+  }
+  function capturePhoto() {
+    var video = document.getElementById("cameraVideo");
+    var canvas = document.getElementById("cameraCanvas");
+    if (!video || !canvas || !video.srcObject || video.videoWidth < 2) {
+      setCamStatus("Аввал камераро кушоед"); return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    applyPhoto(canvas.toDataURL("image/jpeg", 0.88));
+    setCamStatus("Акс гирифта шуд");
+  }
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DIR_DB, 1);
+      req.onupgradeneeded = function () {
+        if (!req.result.objectStoreNames.contains(DIR_STORE)) req.result.createObjectStore(DIR_STORE);
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  async function idbSet(key, val) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(DIR_STORE, "readwrite");
+      tx.objectStore(DIR_STORE).put(val, key);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+  async function idbGet(key) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(DIR_STORE, "readonly").objectStore(DIR_STORE).get(key);
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function updateFolderStatus(ok, name) {
+    var el = document.getElementById("localFolderStatus");
+    if (!el) return;
+    el.textContent = ok ? ("📁 " + (name || "папка")) : (name || "");
+    el.style.color = ok ? "var(--accent, #70db97)" : "";
+  }
+  async function tryRestoreDir() {
+    try {
+      if (!window.showDirectoryPicker) return null;
+      var handle = await idbGet(DIR_KEY);
+      if (!handle) return null;
+      if (handle.queryPermission) {
+        var perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          perm = await handle.requestPermission({ mode: "readwrite" });

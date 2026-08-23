@@ -17,11 +17,33 @@ def install(app=None):
     def _nt(v):
         return " ".join(str(v or "").strip().split()).lower()
 
+    def _student_code_from_session(session):
+        """Prefer long numeric student code (seed); resolve UUID via students table."""
+        code = str(session.get("studentId") or session.get("student_code") or "").strip()
+        if code.isdigit() and len(code) >= 10:
+            return code
+        try:
+            from sqlalchemy import text
+            if oe.is_postgres_enabled() and code:
+                with oe.get_session() as s:
+                    row = s.execute(
+                        text(
+                            "SELECT student_code FROM students "
+                            "WHERE id::text = :c OR student_code = :c LIMIT 1"
+                        ),
+                        {"c": code},
+                    ).fetchone()
+                    if row and row[0]:
+                        return str(row[0]).strip()
+        except Exception as e:
+            log.warning("resolve student_code: %s", e)
+        return code
+
     def _rebuild_score_map(session):
         try:
             from db.repo import find_olympiad
             oid = session.get("olympiadId")
-            code = session.get("studentId") or session.get("student_code") or ""
+            code = _student_code_from_session(session or {})
             oly = find_olympiad(oid) if oid else None
             qs = (oly or {}).get("questions") or []
             if not qs:
@@ -96,8 +118,13 @@ def install(app=None):
             ci = int(ci) if ci is not None else None
         except Exception:
             ci = None
-        if ci is not None and omap and 0 <= ci < len(omap) and cidx is not None and omap[ci] == cidx:
-            return True
+        if ci is not None and omap and 0 <= ci < len(omap) and cidx is not None:
+            try:
+                if int(omap[ci]) == int(cidx):
+                    return True
+            except Exception:
+                if omap[ci] == cidx:
+                    return True
         if ci is not None and cidx is not None and ci == cidx and not omap:
             return True
         if ci is not None and pub_by_id.get(str(qid)):
@@ -139,6 +166,11 @@ def install(app=None):
         answers = {str(k): v for k, v in answers.items()}
 
         pub_qs = session.get("questions") or []
+        # Always ensure public questions match scoreMap (rebuild if empty)
+        if not pub_qs and score_map:
+            _, pub_qs = _rebuild_score_map(session)
+            if pub_qs:
+                session["questions"] = pub_qs
         pub_by_id = {str(q.get("id")): q for q in pub_qs if isinstance(q, dict)}
 
         smap_keys = list(score_map.keys())
@@ -176,7 +208,19 @@ def install(app=None):
             a = answers.get(str(qid))
             if a is None:
                 a = answers.get(qid)
-            if _grade_one(qid, a, meta, pub_by_id):
+            ok = False
+            try:
+                ci = int(a) if a is not None and not isinstance(a, dict) else None
+            except Exception:
+                ci = None
+            ctext = (meta or {}).get("correctText")
+            opts = (pub_by_id.get(str(qid)) or {}).get("options") or []
+            if ci is not None and opts and 0 <= ci < len(opts) and ctext is not None:
+                if _nt(opts[ci]) == _nt(ctext):
+                    ok = True
+            if not ok and _grade_one(qid, a, meta, pub_by_id):
+                ok = True
+            if ok:
                 correct += 1
 
         score = int(round(100.0 * correct / total)) if total else 0

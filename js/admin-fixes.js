@@ -25,13 +25,15 @@
   async function doClearRecent() {
     if (!confirm('Натиҷаҳои охирин (то 30) аз база пок шаванд? Ин бебозгашт аст.')) return;
     try {
+      let data;
       try {
-        await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' });
+        data = await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' });
       } catch (_) {
-        await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' });
+        data = await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' });
       }
+      const n = (data && data.cleared != null) ? data.cleared : '?';
       const body = document.getElementById('recentResultsBody');
-      if (body) body.innerHTML = '<tr><td colspan="6">Пок шуд</td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="6">Пок шуд (' + n + ')</td></tr>';
       if (typeof window.loadMonitor === 'function') {
         window.loadMonitor();
       } else {
@@ -44,7 +46,6 @@
   }
 
   function wire() {
-    // Нигоҳ доштан Leaderboard public
     const saveLb = document.getElementById('saveLbVisBtn');
     if (saveLb && !saveLb._fixed) {
       saveLb._fixed = true;
@@ -86,7 +87,6 @@
       });
     }
 
-    // Пок кардан recent — real delete (top 30 finished)
     ['clearRecentResultsBtn', 'clearRecentBtn', 'btnClearRecent'].forEach((id) => {
       const el = document.getElementById(id);
       if (el && !el._fixed) {
@@ -116,7 +116,6 @@
       }
     }
 
-    // Clear all results button
     let clearAll = document.getElementById('clearAllResultsBtn');
     if (!clearAll) {
       const save = document.getElementById('saveLbVisBtn');
@@ -146,7 +145,6 @@
       });
     }
 
-    // Filter Gmail names from recent results table (MutationObserver)
     const recent = document.getElementById('recentResultsBody');
     if (recent && !recent._obs) {
       recent._obs = new MutationObserver(() => {
@@ -158,7 +156,6 @@
       recent._obs.observe(recent, { childList: true, subtree: true });
     }
 
-    // Note under results
     const resultsTab = document.getElementById('tab-results');
     if (resultsTab && !document.getElementById('resultsGmailNote')) {
       const note = document.createElement('p');

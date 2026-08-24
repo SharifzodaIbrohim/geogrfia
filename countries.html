@@ -150,20 +150,46 @@
   <script>(function(){var o=window.fetch;window.fetch=function(i,n){if(typeof i==='string'&&i.indexOf('http://127.0.0.1:5000')===0)i=i.replace('http://127.0.0.1:5000','');return o.call(this,i,n);};})();</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script defer src="js/app.js"></script>
-  <script src="js/fix-country-count.js"></script>
   <script src="js/platform.js"></script>
   <script src="js/i18n.js"></script>
   <script>
-  (function(){
-    function bindSort(){
+  (function () {
+    function countLabel(n, lang) {
+      n = Number(n) || 0;
+      if (lang === 'en') return n === 1 ? 'country' : 'countries';
+      if (lang === 'ru') return n === 1 ? 'страна' : (n >= 2 && n <= 4 ? 'страны' : 'стран');
+      return 'кишвар';
+    }
+    function updateCountryCount() {
+      var el = document.getElementById('countryCount');
+      if (!el) return;
+      var n = document.querySelectorAll('#results .country-card').length;
+      var lang = (localStorage.getItem('siteLanguage') || localStorage.getItem('geo_lang') || document.documentElement.lang || 'tg').slice(0, 2);
+      el.textContent = n + ' ' + countLabel(n, lang);
+    }
+    function watchResults() {
+      var grid = document.getElementById('results');
+      if (!grid) return;
+      updateCountryCount();
+      new MutationObserver(updateCountryCount).observe(grid, { childList: true, subtree: false });
+    }
+    function fixI18n() {
+      if (window.GeoI18n && typeof window.GeoI18n.apply === 'function') {
+        window.GeoI18n.apply();
+      }
+      updateCountryCount();
+    }
+    function bindSort() {
       var btn = document.getElementById('sortBtn');
       var sel = document.getElementById('sortSelect');
       if (!btn || !sel) return;
       var labels = { name: '≡ Ном', population: '≡ Аҳолӣ', area: '≡ Масоҳат' };
       var order = ['name', 'population', 'area'];
-      function sync(){ btn.textContent = labels[sel.value] || ('≡ ' + sel.value); }
+      function sync() { btn.textContent = labels[sel.value] || ('≡ ' + sel.value); }
       sync();
-      btn.addEventListener('click', function(){
+      if (btn.__bound) return;
+      btn.__bound = true;
+      btn.addEventListener('click', function () {
         var i = order.indexOf(sel.value || 'name');
         sel.value = order[(i + 1) % order.length];
         sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -171,8 +197,24 @@
       });
       sel.addEventListener('change', sync);
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindSort);
-    else bindSort();
+    function boot() {
+      watchResults();
+      bindSort();
+      fixI18n();
+      [300, 800, 1500, 3000, 5000].forEach(function (ms) {
+        setTimeout(function () { fixI18n(); bindSort(); }, ms);
+      });
+      var pf = document.getElementById('pfLang');
+      if (pf && !pf.__countBound) {
+        pf.__countBound = true;
+        pf.addEventListener('change', function () {
+          setTimeout(function () { fixI18n(); }, 50);
+        });
+      }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+    window.addEventListener('load', function () { fixI18n(); updateCountryCount(); });
   })();
   </script>
 </body>

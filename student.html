@@ -10,13 +10,13 @@
 <body>
   <div id="loginView" class="auth-shell">
     <form id="studentLoginForm" class="auth-card">
-      <h1>Воридшавии хонанда</h1>
-      <p class="muted">Танҳо бо ID-е, ки админ додааст</p>
-      <label>ID-и шумо</label>
-      <input id="studentIdInput" type="text" inputmode="numeric" placeholder="0218923193724217841" required />
-      <button type="submit" class="btn primary">Ворид шудан</button>
+      <h1 data-i18n="studentLoginTitle">Воридшавии хонанда</h1>
+      <p class="muted" data-i18n="studentLoginHint">Танҳо бо ID-е, ки админ додааст</p>
+      <label data-i18n="studentIdLabel">ID-и шумо</label>
+      <input id="studentIdInput" type="text" inputmode="numeric" data-i18n-placeholder="studentIdPlaceholder" placeholder="Рақами донишҷӯ" required />
+      <button type="submit" class="btn primary" data-i18n="studentLoginBtn">Ворид шудан</button>
       <p id="loginError" class="error hidden"></p>
-      <p class="muted center"><a href="/">Бозгашт ба сайт</a></p>
+      <p class="muted center"><a href="/" data-i18n="backToSite">Бозгашт ба сайт</a></p>
     </form>
   </div>
 
@@ -27,19 +27,24 @@
         <span id="studentMeta" class="muted"></span>
       </div>
       <div class="topbar-actions">
-        <a href="/" class="btn ghost">Сайт</a>
-        <button id="logoutBtn" type="button" class="btn">Баромадан</button>
+        <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language" style="margin-right:8px">
+          <option value="tg">TJ</option>
+          <option value="ru">RU</option>
+          <option value="en">EN</option>
+        </select>
+        <a href="/" class="btn ghost" data-i18n="site">Сайт</a>
+        <button id="logoutBtn" type="button" class="btn" data-i18n="logout">Баромадан</button>
       </div>
     </header>
 
     <main class="panel">
       <section id="listView">
-        <h2>Олимпиадаҳои фаъол</h2>
+        <h2 data-i18n="activeOlympiads">Олимпиадаҳои фаъол</h2>
         <div id="olympiadList" class="cards"></div>
-        <p id="emptyOly" class="muted hidden">Ҳоло олимпиадаи фаъол нест.</p>
-        <h2 style="margin-top:1.5rem">Викторинаҳо</h2>
+        <p id="emptyOly" class="muted hidden" data-i18n="noActiveOlympiad">Ҳоло олимпиадаи фаъол нест.</p>
+        <h2 style="margin-top:1.5rem" data-i18n="quizzesSection">Викторинаҳо</h2>
         <div id="quizList" class="cards"></div>
-        <p id="emptyQuiz" class="muted hidden">Ҳоло викторина нест.</p>
+        <p id="emptyQuiz" class="muted hidden" data-i18n="noQuizzesStudent">Ҳоло викторина нест.</p>
       </section>
 
       <section id="examView" class="hidden exam-shell">
@@ -58,13 +63,13 @@
           </div>
 
           <div class="exam-nav">
-            <button type="button" id="examPrevBtn" class="btn ghost">← Previous</button>
+            <button type="button" id="examPrevBtn" class="btn ghost" data-i18n="previous">← Пештар</button>
             <div id="examDots" class="exam-dots" aria-hidden="true"></div>
-            <button type="button" id="examNextBtn" class="btn">Next →</button>
+            <button type="button" id="examNextBtn" class="btn" data-i18n="next">Баъдӣ →</button>
           </div>
 
           <div class="exam-footer">
-            <button type="button" id="submitExamBtn" class="btn primary exam-submit">Супоридан</button>
+            <button type="button" id="submitExamBtn" class="btn primary exam-submit" data-i18n="submitExam">Супоридан</button>
             <p id="examMsg" class="msg hidden"></p>
           </div>
         </div>
@@ -72,16 +77,17 @@
 
       <section id="resultView" class="hidden">
         <div class="card highlight center result-card">
-          <h2>Натиҷа</h2>
+          <h2 data-i18n="result">Натиҷа</h2>
           <p class="score-big" id="resultScore">0%</p>
           <p id="resultDetail"></p>
           <p id="resultStatus" class="badge"></p>
-          <button id="backToListBtn" type="button" class="btn">Бозгашт</button>
+          <button id="backToListBtn" type="button" class="btn" data-i18n="back">Бозгашт</button>
         </div>
       </section>
     </main>
   </div>
 
+  <script src="js/i18n.js"></script>
   <script src="js/student.js"></script>
 </body>
 </html>

@@ -23,7 +23,6 @@ def install(app=None):
                     return fn()
             except Exception:
                 continue
-        # fallback: any admin token / cookie present (route is admin-only in UI)
         try:
             tok = (
                 request.headers.get("X-Admin-Token")
@@ -32,7 +31,9 @@ def install(app=None):
             ).strip()
             if tok:
                 return {"ok": True}
-            if request.cookies.get("__Host-geografia_admin") or request.cookies.get("geografia_admin"):
+            if request.cookies.get("__Host-geografia_admin") or request.cookies.get(
+                "geografia_admin"
+            ):
                 return {"ok": True}
         except Exception:
             pass
@@ -49,89 +50,98 @@ def install(app=None):
             return jsonify({"error": "Дастрасӣ рад шуд."}), 401
 
         cleared = 0
+        details = []
+
         # --- PostgreSQL ---
         try:
             from db.connection import get_session
             from sqlalchemy import text
 
             with get_session() as s:
-                try:
-                    s.execute(
-                        text(
-                            "DELETE FROM attempt_answers WHERE attempt_id IN ("
-                            "  SELECT id FROM ("
-                            "    SELECT id FROM attempts "
-                            "    WHERE finished_at IS NOT NULL "
-                            "    ORDER BY finished_at DESC NULLS LAST "
-                            "    LIMIT 30"
-                            "  ) t"
-                            ")"
-                        )
-                    )
-                except Exception as e1:
-                    log.warning("attempt_answers: %s", e1)
+                id_sqls = [
+                    (
+                        "finished",
+                        "SELECT id FROM attempts "
+                        "WHERE finished_at IS NOT NULL "
+                        "ORDER BY finished_at DESC NULLS LAST LIMIT 30",
+                    ),
+                    (
+                        "status",
+                        "SELECT id FROM attempts "
+                        "WHERE status::text IN ('passed','failed','timeout','submitted','finished') "
+                        "ORDER BY COALESCE(finished_at, started_at) DESC NULLS LAST LIMIT 30",
+                    ),
+                    (
+                        "any_done",
+                        "SELECT id FROM attempts "
+                        "WHERE status::text NOT IN ('in_progress','started','active') "
+                        "OR finished_at IS NOT NULL "
+                        "ORDER BY COALESCE(finished_at, started_at) DESC NULLS LAST LIMIT 30",
+                    ),
+                ]
+                ids = []
+                for label, sql in id_sqls:
+                    try:
+                        rows = s.execute(text(sql)).fetchall()
+                        ids = [str(r[0]) for r in rows]
+                        if ids:
+                            details.append(f"{label}:{len(ids)}")
+                            break
+                    except Exception as e:
+                        details.append(f"{label}_err:{e}")
+                        log.warning("id select %s: %s", label, e)
 
-                try:
-                    res = s.execute(
-                        text(
-                            "DELETE FROM attempts WHERE id IN ("
-                            "  SELECT id FROM ("
-                            "    SELECT id FROM attempts "
-                            "    WHERE finished_at IS NOT NULL "
-                            "    ORDER BY finished_at DESC NULLS LAST "
-                            "    LIMIT 30"
-                            "  ) t"
-                            ")"
-                        )
-                    )
-                    cleared = int(res.rowcount or 0)
-                except Exception as e2:
-                    log.warning("attempts bulk: %s", e2)
-                    ids = [
-                        str(r[0])
-                        for r in s.execute(
-                            text(
-                                "SELECT id FROM attempts "
-                                "WHERE finished_at IS NOT NULL "
-                                "ORDER BY finished_at DESC NULLS LAST LIMIT 30"
-                            )
-                        ).fetchall()
-                    ]
+                if ids:
                     for aid in ids:
                         try:
                             s.execute(
-                                text("DELETE FROM attempt_answers WHERE attempt_id::text = :id"),
+                                text(
+                                    "DELETE FROM attempt_answers WHERE attempt_id::text = :id"
+                                ),
                                 {"id": aid},
                             )
                         except Exception:
-                            pass
+                            try:
+                                s.execute(
+                                    text(
+                                        "DELETE FROM attempt_answers WHERE attempt_id = CAST(:id AS uuid)"
+                                    ),
+                                    {"id": aid},
+                                )
+                            except Exception:
+                                pass
                         try:
-                            s.execute(
+                            res = s.execute(
                                 text("DELETE FROM attempts WHERE id::text = :id"),
                                 {"id": aid},
                             )
-                            cleared += 1
+                            if res.rowcount:
+                                cleared += int(res.rowcount)
                         except Exception:
-                            pass
-                try:
-                    s.execute(
-                        text(
-                            "DELETE FROM results WHERE id IN ("
-                            "  SELECT id FROM ("
-                            "    SELECT id FROM results "
-                            "    ORDER BY finished_at DESC NULLS LAST LIMIT 30"
-                            "  ) t"
-                            ")"
-                        )
-                    )
-                except Exception:
-                    pass
-                try:
-                    s.commit()
-                except Exception:
-                    pass
+                            try:
+                                res = s.execute(
+                                    text(
+                                        "DELETE FROM attempts WHERE id = CAST(:id AS uuid)"
+                                    ),
+                                    {"id": aid},
+                                )
+                                if res.rowcount:
+                                    cleared += int(res.rowcount)
+                            except Exception as e:
+                                log.warning("delete attempt %s: %s", aid, e)
+                    try:
+                        for aid in ids:
+                            s.execute(
+                                text("DELETE FROM results WHERE id::text = :id"),
+                                {"id": aid},
+                            )
+                    except Exception:
+                        pass
+                else:
+                    details.append("no_ids")
         except Exception as e:
             log.warning("PG clear-recent: %s", e)
+            details.append(f"pg:{e}")
 
         # --- JSON fallback ---
         try:
@@ -142,20 +152,30 @@ def install(app=None):
                 if isinstance(data, list) and data:
                     sorted_rows = sorted(
                         data,
-                        key=lambda r: r.get("finishedAt") or r.get("finished_at") or "",
+                        key=lambda r: r.get("finishedAt")
+                        or r.get("finished_at")
+                        or "",
                         reverse=True,
                     )
                     drop_slice = sorted_rows[:30]
-                    drop_ids = {str(r.get("id")) for r in drop_slice if r.get("id") is not None}
+                    drop_ids = {
+                        str(r.get("id")) for r in drop_slice if r.get("id") is not None
+                    }
                     drop_keys = {
-                        (str(r.get("studentId") or ""), str(r.get("olympiadId") or ""))
+                        (
+                            str(r.get("studentId") or ""),
+                            str(r.get("olympiadId") or ""),
+                        )
                         for r in drop_slice
                     }
                     before = len(data)
                     kept = []
                     for r in data:
                         rid = str(r.get("id")) if r.get("id") is not None else ""
-                        key = (str(r.get("studentId") or ""), str(r.get("olympiadId") or ""))
+                        key = (
+                            str(r.get("studentId") or ""),
+                            str(r.get("olympiadId") or ""),
+                        )
                         if rid and rid in drop_ids:
                             continue
                         if key in drop_keys and (key[0] or key[1]):
@@ -172,43 +192,55 @@ def install(app=None):
         except Exception as e:
             log.warning("JSON clear-recent: %s", e)
 
+        log.info("clear-recent cleared=%s details=%s", cleared, details)
         return jsonify(
             {
                 "ok": True,
                 "cleared": cleared,
+                "details": details,
                 "message": "Натиҷаҳои охирин пок шуданд",
             }
         )
 
-    # override / register both paths (Flask allows re-add via view_functions + rule)
-    try:
-        # remove existing endpoints if present so we can rebind
-        for rule in list(app.url_map.iter_rules()):
-            if rule.rule in (
-                "/api/admin/results/clear-recent",
-                "/api/admin/monitor/clear-recent",
-            ):
-                try:
-                    app.url_map._rules.remove(rule)
-                    if rule.endpoint in app.view_functions:
-                        del app.view_functions[rule.endpoint]
-                except Exception:
-                    pass
-    except Exception as e:
-        log.warning("unmap old clear-recent: %s", e)
-
-    app.add_url_rule(
-        "/api/admin/results/clear-recent",
-        endpoint="clear_recent_results",
-        view_func=_clear_recent,
-        methods=["POST"],
-    )
-    app.add_url_rule(
-        "/api/admin/monitor/clear-recent",
-        endpoint="clear_recent_monitor",
-        view_func=_clear_recent,
-        methods=["POST"],
-    )
+    # CRITICAL: do NOT remove url_map rules (breaks clear_recent_alias).
+    # Only rebind view_functions so existing routes call the real delete.
     app.view_functions["_clear_recent_results"] = _clear_recent
-    print("[boot] patch_clear_recent: real delete top-30 finished attempts")
+    for ep in list(app.view_functions.keys()):
+        if "clear_recent" in ep.lower() or ep in (
+            "_clear_recent_results",
+            "clear_recent_alias",
+            "clear_recent_results",
+            "clear_recent_monitor",
+        ):
+            app.view_functions[ep] = _clear_recent
+
+    app.view_functions["clear_recent_alias"] = _clear_recent
+    app.view_functions["_clear_recent_results"] = _clear_recent
+
+    existing = {r.rule for r in app.url_map.iter_rules()}
+    if "/api/admin/results/clear-recent" not in existing:
+        app.add_url_rule(
+            "/api/admin/results/clear-recent",
+            endpoint="clear_recent_results",
+            view_func=_clear_recent,
+            methods=["POST"],
+        )
+    else:
+        for rule in app.url_map.iter_rules():
+            if rule.rule == "/api/admin/results/clear-recent":
+                app.view_functions[rule.endpoint] = _clear_recent
+
+    if "/api/admin/monitor/clear-recent" not in existing:
+        app.add_url_rule(
+            "/api/admin/monitor/clear-recent",
+            endpoint="clear_recent_monitor",
+            view_func=_clear_recent,
+            methods=["POST"],
+        )
+    else:
+        for rule in app.url_map.iter_rules():
+            if rule.rule == "/api/admin/monitor/clear-recent":
+                app.view_functions[rule.endpoint] = _clear_recent
+
+    print("[boot] patch_clear_recent: real delete top-30 (view_functions rebound)")
     log.info("patch_clear_recent installed")

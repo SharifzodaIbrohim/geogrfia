@@ -1,9 +1,40 @@
-// Student portal — olympiad UI (aligned with student.html IDs)
+// Student portal — olympiad UI + full i18n (GeoI18n.t)
 (function () {
   'use strict';
 
   const API = '';
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function t(key, params) {
+    try {
+      if (window.GeoI18n && typeof window.GeoI18n.t === 'function') return window.GeoI18n.t(key, params);
+      if (typeof window.t === 'function' && window.t !== t) return window.t(key, params);
+    } catch (e) {}
+    return key;
+  }
+  function applyStaticI18n() {
+    const map = [
+      ['examPrevBtn', 'previous'],
+      ['examNextBtn', 'next'],
+      ['submitExamBtn', 'submitExam'],
+      ['logoutBtn', 'logout'],
+      ['backToListBtn', 'back'],
+    ];
+    map.forEach(function (pair) {
+      const el = $(pair[0]);
+      if (el) el.textContent = t(pair[1]);
+    });
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      const key = el.getAttribute('data-i18n');
+      if (!key) return;
+      const val = t(key);
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = val;
+      else el.textContent = val;
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+  }
 
   let student = null;
   let exam = null;
@@ -83,7 +114,7 @@
     if (!exam) return;
     if (exam.noTimeLimit) {
       const el = $('examTimer');
-      if (el) el.textContent = 'Бе маҳдуд';
+      if (el) el.textContent = t('noLimit');
     } else {
       timerId = setInterval(function () {
         if (!exam || exam.noTimeLimit) return;
@@ -112,12 +143,12 @@
       const title = esc(o.title || o.name || kindLabel);
       const nq = o.questionCount || (o.questions && o.questions.length) || '?';
       const dur = o.durationMin != null ? o.durationMin : o.duration;
-      const durTxt = (dur === 0 || dur === '0') ? 'Бе вақт' : (dur ? (dur + ' дақ') : '');
+      const durTxt = (dur === 0 || dur === '0') ? t('noLimit') : (dur ? (dur + ' ' + t('minutes')) : '');
       const done = o.alreadySubmitted || o.finished;
       const btn = done
-        ? '<button class="btn" disabled>Супорида шуд</button>'
-        : '<button class="btn primary" data-start="' + esc(id) + '">Оғоз</button>';
-      return '<div class="card"><h3>' + title + '</h3><p class="muted">Саволҳо: ' + nq +
+        ? '<button class="btn" disabled>' + t('statusParticipated') + '</button>'
+        : '<button class="btn primary" data-start="' + esc(id) + '">' + t('startExam') + '</button>';
+      return '<div class="card"><h3>' + title + '</h3><p class="muted">' + t('questionsCount') + ': ' + nq +
         (durTxt ? (' · ' + durTxt) : '') + '</p>' + btn + '</div>';
     }).join('');
     box.querySelectorAll('[data-start]').forEach(function (btn) {
@@ -134,13 +165,13 @@
     let quizzes = data.quizzes || [];
     if (!quizzes.length) {
       quizzes = oly.filter(function (o) {
-        const t = String(o.type || '').toLowerCase();
-        return t === 'quiz' || t === 'викторина';
+        const ty = String(o.type || '').toLowerCase();
+        return ty === 'quiz' || ty === 'викторина';
       });
     }
     const pureOly = oly.filter(function (o) {
-      const t = String(o.type || '').toLowerCase();
-      return t !== 'quiz' && t !== 'викторина';
+      const ty = String(o.type || '').toLowerCase();
+      return ty !== 'quiz' && ty !== 'викторина';
     });
     renderEventCards($('olympiadList'), pureOly, $('emptyOly'), 'Олимпиада');
     renderEventCards($('quizList'), quizzes, $('emptyQuiz'), 'Викторина');
@@ -179,7 +210,7 @@
       renderExam();
       startTimers();
     } catch (e) {
-      alert(e.message || 'Оғоз нашуд');
+      alert(e.message || t('errGeneric'));
     }
   }
 
@@ -197,8 +228,8 @@
     if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
       const inp = $('examTextInput');
       if (inp) {
-        const t = inp.value.trim();
-        exam.answers[qid] = { t: t, text: t };
+        const tv = inp.value.trim();
+        exam.answers[qid] = { t: tv, text: tv };
       }
     } else if (qtype === 'matching' || qtype === 'match') {
       const selects = document.querySelectorAll('.match-select');
@@ -212,8 +243,8 @@
       const selected = document.querySelector('.exam-opt.selected');
       if (selected) {
         const i = parseInt(selected.getAttribute('data-i'), 10);
-        const t = selected.getAttribute('data-t') || '';
-        exam.answers[qid] = { i: i, t: t };
+        const tv = selected.getAttribute('data-t') || '';
+        exam.answers[qid] = { i: i, t: tv };
       }
     }
   }
@@ -225,11 +256,11 @@
     const n = exam.idx + 1;
 
     const progress = $('examProgress');
-    if (progress) progress.textContent = 'Савол ' + n + ' / ' + total;
+    if (progress) progress.textContent = t('questionXofY', { n: n, total: total });
 
     const timerEl = $('examTimer');
     if (timerEl) {
-      timerEl.textContent = exam.noTimeLimit ? 'Бе маҳдуд' : fmtTime(exam.remainingSec);
+      timerEl.textContent = exam.noTimeLimit ? t('noLimit') : fmtTime(exam.remainingSec);
     }
 
     const dots = $('examDots');
@@ -250,7 +281,7 @@
 
     const pane = $('examQuestionPane');
     if (!pane || !q) {
-      if (pane) pane.innerHTML = '<p class="muted">Савол нест</p>';
+      if (pane) pane.innerHTML = '<p class="muted">' + t('noQuestion') + '</p>';
       return;
     }
 
@@ -261,18 +292,18 @@
 
     if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
       const val = selected != null ? String(selected.t || selected.text || selected || '') : '';
-      body += '<input type="text" class="exam-text-input" id="examTextInput" value="' + esc(val) + '" placeholder="Ҷавобро нависед..." autocomplete="off" />';
+      body += '<input type="text" class="exam-text-input" id="examTextInput" value="' + esc(val) + '" placeholder="' + t('writeAnswerPlaceholder') + '" autocomplete="off" />';
     } else if (qtype === 'matching' || qtype === 'match') {
       const left = q.leftItems || q.left || [];
       const right = q.rightItems || q.right || [];
       const cur = (selected && typeof selected === 'object' && !Array.isArray(selected)) ? selected : {};
       if (!left.length) {
-        body += '<p class="muted">Банди matching холӣ аст</p>';
+        body += '<p class="muted">' + t('empty') + '</p>';
       } else {
         body += '<div class="exam-match">' + left.map(function (L, li) {
           const sel = cur[String(li)] != null ? String(cur[String(li)]) : '';
           return '<div class="exam-match-row"><span class="match-left">' + esc(L) + '</span>' +
-            '<select data-left="' + li + '" class="match-select"><option value="">— интихоб —</option>' +
+            '<select data-left="' + li + '" class="match-select"><option value="">— ' + t('selectAnswer') + ' —</option>' +
             right.map(function (r, ri) {
               return '<option value="' + ri + '"' + (sel === String(ri) ? ' selected' : '') + '>' +
                 esc((LETTERS[ri] || (ri + 1)) + '. ' + r) + '</option>';
@@ -305,8 +336,16 @@
 
     const prev = $('examPrevBtn');
     const next = $('examNextBtn');
-    if (prev) prev.disabled = exam.idx <= 0;
-    if (next) next.disabled = exam.idx >= total - 1;
+    if (prev) {
+      prev.disabled = exam.idx <= 0;
+      prev.textContent = t('previous');
+    }
+    if (next) {
+      next.disabled = exam.idx >= total - 1;
+      next.textContent = t('next');
+    }
+    const sub = $('submitExamBtn');
+    if (sub) sub.textContent = t('submitExam');
   }
 
   async function autosave(silent) {
@@ -355,23 +394,23 @@
       if (hide) {
         if ($('resultScore')) $('resultScore').textContent = '✓';
         if ($('resultDetail')) $('resultDetail').textContent =
-          data.message || 'Шумо бо муваффақият супоридед. Натиҷа баъдтар эълон мешавад.';
-        if ($('resultStatus')) $('resultStatus').textContent = 'Интизор';
+          data.message || t('waiting');
+        if ($('resultStatus')) $('resultStatus').textContent = t('waiting');
       } else {
         const score = data.score != null ? data.score : (data.result && data.result.score);
-        const correct = data.correct != null ? data.correct : (data.result && data.result.total);
+        const correct = data.correct != null ? data.correct : (data.result && data.result.correct);
         const total = data.total != null ? data.total : (data.result && data.result.total);
         if ($('resultScore')) $('resultScore').textContent = (score != null ? score : '—') + '%';
         if ($('resultDetail')) {
           $('resultDetail').textContent =
-            (correct != null && total != null) ? (correct + ' аз ' + total + ' дуруст') : '';
+            (correct != null && total != null) ? (correct + ' ' + t('of') + ' ' + total + ' ' + t('correct')) : '';
         }
         if ($('resultStatus')) {
           $('resultStatus').textContent = (data.status || (data.result && data.result.status) || '') + '';
         }
       }
     } catch (e) {
-      alert(e.message || 'Супориш нашуд');
+      alert(e.message || t('errGeneric'));
       if (!autoTimeout) startTimers();
     }
   }
@@ -391,9 +430,10 @@
           if ($('studentMeta')) {
             $('studentMeta').textContent = [student.className, student.school].filter(Boolean).join(' · ');
           }
+          applyStaticI18n();
           loadList();
         } catch (e) {
-          if (err) { err.textContent = e.message || 'Хато'; show(err, true); }
+          if (err) { err.textContent = e.message || t('errLogin'); show(err, true); }
         }
       });
     }
@@ -412,7 +452,7 @@
     });
     const submitBtn = $('submitExamBtn');
     if (submitBtn) submitBtn.addEventListener('click', function () {
-      if (confirm('Супоридан?')) submitExam(false);
+      if (confirm(t('submitConfirm'))) submitExam(false);
     });
     const back = $('backToListBtn');
     if (back) back.addEventListener('click', function () {
@@ -424,6 +464,14 @@
 
   async function boot() {
     bind();
+    applyStaticI18n();
+    if (window.GeoI18n && typeof window.GeoI18n.onLang === 'function') {
+      window.GeoI18n.onLang(function () {
+        applyStaticI18n();
+        if (exam) renderExam();
+        else if (student) loadList();
+      });
+    }
     const saved = loadLocalStudent();
     if (saved && (saved.id || saved.studentId)) {
       try {

@@ -17,7 +17,7 @@
       <a href="/courses" data-i18n="navCourses">Courses</a>
       <a href="/quiz" data-i18n="navQuizzes">Quizzes</a>
       <a href="/student" data-i18n="navOlympiads">Olympiads</a>
-      <a href="/leaderboard">Leaderboard</a>
+      <a href="/leaderboard" data-i18n="navLeaderboard">Рейтинг</a>
       <a href="/profile" data-i18n="navProfile">Profile</a>
     </nav>
     <div class="pf-actions">
@@ -38,9 +38,9 @@
   <div class="app-content">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input id="searchInput" type="search" placeholder="Ҷустуҷӯи кишвар..." autocomplete="off" />
+      <input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Ҷустуҷӯи кишвар..." autocomplete="off" />
     </div>
-    <div class="region-label">Минтақаҳо</div>
+    <div class="region-label" data-i18n="regions">Минтақаҳо</div>
     <div class="region-chips" id="regionChips"></div>
     <div class="hidden-filters" aria-hidden="true">
       <select id="filterRegion"><option value="all">Ҳама</option></select>
@@ -154,6 +154,13 @@
   <script src="js/i18n.js"></script>
   <script>
   (function () {
+    function langCode() {
+      var raw = localStorage.getItem('geografia_lang') || localStorage.getItem('geo_lang') || localStorage.getItem('siteLanguage') || 'tg';
+      raw = String(raw).toLowerCase();
+      if (raw === 'tj') return 'tg';
+      if (raw === 'ru' || raw === 'en' || raw === 'tg') return raw;
+      return 'tg';
+    }
     function countLabel(n, lang) {
       n = Number(n) || 0;
       if (lang === 'en') return n === 1 ? 'country' : 'countries';
@@ -164,7 +171,7 @@
       var el = document.getElementById('countryCount');
       if (!el) return;
       var n = document.querySelectorAll('#results .country-card').length;
-      var lang = (localStorage.getItem('siteLanguage') || localStorage.getItem('geo_lang') || document.documentElement.lang || 'tg').slice(0, 2);
+      var lang = langCode();
       el.textContent = n + ' ' + countLabel(n, lang);
     }
     function watchResults() {
@@ -173,19 +180,24 @@
       updateCountryCount();
       new MutationObserver(updateCountryCount).observe(grid, { childList: true, subtree: false });
     }
-    function fixI18n() {
-      if (window.GeoI18n && typeof window.GeoI18n.apply === 'function') {
-        window.GeoI18n.apply();
-      }
-      updateCountryCount();
+    function sortLabels() {
+      var L = langCode();
+      var map = {
+        tg: { name: '≡ Ном', population: '≡ Аҳолӣ', area: '≡ Масоҳат' },
+        ru: { name: '≡ Имя', population: '≡ Население', area: '≡ Площадь' },
+        en: { name: '≡ Name', population: '≡ Population', area: '≡ Area' }
+      };
+      return map[L] || map.tg;
     }
     function bindSort() {
       var btn = document.getElementById('sortBtn');
       var sel = document.getElementById('sortSelect');
       if (!btn || !sel) return;
-      var labels = { name: '≡ Ном', population: '≡ Аҳолӣ', area: '≡ Масоҳат' };
       var order = ['name', 'population', 'area'];
-      function sync() { btn.textContent = labels[sel.value] || ('≡ ' + sel.value); }
+      function sync() {
+        var labels = sortLabels();
+        btn.textContent = labels[sel.value] || ('≡ ' + sel.value);
+      }
       sync();
       if (btn.__bound) return;
       btn.__bound = true;
@@ -197,24 +209,48 @@
       });
       sel.addEventListener('change', sync);
     }
+    function syncAppLanguage() {
+      var code = langCode();
+      localStorage.setItem('siteLanguage', code);
+      localStorage.setItem('geografia_lang', code);
+      localStorage.setItem('geo_lang', code);
+      var ls = document.getElementById('languageSelect');
+      if (ls) { try { ls.value = code; } catch (e) {} }
+      var pf = document.getElementById('pfLang');
+      if (pf && pf.value !== code) { try { pf.value = code; } catch (e) {} }
+      try {
+        if (typeof window.applyLanguage === 'function') window.applyLanguage(code);
+      } catch (e) { console.warn('applyLanguage', e); }
+      if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply();
+      updateCountryCount();
+      bindSort();
+    }
     function boot() {
       watchResults();
       bindSort();
-      fixI18n();
-      [300, 800, 1500, 3000, 5000].forEach(function (ms) {
-        setTimeout(function () { fixI18n(); bindSort(); }, ms);
-      });
+      syncAppLanguage();
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries++;
+        syncAppLanguage();
+        if (typeof window.applyLanguage === 'function' || tries > 25) clearInterval(timer);
+      }, 200);
       var pf = document.getElementById('pfLang');
-      if (pf && !pf.__countBound) {
-        pf.__countBound = true;
+      if (pf && !pf.__langBridge) {
+        pf.__langBridge = true;
         pf.addEventListener('change', function () {
-          setTimeout(function () { fixI18n(); }, 50);
+          var code = pf.value === 'tj' ? 'tg' : pf.value;
+          localStorage.setItem('geografia_lang', code);
+          localStorage.setItem('geo_lang', code);
+          localStorage.setItem('siteLanguage', code);
+          setTimeout(syncAppLanguage, 30);
         });
       }
+      window.addEventListener('geo:lang', function () { setTimeout(syncAppLanguage, 30); });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
-    window.addEventListener('load', function () { fixI18n(); updateCountryCount(); });
+    window.addEventListener('load', function () { setTimeout(syncAppLanguage, 100); });
   })();
   </script>
 </body>

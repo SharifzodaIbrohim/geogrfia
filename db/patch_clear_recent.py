@@ -1,4 +1,4 @@
-"""Boot patch: clear-recent actually deletes top 30 finished attempts (not UI-only)."""
+"""Boot patch: clear-recent hard-deletes finished attempts with engine.begin() commit."""
 from __future__ import annotations
 
 import json
@@ -39,208 +39,234 @@ def install(app=None):
             pass
         return None
 
-    def _clear_recent():
-        admin = None
+    def _pg_engine():
         try:
-            admin = _require_admin()
+            from db.connection import engine, is_postgres_enabled
+            if is_postgres_enabled() and engine is not None:
+                return engine
         except Exception as e:
-            log.warning("require_admin: %s", e)
-            admin = None
-        if not admin:
+            log.warning("engine: %s", e)
+        return None
+
+    def _clear_recent():
+        if not _require_admin():
             return jsonify({"error": "Дастрасӣ рад шуд."}), 401
 
         cleared = 0
         details = []
+        remaining = None
+        eng = _pg_engine()
 
-        # --- PostgreSQL ---
-        try:
-            from db.connection import get_session
+        if eng is not None:
             from sqlalchemy import text
 
-            with get_session() as s:
-                id_sqls = [
-                    (
-                        "finished",
-                        "SELECT id FROM attempts "
-                        "WHERE finished_at IS NOT NULL "
-                        "ORDER BY finished_at DESC NULLS LAST LIMIT 30",
-                    ),
-                    (
-                        "status",
-                        "SELECT id FROM attempts "
-                        "WHERE status::text IN ('passed','failed','timeout','submitted','finished') "
-                        "ORDER BY COALESCE(finished_at, started_at) DESC NULLS LAST LIMIT 30",
-                    ),
-                    (
-                        "any_done",
-                        "SELECT id FROM attempts "
-                        "WHERE status::text NOT IN ('in_progress','started','active') "
-                        "OR finished_at IS NOT NULL "
-                        "ORDER BY COALESCE(finished_at, started_at) DESC NULLS LAST LIMIT 30",
-                    ),
-                ]
-                ids = []
-                for label, sql in id_sqls:
-                    try:
-                        rows = s.execute(text(sql)).fetchall()
-                        ids = [str(r[0]) for r in rows]
-                        if ids:
-                            details.append(f"{label}:{len(ids)}")
-                            break
-                    except Exception as e:
-                        details.append(f"{label}_err:{e}")
-                        log.warning("id select %s: %s", label, e)
-
-                if ids:
-                    for aid in ids:
+            try:
+                with eng.begin() as conn:
+                    ids = []
+                    for label, sql in (
+                        (
+                            "finished",
+                            "SELECT id::text FROM attempts "
+                            "WHERE finished_at IS NOT NULL "
+                            "ORDER BY finished_at DESC NULLS LAST LIMIT 30",
+                        ),
+                        (
+                            "status",
+                            "SELECT id::text FROM attempts "
+                            "WHERE status::text IN "
+                            "('passed','failed','timeout','submitted','finished') "
+                            "ORDER BY COALESCE(finished_at, started_at) DESC "
+                            "NULLS LAST LIMIT 30",
+                        ),
+                    ):
                         try:
-                            s.execute(
-                                text(
-                                    "DELETE FROM attempt_answers WHERE attempt_id::text = :id"
-                                ),
-                                {"id": aid},
-                            )
-                        except Exception:
+                            ids = [r[0] for r in conn.execute(text(sql)).fetchall()]
+                            if ids:
+                                details.append(f"{label}:{len(ids)}")
+                                break
+                        except Exception as e:
+                            details.append(f"{label}_err:{e}")
+
+                    if not ids:
+                        details.append("no_ids")
+                    else:
+                        for aid in ids:
+                            for q in (
+                                "DELETE FROM attempt_answers WHERE attempt_id::text = :id",
+                                "DELETE FROM attempt_answers WHERE attempt_id = CAST(:id AS uuid)",
+                            ):
+                                try:
+                                    conn.execute(text(q), {"id": aid})
+                                    break
+                                except Exception:
+                                    continue
+                        for aid in ids:
+                            deleted_one = False
+                            for q in (
+                                "DELETE FROM attempts WHERE id::text = :id",
+                                "DELETE FROM attempts WHERE id = CAST(:id AS uuid)",
+                            ):
+                                try:
+                                    res = conn.execute(text(q), {"id": aid})
+                                    n = int(res.rowcount or 0)
+                                    if n:
+                                        cleared += n
+                                        deleted_one = True
+                                        break
+                                except Exception as e:
+                                    details.append(f"del_err:{aid}:{e}")
+                            if not deleted_one:
+                                details.append(f"miss:{aid}")
+                        for aid in ids:
                             try:
-                                s.execute(
-                                    text(
-                                        "DELETE FROM attempt_answers WHERE attempt_id = CAST(:id AS uuid)"
-                                    ),
+                                conn.execute(
+                                    text("DELETE FROM results WHERE id::text = :id"),
                                     {"id": aid},
                                 )
                             except Exception:
                                 pass
-                        try:
-                            res = s.execute(
-                                text("DELETE FROM attempts WHERE id::text = :id"),
-                                {"id": aid},
-                            )
-                            if res.rowcount:
-                                cleared += int(res.rowcount)
-                        except Exception:
-                            try:
-                                res = s.execute(
-                                    text(
-                                        "DELETE FROM attempts WHERE id = CAST(:id AS uuid)"
-                                    ),
-                                    {"id": aid},
-                                )
-                                if res.rowcount:
-                                    cleared += int(res.rowcount)
-                            except Exception as e:
-                                log.warning("delete attempt %s: %s", aid, e)
-                    try:
-                        for aid in ids:
-                            s.execute(
-                                text("DELETE FROM results WHERE id::text = :id"),
-                                {"id": aid},
-                            )
-                    except Exception:
-                        pass
-                else:
-                    details.append("no_ids")
-        except Exception as e:
-            log.warning("PG clear-recent: %s", e)
-            details.append(f"pg:{e}")
 
-        # --- JSON fallback ---
+                    try:
+                        remaining = int(
+                            conn.execute(
+                                text(
+                                    "SELECT COUNT(*) FROM attempts "
+                                    "WHERE status::text IN "
+                                    "('passed','failed','timeout','submitted','finished')"
+                                )
+                            ).scalar()
+                            or 0
+                        )
+                        details.append(f"remaining:{remaining}")
+                    except Exception as e:
+                        details.append(f"count_err:{e}")
+                details.append("committed")
+            except Exception as e:
+                log.exception("PG clear-recent failed")
+                details.append(f"pg_fail:{e}")
+                return jsonify(
+                    {"ok": False, "error": str(e), "details": details, "cleared": cleared}
+                ), 500
+        else:
+            details.append("no_pg_engine")
+
         try:
             base = Path(__file__).resolve().parent.parent
             path = base / "data" / "results.json"
             if path.exists():
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, list) and data:
+                    before = len(data)
                     sorted_rows = sorted(
                         data,
-                        key=lambda r: r.get("finishedAt")
-                        or r.get("finished_at")
-                        or "",
+                        key=lambda r: r.get("finishedAt") or r.get("finished_at") or "",
                         reverse=True,
                     )
-                    drop_slice = sorted_rows[:30]
-                    drop_ids = {
-                        str(r.get("id")) for r in drop_slice if r.get("id") is not None
-                    }
-                    drop_keys = {
-                        (
-                            str(r.get("studentId") or ""),
-                            str(r.get("olympiadId") or ""),
-                        )
-                        for r in drop_slice
-                    }
-                    before = len(data)
-                    kept = []
-                    for r in data:
-                        rid = str(r.get("id")) if r.get("id") is not None else ""
-                        key = (
-                            str(r.get("studentId") or ""),
-                            str(r.get("olympiadId") or ""),
-                        )
-                        if rid and rid in drop_ids:
-                            continue
-                        if key in drop_keys and (key[0] or key[1]):
-                            continue
-                        kept.append(r)
-                    if len(kept) == before:
-                        kept = sorted_rows[30:]
+                    kept = sorted_rows[30:]
                     path.write_text(
-                        json.dumps(kept, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
+                        json.dumps(kept, ensure_ascii=False, indent=2), encoding="utf-8"
                     )
                     if cleared == 0:
                         cleared = max(0, before - len(kept))
+                    details.append(f"json:{before}->{len(kept)}")
         except Exception as e:
-            log.warning("JSON clear-recent: %s", e)
+            details.append(f"json_err:{e}")
 
         log.info("clear-recent cleared=%s details=%s", cleared, details)
         return jsonify(
             {
                 "ok": True,
                 "cleared": cleared,
+                "remaining": remaining,
                 "details": details,
                 "message": "Натиҷаҳои охирин пок шуданд",
             }
         )
 
-    # CRITICAL: do NOT remove url_map rules (breaks clear_recent_alias).
-    # Only rebind view_functions so existing routes call the real delete.
-    app.view_functions["_clear_recent_results"] = _clear_recent
-    for ep in list(app.view_functions.keys()):
-        if "clear_recent" in ep.lower() or ep in (
-            "_clear_recent_results",
-            "clear_recent_alias",
-            "clear_recent_results",
-            "clear_recent_monitor",
-        ):
-            app.view_functions[ep] = _clear_recent
+    def _clear_all():
+        if not _require_admin():
+            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+        cleared = 0
+        details = []
+        eng = _pg_engine()
+        if eng is not None:
+            from sqlalchemy import text
+            try:
+                with eng.begin() as conn:
+                    try:
+                        conn.execute(text("DELETE FROM attempt_answers"))
+                    except Exception as e:
+                        details.append(f"aa:{e}")
+                    try:
+                        res = conn.execute(
+                            text(
+                                "DELETE FROM attempts WHERE status::text IN "
+                                "('passed','failed','timeout','submitted','finished') "
+                                "OR finished_at IS NOT NULL"
+                            )
+                        )
+                        cleared = int(res.rowcount or 0)
+                    except Exception:
+                        res = conn.execute(text("DELETE FROM attempts"))
+                        cleared = int(res.rowcount or 0)
+                    try:
+                        conn.execute(text("DELETE FROM results"))
+                    except Exception:
+                        pass
+                details.append("committed")
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+        try:
+            path = Path(__file__).resolve().parent.parent / "data" / "results.json"
+            if path.exists():
+                path.write_text("[]", encoding="utf-8")
+        except Exception:
+            pass
+        return jsonify({"ok": True, "cleared": cleared, "details": details})
 
-    app.view_functions["clear_recent_alias"] = _clear_recent
     app.view_functions["_clear_recent_results"] = _clear_recent
+    app.view_functions["clear_recent_alias"] = _clear_recent
+    for r in list(app.url_map.iter_rules()):
+        if r.rule in (
+            "/api/admin/results/clear-recent",
+            "/api/admin/monitor/clear-recent",
+        ):
+            app.view_functions[r.endpoint] = _clear_recent
+        if r.rule == "/api/admin/results/clear-all":
+            app.view_functions[r.endpoint] = _clear_all
+
+    for name in list(app.view_functions.keys()):
+        if "clear_recent" in name.lower():
+            app.view_functions[name] = _clear_recent
+        if name in ("_clear_all_results", "clear_all_results"):
+            app.view_functions[name] = _clear_all
 
     existing = {r.rule for r in app.url_map.iter_rules()}
     if "/api/admin/results/clear-recent" not in existing:
         app.add_url_rule(
             "/api/admin/results/clear-recent",
-            endpoint="clear_recent_results",
-            view_func=_clear_recent,
+            "clear_recent_results",
+            _clear_recent,
             methods=["POST"],
         )
-    else:
-        for rule in app.url_map.iter_rules():
-            if rule.rule == "/api/admin/results/clear-recent":
-                app.view_functions[rule.endpoint] = _clear_recent
-
     if "/api/admin/monitor/clear-recent" not in existing:
         app.add_url_rule(
             "/api/admin/monitor/clear-recent",
-            endpoint="clear_recent_monitor",
-            view_func=_clear_recent,
+            "clear_recent_monitor",
+            _clear_recent,
+            methods=["POST"],
+        )
+    if "/api/admin/results/clear-all" not in existing:
+        app.add_url_rule(
+            "/api/admin/results/clear-all",
+            "clear_all_results",
+            _clear_all,
             methods=["POST"],
         )
     else:
-        for rule in app.url_map.iter_rules():
-            if rule.rule == "/api/admin/monitor/clear-recent":
-                app.view_functions[rule.endpoint] = _clear_recent
+        for r in app.url_map.iter_rules():
+            if r.rule == "/api/admin/results/clear-all":
+                app.view_functions[r.endpoint] = _clear_all
 
-    print("[boot] patch_clear_recent: real delete top-30 (view_functions rebound)")
+    print("[boot] patch_clear_recent: engine.begin hard-delete installed")
     log.info("patch_clear_recent installed")

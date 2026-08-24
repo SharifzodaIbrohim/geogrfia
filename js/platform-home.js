@@ -1,4 +1,10 @@
 (() => {
+  function t(key, params) {
+    try {
+      if (window.GeoI18n && window.GeoI18n.t) return window.GeoI18n.t(key, params);
+    } catch (e) {}
+    return key;
+  }
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) =>
       ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c])
@@ -53,12 +59,12 @@
               .map(
                 (q) => `<a class="pf-card" href="/quiz">
             <h3>${esc(q.title)}</h3>
-            <p>${esc(q.description || (q.questionCount || 0) + ' савол')}</p>
-            <span class="pf-tag">Ҳад ${q.passScore || 70}%</span>
+            <p>${esc(q.description || (q.questionCount || 0) + ' ' + t('questions'))}</p>
+            <span class="pf-tag">${t('passScore')} ${q.passScore || 70}%</span>
           </a>`
               )
               .join('')
-          : `<div class="pf-card"><h3>Викторинаҳо</h3><p>Ҳоло холӣ — аз /quiz кушоед.</p></div>`;
+          : `<div class="pf-card"><h3>${t('quizzes')}</h3><p>${t('empty')}</p></div>`;
       }
 
       const oBox = document.getElementById('pfUpcomingBox');
@@ -70,7 +76,7 @@
               (o) => `<div class="pf-act">
             <div>
               <div class="pf-act-main"><strong>${esc(o.title)}</strong></div>
-              <div class="pf-act-meta">${o.questionCount || 0} савол · ҳад ${o.passScore || 70}%</div>
+              <div class="pf-act-meta">${o.questionCount || 0} ${t('questions')} · ${t('passScore')} ${o.passScore || 70}%</div>
             </div>
             <div class="pf-act-time">olympiad</div>
           </div>`
@@ -87,13 +93,13 @@
           const id = String(o.id || o.title);
           if (seenFeed.has(id)) return;
           seenFeed.add(id);
-          rows.push({ title: o.title, meta: 'Олимпиада фаъол' });
+          rows.push({ title: o.title, meta: t('olympiadActive') });
         });
         quizzes.slice(0, 4).forEach((q) => {
           const id = String(q.id || q.title);
           if (seenFeed.has(id)) return;
           seenFeed.add(id);
-          rows.push({ title: q.title, meta: 'Викторина дастрас' });
+          rows.push({ title: q.title, meta: t('quizAvailable') });
         });
         if (rows.length) {
           feed.innerHTML = rows
@@ -104,7 +110,7 @@
                 <div class="pf-act-main"><span class="ok">●</span> <strong>${esc(r.title)}</strong></div>
                 <div class="pf-act-meta">${esc(r.meta)}</div>
               </div>
-              <div class="pf-act-time">ҳоло</div>
+              <div class="pf-act-time">${t('now')}</div>
             </div>`
             )
             .join('');
@@ -131,9 +137,15 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadHome);
-  } else {
+  function boot() {
     loadHome();
+    if (window.GeoI18n && window.GeoI18n.onLang) {
+      window.GeoI18n.onLang(function () { loadHome(); });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();

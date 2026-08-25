@@ -1,46 +1,80 @@
- = null;
+    var video = document.getElementById("cameraVideo");
+    if (!video) return;
+    var constraints = { video: { facingMode: "user" }, audio: false };
+    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
+    try {
+      setCamStatus("Кушода истодааст…");
+      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = _camStream;
+      video.style.display = "block";
+      await video.play().catch(function () {});
+      setCamStatus("Камера фаъол");
+      await listCameras();
+    } catch (e) {
+      setCamStatus("Хато: " + (e.message || e));
+      _camStream = null;
+    }
+  }
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      _camStream = null;
+    }
+    var video = document.getElementById("cameraVideo");
+    if (video) { video.srcObject = null; video.style.display = "none"; }
+    setCamStatus("");
+  }
+  function capturePhoto() {
+    var video = document.getElementById("cameraVideo");
+    var canvas = document.getElementById("cameraCanvas");
+    if (!video || !canvas || !video.srcObject || video.videoWidth < 2) {
+      setCamStatus("Аввал камераро кушоед"); return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    applyPhoto(canvas.toDataURL("image/jpeg", 0.88));
+    setCamStatus("Акс гирифта шуд");
+  }
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DIR_DB, 1);
+      req.onupgradeneeded = function () {
+        if (!req.result.objectStoreNames.contains(DIR_STORE)) req.result.createObjectStore(DIR_STORE);
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  async function idbSet(key, val) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(DIR_STORE, "readwrite");
+      tx.objectStore(DIR_STORE).put(val, key);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+  async function idbGet(key) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(DIR_STORE, "readonly").objectStore(DIR_STORE).get(key);
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function updateFolderStatus(ok, name) {
+    var el = document.getElementById("localFolderStatus");
+    if (!el) return;
+    el.textContent = ok ? ("📁 " + (name || "папка")) : (name || "");
+    el.style.color = ok ? "var(--accent, #70db97)" : "";
+  }
   async function tryRestoreDir() {
     try {
       if (!window.showDirectoryPicker) return null;
-      var raw = localStorage.getItem(_dirHandleKey);
-      if (!raw) return null;
-      return null;
-    } catch (e) { return null; }
-  }
-  function buildStudentCardHtml(st) {
-    var id = st.id || "";
-    var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
-    var photo = st.photoData || "";
-    var genderLabel = st.gender === "male" ? "Мард" : (st.gender === "female" ? "Зан" : (st.gender || "—"));
-    var olyTitle = st.olympiadTitle || "—";
-    var olyStart = st.olympiadStart ? formatTgDate(st.olympiadStart) : "—";
-    var birthFmt = st.birthDate ? formatTgDate(st.birthDate) : "—";
-    var webUrl = "https://geografia-19tf.onrender.com";
-    var igUrl = "https://www.instagram.com/geografia.tj/";
-    var webQr = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=10&color=0b3d2e&bgcolor=ffffff&data=" + encodeURIComponent(webUrl);
-    var igQr = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=10&color=000000&bgcolor=ffffff&data=" + encodeURIComponent(igUrl);
-    var photoBlock = photo
-      ? ('<div class="photo-wrap"><img src="' + photo + '" alt="photo"/></div>')
-      : '<div class="photo-wrap placeholder"><span>Бе сурат</span></div>';
-    var rows = [
-      ["ID-и иштирокчӣ", id],
-      ["Насаб", st.lastName || ""],
-      ["Ном", st.firstName || ""],
-      ["Номи падар", st.patronymic || ""],
-      ["Ҷинс", genderLabel],
-      ["Таваллуд", birthFmt],
-      ["Суроға", st.address || ""],
-      ["Муассисаи таълимӣ", st.school || ""],
-      ["Синфӣ", st.className || ""],
-      ["Омӯзгор", st.teacher || ""],
-      ["Намуди олимпиада", olyTitle],
-      ["Санаи оғози олимпиада", olyStart],
-      ["Санаи бақайдгирӣ", st.createdAt || st.registeredAt || new Date().toLocaleString()]
-    ];
-    var table = rows.map(function (r) {
-      return "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1] || "—") + "</td></tr>";
-    }).join("");
-    var subLine = olyTitle !== "—" ? olyTitle : "Иштирокчӣ · Geografia.tj";
-    var chips = "";
-    if (genderLabel !== "—") chips += '<span class="chip">' + esc(genderLabel) + "</span>";
-    if (olyStart !== "—") chips += '<span class="chip">Санаи имтиҳонсупори: ' + esc(olyStart) + "</span>";
+      var handle = await idbGet(DIR_KEY);
+      if (!handle) return null;
+      if (handle.queryPermission) {
+        var perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          perm = await handle.requestPermission({ mode: "readwrite" });

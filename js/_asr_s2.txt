@@ -44,17 +44,17 @@
       ? ('<div class="photo-wrap"><img src="' + photo + '" alt="photo"/></div>')
       : '<div class="photo-wrap placeholder"><span>Бе сурат</span></div>';
     var rows = [
-      ["ID (барои воридшавӣ)", id],
+      ["ID-и иштирокчӣ", id],
       ["Насаб", st.lastName || ""],
       ["Ном", st.firstName || ""],
       ["Номи падар", st.patronymic || ""],
       ["Ҷинс", genderLabel],
       ["Таваллуд", birthFmt],
       ["Суроға", st.address || ""],
-      ["Муассиса / Мактаб", st.school || ""],
-      ["Синф", st.className || ""],
+      ["Муассисаи таълимӣ", st.school || ""],
+      ["Синфӣ", st.className || ""],
       ["Омӯзгор", st.teacher || ""],
-      ["Унвони олимпиада", olyTitle],
+      ["Намуди олимпиада", olyTitle],
       ["Санаи оғози олимпиада", olyStart],
       ["Санаи бақайдгирӣ", st.createdAt || st.registeredAt || new Date().toLocaleString()]
     ];
@@ -64,4 +64,4 @@
     var subLine = olyTitle !== "—" ? olyTitle : "Иштирокчӣ · Geografia.tj";
     var chips = "";
     if (genderLabel !== "—") chips += '<span class="chip">' + esc(genderLabel) + "</span>";
-    if (olyStart !== "—") chips += '<span class="chip">Санаи оғоз: ' + esc(olyStart) + "</span>";
+    if (olyStart !== "—") chips += '<span class="chip">Санаи имтиҳонсупори: ' + esc(olyStart) + "</span>";

@@ -14,13 +14,13 @@
     return [
       '<!DOCTYPE html><html lang="tg"><head><meta charset="utf-8"/>',
       '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
-      "<title>Даватнома — ", esc(full), " | Geografia.tj</title><style>", css, "</style></head><body>",
+      "<title>Даъватнома — ", esc(full), " | Geografia.tj</title><style>", css, "</style></head><body>",
       '<div class="page"><div class="toolbar"><button type="button" onclick="window.print()">🖨 Чоп / Save as PDF</button></div>',
       '<article class="pass"><header class="head"><div class="brand">GEOGRAFIA.TJ</div>',
-      '<div class="badge">ДАВАТНОМА · ИҶОЗАТНОМА</div><h1>Даватнома</h1>',
-      '<p class="tagline">Ҳуҷҷати расмии иштирок дар олимпиада / викторина</p></header>',
+      '<div class="badge">ДАЪВАТНОМА · ИҶОЗАТНОМА</div><h1>Даъватнома</h1>',
+      '<p class="tagline">Ҳуҷҷати расмӣ иштирокҷи дар олимпиада</p></header>',
       '<div class="gold-line"></div><div class="body"><div class="top">', photoBlock,
-      '<div class="meta"><div class="id-label">ID барои воридшавӣ</div>',
+      '<div class="meta"><div class="id-label">ID-и иштирокчӣ</div>',
       '<div class="idbox">', esc(id), '</div>',
       '<p class="name">', esc(full), '</p>',
       '<p class="sub">', esc(subLine), '</p>',
@@ -32,7 +32,7 @@
       '<div class="qr"><img src="', webQr, '" alt="Web"/><div class="lbl">🌐 Веб-саҳифа</div>',
       '<div class="url">', esc(webUrl), '</div></div></div>',
       '<p class="seal">GEOGRAFIA.TJ <span>·</span> Платформаи география</p>',
-      '<p class="note">Ин даватнома ҳуҷҷати расмии иштирок аст. ID-ро нигоҳ доред ва барои воридшавӣ ба платформа истифода баред.</p>',
+      '<p class="note">Ин даватнома ҳуҷҷати расмии иштиррок аст.</p>',
       '</footer></article></div></body></html>'
     ].join("");
   }

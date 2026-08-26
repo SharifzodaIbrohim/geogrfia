@@ -106,40 +106,96 @@ def install(app=None):
                 pub_qs = []
 
         pub_by_text = {}
+        pub_by_id = {}
         for pq in pub_qs:
             if isinstance(pq, dict):
                 pub_by_text[_nt(pq.get("text"))] = pq
+                pub_by_id[str(pq.get("id"))] = pq
 
         correct = 0
         total = len(qs_src)
         used_keys = set()
 
-        for src in qs_src:
+        for idx, src in enumerate(qs_src):
             if not isinstance(src, dict):
                 continue
+            qtype = str(src.get("type") or src.get("qtype") or "single").lower().strip()
+            if qtype in ("choice", "mcq", "single_choice"):
+                qtype = "single"
+            if qtype in ("match",):
+                qtype = "matching"
+
+            pq = pub_by_text.get(_nt(src.get("text"))) or pub_by_id.get(str(src.get("id")))
+            pqid = str((pq or src).get("id") if (pq or src) else idx)
+            sel = None
+            if pqid in answers:
+                sel = answers.get(pqid)
+            elif str(src.get("id")) in answers:
+                sel = answers.get(str(src.get("id")))
+            elif str(idx) in answers:
+                sel = answers.get(str(idx))
+
+            if qtype in ("short", "text", "number", "numeric", "open"):
+                expected = src.get("correctText") or src.get("correctAnswer") or src.get("answerText")
+                if expected is None and not isinstance(src.get("answer"), (list, dict)):
+                    expected = src.get("answer")
+                if expected is None or str(expected).strip() == "":
+                    continue
+                got = sel
+                if isinstance(sel, dict):
+                    got = sel.get("t") or sel.get("text") or sel.get("value")
+                if got is None:
+                    continue
+                if qtype == "text" or "|" in str(expected):
+                    keys = [x.strip() for x in str(expected).split("|") if x.strip()]
+                    if any(_nt(k) in _nt(got) or _nt(got) == _nt(k) for k in keys):
+                        correct += 1
+                        used_keys.add(pqid)
+                else:
+                    if _nt(got) == _nt(expected):
+                        correct += 1
+                        used_keys.add(pqid)
+                continue
+
+            if qtype == "matching":
+                pairs = src.get("pairs") or src.get("correctPairs") or src.get("answer") or {}
+                if not isinstance(pairs, dict) or not pairs:
+                    continue
+                if not isinstance(sel, dict):
+                    continue
+                ok = True
+                for k, v in pairs.items():
+                    try:
+                        if int(sel.get(str(k), sel.get(k))) != int(v):
+                            ok = False
+                            break
+                    except (TypeError, ValueError):
+                        ok = False
+                        break
+                if ok:
+                    correct += 1
+                    used_keys.add(pqid)
+                continue
+
             ctext = _src_correct_text(src)
             if not ctext:
                 log.warning("no correct text for q: %s", (src.get("text") or "")[:50])
                 continue
-            pq = pub_by_text.get(_nt(src.get("text")))
             if not pq:
                 continue
             opts = _opts(pq)
-            pqid = str(pq.get("id"))
             matched = False
-            # 1) exact key
             if pqid in answers and pqid not in used_keys:
-                sel = _sel_text(answers.get(pqid), opts)
-                if sel is not None and _nt(sel) == _nt(ctext):
+                st = _sel_text(answers.get(pqid), opts)
+                if st is not None and _nt(st) == _nt(ctext):
                     matched = True
                     used_keys.add(pqid)
-            # 2) any unused answer key whose index selects ctext on THIS question's options
             if not matched:
                 for ak, aval in answers.items():
                     if ak in used_keys:
                         continue
-                    sel = _sel_text(aval, opts)
-                    if sel is not None and _nt(sel) == _nt(ctext):
+                    st = _sel_text(aval, opts)
+                    if st is not None and _nt(st) == _nt(ctext):
                         matched = True
                         used_keys.add(ak)
                         break
@@ -287,5 +343,5 @@ def install(app=None):
     except Exception as e:
         log.warning("student_uuid patch: %s", e)
 
-    print("[boot] patch_score_text: question-text + option-text grading installed")
+    print("[boot] patch_score_text: multi-type + option-text grading installed")
     log.info("patch_score_text installed")

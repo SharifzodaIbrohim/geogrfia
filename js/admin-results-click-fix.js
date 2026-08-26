@@ -1,17 +1,21 @@
 /**
  * Results table click → open review modal.
  * Load AFTER admin-results-review.js. Safe if review JS missing.
+ * No MutationObserver reload loop (that froze the Results tab).
  */
 (function () {
   'use strict';
 
+  var loading = false;
+  var lastLoadedId = '';
+
   function esc(s) {
     if (window.esc) return window.esc(s);
     return String(s ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"');
   }
 
   function statusLabel(st) {
@@ -67,13 +71,19 @@
     );
   }
 
-  async function loadResults(olympiadId, title) {
+  async function loadResults(olympiadId, title, force) {
     var body = document.getElementById('resultsBody');
     if (!body) return;
     if (!olympiadId) {
       body.innerHTML = '';
+      lastLoadedId = '';
       return;
     }
+    if (loading) return;
+    if (!force && lastLoadedId === String(olympiadId) && body.querySelector('tr[data-attempt-id]')) {
+      return;
+    }
+    loading = true;
     body.innerHTML = '<tr><td colspan="6" class="muted">Боркунӣ…</td></tr>';
     try {
       var data = await api('/api/admin/olympiads/' + encodeURIComponent(olympiadId) + '/results');
@@ -82,9 +92,13 @@
         ? rows.map(rowHtml).join('')
         : '<tr><td colspan="6" class="muted">Холӣ</td></tr>';
       body.dataset.olympiadTitle = title || '';
+      lastLoadedId = String(olympiadId);
     } catch (err) {
       body.innerHTML =
         '<tr><td colspan="6" class="muted">' + esc(err.message || err) + '</td></tr>';
+      lastLoadedId = '';
+    } finally {
+      loading = false;
     }
   }
 
@@ -126,6 +140,7 @@
 
     installClick();
 
+    // Clone once to drop competing listeners that render without data-attempt-id
     var parent = sel.parentNode;
     var clone = sel.cloneNode(true);
     clone.id = 'resultOlympiadSelect';
@@ -135,38 +150,47 @@
       var id = clone.value;
       var title =
         (clone.options[clone.selectedIndex] && clone.options[clone.selectedIndex].text) || '';
-      loadResults(id, title);
+      loadResults(id, title, true);
     });
 
     function refresh() {
-      clone.dispatchEvent(new Event('change'));
+      if (!clone.value) return;
+      loadResults(
+        clone.value,
+        (clone.options[clone.selectedIndex] && clone.options[clone.selectedIndex].text) || '',
+        true
+      );
     }
 
     var btnR = document.getElementById('btnRefreshResults');
-    if (btnR) btnR.addEventListener('click', refresh);
+    if (btnR) btnR.addEventListener('click', function (e) {
+      e.preventDefault();
+      refresh();
+    });
     var btnL = document.getElementById('loadResultsBtn');
-    if (btnL) btnL.addEventListener('click', refresh);
+    if (btnL) btnL.addEventListener('click', function (e) {
+      e.preventDefault();
+      refresh();
+    });
 
-    if (clone.value) setTimeout(refresh, 80);
-
-    var body = document.getElementById('resultsBody');
-    if (body) {
-      var obs = new MutationObserver(function () {
-        var s = document.getElementById('resultOlympiadSelect');
-        if (!s || !s.value) return;
-        if (!document.querySelector('#resultsBody tr[data-attempt-id]')) {
-          loadResults(s.value, (s.options[s.selectedIndex] && s.options[s.selectedIndex].text) || '');
-        }
-      });
-      obs.observe(body, { childList: true, subtree: true });
+    // One-shot load if olympiad already selected — NO MutationObserver (was the freeze)
+    if (clone.value) {
+      setTimeout(function () {
+        loadResults(
+          clone.value,
+          (clone.options[clone.selectedIndex] && clone.options[clone.selectedIndex].text) || '',
+          true
+        );
+      }, 100);
     }
   }
 
   function boot() {
     installClick();
-    setTimeout(installSelect, 250);
-    setTimeout(installSelect, 800);
-    setTimeout(installSelect, 1800);
+    setTimeout(installSelect, 400);
+    setTimeout(function () {
+      if (!window.__resultsClickFixInstalled) installSelect();
+    }, 1500);
   }
 
   if (document.readyState === 'loading') {

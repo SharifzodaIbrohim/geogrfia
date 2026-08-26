@@ -71,6 +71,7 @@ _EXTRA_PUBLIC = {
     "js/admin-students-reg.js", "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js", "js/admin-audit.js", "js/student.js",
     "js/admin-results-review.js",
     "js/admin-results-click-fix.js",
+    "js/admin-export.js",
     "js/_rrgz_0.txt", "js/_rrgz_1.txt", "js/_rrgz_2.txt", "js/_rrgz_3.txt",
     "js/_asr_s0.txt", "js/_asr_s1.txt", "js/_asr_s2.txt", "js/_asr_s3.txt",
     "js/_asr_s4.txt", "js/_asr_s5.txt", "js/_asr_s6.txt", "js/_asr_s7.txt",
@@ -126,6 +127,7 @@ _boot_patch("patch_duration", "patch_duration", "db.patch_duration")
 _boot_patch("patch_duration_api", "patch_duration_api", "db.patch_duration_api")
 _boot_patch("patch_attempt_review", "patch_attempt_review", "db.patch_attempt_review")
 _boot_patch("patch_review_text_fix", "patch_review_text_fix", "db.patch_review_text_fix")
+_boot_patch("patch_admin_export", "patch_admin_export", "db.patch_admin_export")
 
 
 def _install_safety_net() -> None:

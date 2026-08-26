@@ -125,6 +125,7 @@ _boot_patch("patch_attempts_kind", "patch_attempts_kind", "db.patch_attempts_kin
 _boot_patch("patch_duration", "patch_duration", "db.patch_duration")
 _boot_patch("patch_duration_api", "patch_duration_api", "db.patch_duration_api")
 _boot_patch("patch_attempt_review", "patch_attempt_review", "db.patch_attempt_review")
+_boot_patch("patch_review_text_fix", "patch_review_text_fix", "db.patch_review_text_fix")
 
 
 def _install_safety_net() -> None:

@@ -166,10 +166,20 @@
 
       <section id="tab-results" class="tab-panel hidden">
         <h2>Натиҷаҳо</h2>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:flex-end">
           <div><label>Олимпиада</label><select id="resultOlympiadSelect"></select></div>
+          <div><label>Мактаб</label><input id="resultSchoolFilter" type="text" placeholder="мактаб…" style="width:120px" /></div>
+          <div><label>Синф</label><input id="resultClassFilter" type="text" placeholder="синф" style="width:70px" /></div>
+          <div><label>Статус</label><select id="resultStatusFilter"><option value="">Ҳама</option><option value="passed">Гузашт</option><option value="failed">Нагузашт</option><option value="timeout">Вақт тамом</option></select></div>
+          <div><label>Хол</label><select id="resultScoreRange"><option value="">Ҳама</option><option value="0-50">0–50</option><option value="50-80">50–80</option><option value="80-100">80–100</option></select></div>
+          <div><label>Ҷустуҷӯ</label><input id="resultSearchQ" type="search" placeholder="ном, ID…" style="min-width:120px" /></div>
           <button type="button" id="btnRefreshResults" class="btn">Навсозӣ</button>
           <button type="button" id="btnClearRecent" class="btn">Пок кардани охирин</button>
+          <button type="button" id="btnExportFiltered" class="btn primary">Export ҳозира</button>
+          <button type="button" id="btnExportOlympiad" class="btn">Export олимпиада</button>
+          <button type="button" id="btnExportFull" class="btn">Export пурра (Excel)</button>
+          <button type="button" id="btnExportStudents" class="btn">Export хонандагон</button>
+          <span id="exportPreviewHint" class="muted" style="font-size:.85rem"></span>
           <button type="button" id="clearRecentBtn" class="btn" style="display:none">clear</button>
           <button type="button" id="refreshLiveBtn" class="btn" style="display:none">refresh</button>
           <button type="button" id="loadResultsBtn" class="btn" style="display:none">load</button>
@@ -242,5 +252,6 @@
   <script src="js/admin-olympiad.js"></script>
   <script src="js/admin-results-review.js"></script>
   <script src="js/admin-results-click-fix.js"></script>
+  <script src="js/admin-export.js"></script>
 </body>
 </html>

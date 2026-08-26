@@ -69,6 +69,7 @@ _EXTRA_PUBLIC = {
     "js/admin.js", "js/admin-session.js", "js/admin-fixes.js", "js/admin-gmail.js",
     "js/admin-content.js", "js/admin-leaderboard.js", "js/admin-olympiad.js",
     "js/admin-students-reg.js", "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js", "js/admin-audit.js", "js/student.js",
+    "js/admin-results-review.js",
     "js/_asr_s0.txt", "js/_asr_s1.txt", "js/_asr_s2.txt", "js/_asr_s3.txt",
     "js/_asr_s4.txt", "js/_asr_s5.txt", "js/_asr_s6.txt", "js/_asr_s7.txt",
 }
@@ -121,6 +122,7 @@ _boot_patch("force_olympiad_routes", "force_olympiad_routes", "db.force_olympiad
 _boot_patch("patch_attempts_kind", "patch_attempts_kind", "db.patch_attempts_kind")
 _boot_patch("patch_duration", "patch_duration", "db.patch_duration")
 _boot_patch("patch_duration_api", "patch_duration_api", "db.patch_duration_api")
+_boot_patch("patch_attempt_review", "patch_attempt_review", "db.patch_attempt_review")
 
 
 def _install_safety_net() -> None:

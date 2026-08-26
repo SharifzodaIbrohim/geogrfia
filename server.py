@@ -70,6 +70,7 @@ _EXTRA_PUBLIC = {
     "js/admin-content.js", "js/admin-leaderboard.js", "js/admin-olympiad.js",
     "js/admin-students-reg.js", "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js", "js/admin-audit.js", "js/student.js",
     "js/admin-results-review.js",
+    "js/admin-results-click-fix.js",
     "js/_rrgz_0.txt", "js/_rrgz_1.txt", "js/_rrgz_2.txt", "js/_rrgz_3.txt",
     "js/_asr_s0.txt", "js/_asr_s1.txt", "js/_asr_s2.txt", "js/_asr_s3.txt",
     "js/_asr_s4.txt", "js/_asr_s5.txt", "js/_asr_s6.txt", "js/_asr_s7.txt",

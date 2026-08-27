@@ -451,7 +451,87 @@ code {
   .panel { padding: 12px 10px 32px; }
   .card { padding: 14px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
-  .topbar { flex-wrap: wrap; padding: 10px 12px; }
-  .tabs { padding: 8px; }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .tabs {
+    padding: 8px;
+    gap: 6px;
+  }
+  .tab {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
   th, td { padding: 8px 10px; }
+
+  /* Horizontal scroll for wide tables — do not break layout */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    padding-bottom: 4px;
+  }
+  table {
+    min-width: 520px;
+  }
+
+  .btn {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+  .btn.small {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+
+  .grid-form input,
+  .grid-form select,
+  .grid-form textarea,
+  .form-grid input,
+  .form-grid select,
+  .form-grid textarea {
+    min-height: 44px;
+    font-size: 16px; /* prevent iOS input zoom */
+  }
+
+  .auth-card {
+    padding: 18px 16px;
+  }
+  .auth-card input {
+    min-height: 44px;
+  }
+  .auth-card .btn {
+    min-height: 48px;
+  }
+
+  .oly-card {
+    padding: 14px 12px;
+  }
+  .row-between {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .row-between .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .panel h2 {
+    font-size: 1.1rem;
+  }
+  .tabs {
+    padding: 6px 8px;
+  }
 }

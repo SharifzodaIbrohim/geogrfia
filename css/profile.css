@@ -52,6 +52,8 @@ body.pf-page-profile {
 .pr-identity h1 { margin: 0; font-size: 1.4rem; }
 .pr-email { margin: 0.2rem 0; color: #8b968c; font-size: 0.9rem; }
 .pr-meta { margin: 0; color: #70db97; font-size: 0.88rem; font-weight: 600; }
+
+/* Rating / Contests / Solved metrics */
 .pr-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(88px, 1fr));
@@ -88,10 +90,14 @@ body.pf-page-profile {
   line-height: 1.1;
 }
 .pr-metric:first-child b { color: #70db97; }
-.pr-delta { font-size: 0.78rem; font-weight: 700; }
+.pr-delta {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
 .pr-delta.up { color: #70db97; }
 .pr-delta.down { color: #ff7b7b; }
 .pr-delta.flat { color: #8b968c; }
+
 .pr-tabs {
   display: flex; gap: 0.35rem;
   border-bottom: 1px solid var(--pf-line, rgba(255,255,255,.06));
@@ -106,12 +112,15 @@ body.pf-page-profile {
 .pr-panel { display: none; }
 .pr-panel.active { display: block; }
 .pr-panel h2 { font-size: 1rem; margin: 0 0 0.75rem; color: #eef3ef; }
+
 .pr-two-col {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 1.25rem;
   margin-bottom: 0.5rem;
 }
+
+/* Rating Progress */
 .pr-progress {
   background: var(--pf-panel, #1a211d);
   border: 1px solid var(--pf-line, rgba(255,255,255,.06));
@@ -143,7 +152,8 @@ body.pf-page-profile {
   font-weight: 700;
   font-size: 0.85rem;
 }
-.pr-tier::before { content: "\1F3C5"; }
+.pr-tier::before { content: "🏅"; }
+
 .pr-grid-info {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;
 }
@@ -154,6 +164,8 @@ body.pf-page-profile {
 }
 .pr-grid-info span { display: block; color: #8b968c; font-size: 0.75rem; margin-bottom: 0.25rem; }
 .pr-grid-info b { font-size: 0.95rem; }
+
+/* Contests stats mini */
 .pr-stats-mini {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -169,6 +181,7 @@ body.pf-page-profile {
 }
 .pr-stat b { display: block; font-size: 1.4rem; font-weight: 800; color: #70db97; }
 .pr-stat span { color: #8b968c; font-size: 0.78rem; }
+
 .pr-list .pr-row {
   display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
   padding: 0.8rem 0.9rem;
@@ -188,6 +201,7 @@ body.pf-page-profile {
 }
 .pr-badge.ok { background: rgba(112,219,151,.15); color: #70db97; }
 .pr-badge.fail { background: rgba(255,123,123,.12); color: #ff9a9a; }
+
 .pr-form { display: grid; gap: 0.45rem; max-width: 420px; }
 .pr-form label { font-size: 0.82rem; color: #8b968c; margin-top: 0.35rem; }
 .pr-form input, .pr-form select {
@@ -213,12 +227,37 @@ body.pf-page-profile {
   background: #1a211d; border: 1px solid rgba(255,255,255,.08);
   border-radius: 16px; padding: 1.5rem; width: min(420px, 100%);
 }
+
 @media (max-width: 720px) {
-  .pr-metrics { grid-template-columns: repeat(2, 1fr); width: 100%; }
+  .pr-metrics { grid-template-columns: repeat(2, 1fr); width: 100%; min-width: 0; }
   .pr-two-col { grid-template-columns: 1fr; }
-  .pr-stats-mini { grid-template-columns: 1fr; }
+  .pr-stats-mini { grid-template-columns: 1fr 1fr 1fr; }
+  .pr-wrap { padding: 1rem 0.75rem 2.5rem; }
+  .pr-identity { min-width: 0; flex: 1; }
+  .pr-identity h1 { font-size: 1.2rem; }
+  .pr-tab {
+    min-height: 44px;
+    padding: 0.7rem 0.85rem;
+  }
+  .pr-btn {
+    min-height: 44px;
+    width: 100%;
+  }
+  .pr-form input,
+  .pr-form select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .pr-list .pr-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }
 @media (max-width: 560px) {
   .pr-grid-info { grid-template-columns: 1fr; }
-  .pr-hero { padding: 1rem; }
+  .pr-hero { padding: 1rem; gap: 1rem; }
+  .pr-stats-mini { grid-template-columns: 1fr; }
+  .pr-avatar-lg { width: 64px; height: 64px; font-size: 1.25rem; }
+  .pr-metric b { font-size: 1.25rem; }
+  .pr-gate-card { padding: 1.5rem 1.15rem; }
 }

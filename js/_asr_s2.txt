@@ -1,33 +1,3 @@
-          if (perm !== "granted") return null;
-        }
-      }
-      _dirMemory = handle;
-      updateFolderStatus(true, handle.name || "папка");
-      return handle;
-    } catch (_) { return null; }
-  }
-  async function pickStudentsFolder() {
-    if (!window.showDirectoryPicker) {
-      alert("Chrome/Edge лозим барои папкаи маҳаллӣ."); return;
-    }
-    try {
-      var handle = await window.showDirectoryPicker({ mode: "readwrite" });
-      _dirMemory = handle;
-      await idbSet(DIR_KEY, handle);
-      updateFolderStatus(true, handle.name || "папка");
-    } catch (e) {
-      if (e && e.name === "AbortError") return;
-      alert("Папка: " + (e.message || e));
-    }
-  }
-  function formatTgDate(v) {
-    if (!v) return "—";
-    var s = String(v).trim();
-    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return s;
-    var months = ["январ","феврал","март","апрел","май","июн","июл","август","сентябр","октябр","ноябр","декабр"];
-    return parseInt(m[3], 10) + " " + (months[parseInt(m[2], 10) - 1] || m[2]) + "и соли " + m[1];
-  }
   function buildStudentCardHtml(st) {
     var id = st.id || "";
     var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
@@ -55,7 +25,6 @@
       ["Синфӣ", st.className || ""],
       ["Омӯзгор", st.teacher || ""],
       ["Намуди олимпиада", olyTitle],
-      ["Санаи оғози олимпиада", olyStart],
       ["Санаи бақайдгирӣ", st.createdAt || st.registeredAt || new Date().toLocaleString()]
     ];
     var table = rows.map(function (r) {
@@ -65,3 +34,7 @@
     var chips = "";
     if (genderLabel !== "—") chips += '<span class="chip">' + esc(genderLabel) + "</span>";
     if (olyStart !== "—") chips += '<span class="chip">Санаи имтиҳонсупори: ' + esc(olyStart) + "</span>";
+    var css = [
+      "@page{size:A4;margin:5mm}",
+      ":root{--g1:#0a3328;--g2:#157a58;--g3:#d4f0e4;--gold:#c9a227;--gold2:#f0d78c;--ink:#132019;--muted:#5a6b62;--line:#cfe0d6;--paper:#fffcf7}",
+      "*{box-sizing:border-box;margin:0;padding:0}",

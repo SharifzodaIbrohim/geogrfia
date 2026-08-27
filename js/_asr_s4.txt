@@ -1,42 +1,88 @@
-      "tr:nth-child(even) td{background:#fafdfb}",
-      ".foot{margin-top:8px;padding:18px 28px 22px;border-top:1px dashed var(--line);background:linear-gradient(180deg,#fbfefc,#f2f8f5);position:relative;z-index:1}",
-      ".qr-title{text-align:center;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}",
-      ".qr-row{display:flex;gap:40px;flex-wrap:wrap;justify-content:center}",
-      ".qr{text-align:center;width:172px}",
-      ".qr img{width:150px;height:150px;border-radius:12px;border:2px solid var(--line);background:#fff;padding:8px}",
-      ".qr .lbl{margin-top:9px;font-size:.9rem;font-weight:800;color:var(--g1)}",
-      ".qr .url{font-size:.72rem;color:var(--muted);word-break:break-all}",
-      ".seal{text-align:center;margin-top:16px;font-weight:800;color:var(--g1);letter-spacing:.12em;font-size:1rem}",
-      ".seal span{color:var(--gold);margin:0 8px}",
-      ".note{text-align:center;margin:10px auto 0;color:var(--muted);font-size:.82rem;max-width:540px}",
-      "@media print{body{background:#fff}.toolbar{display:none!important}.page{margin:0;padding:0;max-width:none}.pass{box-shadow:none;border-radius:0}}"
-    ].join("");
-    return [
-      '<!DOCTYPE html><html lang="tg"><head><meta charset="utf-8"/>',
-      '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
-      "<title>Даъватнома — ", esc(full), " | Geografia.tj</title><style>", css, "</style></head><body>",
-      '<div class="page"><div class="toolbar"><button type="button" onclick="window.print()">🖨 Чоп / Save as PDF</button></div>',
-      '<article class="pass"><header class="head"><div class="brand">GEOGRAFIA.TJ</div>',
-      '<div class="badge">ДАЪВАТНОМА · ИҶОЗАТНОМА</div><h1>Даъватнома</h1>',
-      '<p class="tagline">Ҳуҷҷати расмӣ иштирокҷи дар олимпиада</p></header>',
-      '<div class="gold-line"></div><div class="body"><div class="top">', photoBlock,
-      '<div class="meta"><div class="id-label">ID-и иштирокчӣ</div>',
-      '<div class="idbox">', esc(id), '</div>',
-      '<p class="name">', esc(full), '</p>',
-      '<p class="sub">', esc(subLine), '</p>',
-      '<div class="chips">', chips, '</div></div></div>',
-      '<table>', table, '</table></div>',
-      '<footer class="foot"><div class="qr-title">Пайвандҳо · QR-код</div><div class="qr-row">',
-      '<div class="qr"><img src="', igQr, '" alt="IG"/><div class="lbl">📷 Instagram</div>',
-      '<div class="url">instagram.com/geografia.tj</div></div>',
-      '<div class="qr"><img src="', webQr, '" alt="Web"/><div class="lbl">🌐 Веб-саҳифа</div>',
-      '<div class="url">', esc(webUrl), '</div></div></div>',
-      '<p class="seal">GEOGRAFIA.TJ <span>·</span> Платформаи география</p>',
-      '<p class="note">Ин даватнома ҳуҷҷати расмии иштиррок аст.</p>',
-      '</footer></article></div></body></html>'
-    ].join("");
-  }
-  async function saveStudentLocalCopy(st) {
+  async function exportStudentsCsv() {
     try {
-      var dir = _dirMemory || (await tryRestoreDir());
-      if (!dir) return { ok: false, error: "Папка интихоб нашудааст — тугмаи «Папкаи маҳаллӣ»-ро пахш кунед" };
+      var data = await api("/api/admin/students");
+      var list = data.students || [];
+      var headers = ["ID","Насаб","Ном","Номи падар","Ҷинс","Таваллуд","Суроға","Мактаб","Синф","Омӯзгор","Олимпиада","Санаи оғоз","Сурат"];
+      var lines = [headers.join(",")];
+      list.forEach(function (s) {
+        var g = s.gender === "male" ? "Мард" : (s.gender === "female" ? "Зан" : (s.gender || ""));
+        lines.push([s.id,s.lastName,s.firstName,s.patronymic,g,s.birthDate,s.address,s.school,s.className,s.teacher,s.olympiadTitle,s.olympiadStart,(s.hasPhoto||s.photoData)?"ҳа":"не"].map(csvEscape).join(","));
+      });
+      var blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "students_" + new Date().toISOString().slice(0,10) + ".csv";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (_) {} a.remove(); }, 1500);
+    } catch (e) { alert("Export: " + (e.message || e)); }
+  }
+  async function registerStudent(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (_regLock) return false;
+    _regLock = true;
+    var msg = document.getElementById("studentFormMsg");
+    if (msg) msg.classList.add("hidden");
+    var lastName = val("stLastName"), firstName = val("stFirstName");
+    var patronymic = val("stFatherName"), birthDate = val("stBirthDate");
+    var address = val("stAddress"), className = val("stClass"), school = val("stSchool");
+    var teacher = val("stTeacher"), gender = val("stGender");
+    var olympiadTitle = val("stOlympiadTitle"), olympiadStart = val("stOlympiadStart");
+    var photoData = val("stPhotoData");
+    var fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
+    try {
+      if (!lastName || !firstName) throw new Error("Насаб ва Ном ҳатмӣ.");
+      if (!className || !school) throw new Error("Синф ва Мактаб ҳатмӣ.");
+      if (!getToken()) throw new Error("Аввал ворид шавед (token нест). Саҳифаро нав кунед ва дубора login кунед.");
+      var data = await api("/api/admin/students", {
+        method: "POST",
+        body: JSON.stringify({
+          lastName: lastName, firstName: firstName, patronymic: patronymic,
+          birthDate: birthDate, address: address, className: className,
+          school: school, teacher: teacher, gender: gender,
+          olympiadTitle: olympiadTitle, olympiadStart: olympiadStart,
+          photoData: photoData, fullName: fullName
+        })
+      });
+      var s = data.student || data;
+      Object.assign(s, {
+        lastName: lastName, firstName: firstName, patronymic: patronymic,
+        birthDate: birthDate, address: address, school: school, className: className,
+        teacher: teacher, gender: gender, olympiadTitle: olympiadTitle,
+        olympiadStart: olympiadStart, photoData: photoData,
+        fullName: s.fullName || fullName,
+        createdAt: s.createdAt || new Date().toLocaleString()
+      });
+      var box = document.getElementById("newIdBox");
+      if (box) box.classList.remove("hidden");
+      var nv = document.getElementById("newIdValue");
+      if (nv) nv.textContent = s.id || "";
+
+      var saved = await saveStudentLocalCopy(s);
+      var extra = "";
+      if (saved && saved.ok) extra = " · файл: " + (saved.fileName || "OK");
+      else if (saved && saved.error) extra = " · папка: " + saved.error;
+
+      try {
+        var htmlUrl = URL.createObjectURL(new Blob([buildStudentCardHtml(s)], { type: "text/html;charset=utf-8" }));
+        window.open(htmlUrl, "_blank");
+        setTimeout(function () { try { URL.revokeObjectURL(htmlUrl); } catch (_) {} }, 60000);
+      } catch (_) {}
+
+      if (msg) {
+        msg.textContent = "ID: " + (s.id || "") + " · Даъватнома кушода шуд" + extra;
+        msg.classList.remove("hidden", "error");
+        msg.classList.add("ok");
+      }
+      var formEl = document.getElementById("studentForm");
+      if (formEl) formEl.reset();
+      clearPhoto(); stopCamera();
+      loadStudentsLocal();
+    } catch (err) {
+      if (msg) {
+        msg.textContent = err.message || String(err);
+        msg.classList.remove("hidden");
+        msg.classList.add("error");
+      } else alert(err.message || String(err));
+    } finally { _regLock = false; }
+    return false;
+  }

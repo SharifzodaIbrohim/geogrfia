@@ -1,19 +1,18 @@
-    var video = document.getElementById("cameraVideo");
-    if (!video) return;
-    var constraints = { video: { facingMode: "user" }, audio: false };
-    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
-    try {
-      setCamStatus("Кушода истодааст…");
-      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = _camStream;
-      video.style.display = "block";
-      await video.play().catch(function () {});
-      setCamStatus("Камера фаъол");
-      await listCameras();
-    } catch (e) {
-      setCamStatus("Хато: " + (e.message || e));
-      _camStream = null;
+        setCamStatus("Дастрасӣ рад шуд — дар браузер Allow кунед");
+      else if (name === "NotFoundError" || name === "OverconstrainedError")
+        setCamStatus("Камера ёфт нашуд / дастгоҳ номувофиқ");
+      else
+        setCamStatus("Хато: " + (name || (err && err.message) || err));
+      return;
     }
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("autoplay", "true");
+    video.muted = true;
+    video.srcObject = _camStream;
+    video.style.display = "block";
+    try { await video.play(); } catch (_) {}
+    setCamStatus("Камера фаъол");
+    await listCameras();
   }
   function stopCamera() {
     if (_camStream) {
@@ -78,3 +77,33 @@
         var perm = await handle.queryPermission({ mode: "readwrite" });
         if (perm !== "granted") {
           perm = await handle.requestPermission({ mode: "readwrite" });
+          if (perm !== "granted") return null;
+        }
+      }
+      _dirMemory = handle;
+      updateFolderStatus(true, handle.name || "папка");
+      return handle;
+    } catch (_) { return null; }
+  }
+  async function pickStudentsFolder() {
+    if (!window.showDirectoryPicker) {
+      alert("Chrome/Edge лозим барои папкаи маҳаллӣ."); return;
+    }
+    try {
+      var handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      _dirMemory = handle;
+      await idbSet(DIR_KEY, handle);
+      updateFolderStatus(true, handle.name || "папка");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      alert("Папка: " + (e.message || e));
+    }
+  }
+  function formatTgDate(v) {
+    if (!v) return "—";
+    var s = String(v).trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return s;
+    var months = ["январ","феврал","март","апрел","май","июн","июл","август","сентябр","октябр","ноябр","декабр"];
+    return parseInt(m[3], 10) + " " + (months[parseInt(m[2], 10) - 1] || m[2]) + "и соли " + m[1];
+  }

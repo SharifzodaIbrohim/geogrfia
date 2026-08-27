@@ -1,58 +1,107 @@
-      var name = (st.fullName || st.id || "student").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
-      var fileName = (st.id || Date.now()) + "_" + name + ".html";
-      var html = buildStudentCardHtml(st);
-      var fh = await dir.getFileHandle(fileName, { create: true });
-      var w = await fh.createWritable();
-      await w.write(html);
-      await w.close();
-      return { ok: true, fileName: fileName };
-    } catch (e) {
-      return { ok: false, error: e.message || String(e) };
-    }
-  }
-  function csvEscape(v) {
-    var s = String(v == null ? "" : v);
-    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-    return s;
-  }
-  async function exportStudentsCsv() {
+  async function loadStudentsLocal() {
     try {
       var data = await api("/api/admin/students");
+      var body = document.getElementById("studentsBody");
+      if (!body) return;
       var list = data.students || [];
-      var headers = ["ID","Насаб","Ном","Номи падар","Ҷинс","Таваллуд","Суроға","Мактаб","Синф","Омӯзгор","Олимпиада","Санаи оғоз","Сурат"];
-      var lines = [headers.join(",")];
-      list.forEach(function (s) {
-        var g = s.gender === "male" ? "Мард" : (s.gender === "female" ? "Зан" : (s.gender || ""));
-        lines.push([s.id,s.lastName,s.firstName,s.patronymic,g,s.birthDate,s.address,s.school,s.className,s.teacher,s.olympiadTitle,s.olympiadStart,(s.hasPhoto||s.photoData)?"ҳа":"не"].map(csvEscape).join(","));
-      });
-      var blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = "students_" + new Date().toISOString().slice(0,10) + ".csv";
-      document.body.appendChild(a); a.click();
-      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (_) {} a.remove(); }, 1500);
-    } catch (e) { alert("Export: " + (e.message || e)); }
+      body.innerHTML = list.length ? list.map(function (s) {
+        var id = s.id || "";
+        var g = s.gender === "male" ? "Мард" : (s.gender === "female" ? "Зан" : (s.gender || "—"));
+        return "<tr><td><code>" + esc(id) + "</code></td><td>" + esc(s.fullName || "") + "</td><td>" + esc(g) +
+          "</td><td>" + esc(s.className || "") + "</td><td>" + esc(s.school || "") +
+          "</td><td>" + esc(s.olympiadTitle || "—") + "</td><td>" + (s.hasPhoto || s.photoData ? "+" : "-") +
+          "</td><td><button type=\"button\" class=\"btn small danger\" data-del-student=\"" + esc(id) + "\">Нест</button></td></tr>";
+      }).join("") : '<tr><td colspan="8">Хонанда нест</td></tr>';
+    } catch (e) {
+      var body = document.getElementById("studentsBody");
+      if (body) body.innerHTML = '<tr><td colspan="8">Хато: ' + esc(e.message || e) + "</td></tr>";
+    }
   }
-  async function registerStudent(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    if (_regLock) return false;
-    _regLock = true;
-    var msg = document.getElementById("studentFormMsg");
-    if (msg) msg.classList.add("hidden");
-    var lastName = val("stLastName"), firstName = val("stFirstName");
-    var patronymic = val("stFatherName"), birthDate = val("stBirthDate");
-    var address = val("stAddress"), className = val("stClass"), school = val("stSchool");
-    var teacher = val("stTeacher"), gender = val("stGender");
-    var olympiadTitle = val("stOlympiadTitle"), olympiadStart = val("stOlympiadStart");
-    var photoData = val("stPhotoData");
-    var fullName = [lastName, firstName, patronymic].filter(Boolean).join(" ");
+  async function deleteStudent(id) {
+    id = String(id || "").trim();
+    if (!id || !confirm("Нест кунем?\n" + id)) return;
     try {
-      if (!lastName || !firstName) throw new Error("Насаб ва Ном ҳатмӣ.");
-      if (!className || !school) throw new Error("Синф ва Мактаб ҳатмӣ.");
-      if (!getToken()) throw new Error("Аввал ворид шавед (token нест). Саҳифаро нав кунед ва дубора login кунед.");
-      var data = await api("/api/admin/students", {
-        method: "POST",
-        body: JSON.stringify({
-          lastName: lastName, firstName: firstName, patronymic: patronymic,
-          birthDate: birthDate, address: address, className: className,
-          school: school, teacher: teacher, gender: gender,
+      await api("/api/admin/students/" + encodeURIComponent(id), { method: "DELETE" });
+      loadStudentsLocal();
+    } catch (err) { alert("Нест нашуд: " + (err.message || err)); }
+  }
+  function onClick(id, fn) {
+    var el = document.getElementById(id);
+    if (!el) { console.warn("[students-reg] missing #" + id); return; }
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { fn(e); } catch (err) {
+        console.error("[students-reg]", id, err);
+        alert((err && err.message) || String(err));
+      }
+    });
+  }
+  function bind() {
+    console.log("[students-reg] bind OK");
+    var form = document.getElementById("studentForm");
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        registerStudent(e);
+        return false;
+      });
+    }
+    onClick("btnRegisterStudent", registerStudent);
+    onClick("exportStudentsBtn", exportStudentsCsv);
+    onClick("btnPickStudentsFolder", pickStudentsFolder);
+    onClick("btnStartCamera", startCamera);
+    onClick("btnCapturePhoto", capturePhoto);
+    onClick("btnStopCamera", stopCamera);
+    onClick("btnClearPhoto", clearPhoto);
+    var camSel = document.getElementById("cameraSelect");
+    if (camSel && !camSel._geoBound) {
+      camSel._geoBound = true;
+      camSel.addEventListener("change", function () {
+        if (_camStream) startCamera();
+      });
+    }
+    var copyBtn = document.getElementById("copyIdBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async function () {
+        var v = (document.getElementById("newIdValue") || {}).textContent || "";
+        if (!v) return;
+        try { await navigator.clipboard.writeText(v); alert("ID нусха шуд"); }
+        catch (_) { prompt("Нусха:", v); }
+      });
+    }
+    var body = document.getElementById("studentsBody");
+    if (body && !body._geoDelBound) {
+      body._geoDelBound = true;
+      body.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest && ev.target.closest("[data-del-student]");
+        if (!btn) return;
+        deleteStudent(btn.getAttribute("data-del-student"));
+      });
+    }
+    var f = document.getElementById("photoFileInput");
+    if (f) {
+      f.addEventListener("change", function (ev) {
+        var file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        var r = new FileReader();
+        r.onload = function () { applyPhoto(r.result); };
+        r.readAsDataURL(file);
+      });
+    }
+    document.querySelectorAll(".tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.dataset.tab === "students") loadStudentsLocal();
+      });
+    });
+    listCameras();
+    tryRestoreDir().then(function (d) { updateFolderStatus(!!d, d && d.name); });
+    loadStudentsLocal();
+  }
+  window.__geoRegisterStudent = registerStudent;
+  window.__geoExportStudents = exportStudentsCsv;
+  window.__geoPickStudentsFolder = pickStudentsFolder;
+  window.loadStudents = loadStudentsLocal;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
+  else bind();
+})();

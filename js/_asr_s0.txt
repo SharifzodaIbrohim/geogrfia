@@ -65,7 +65,7 @@
       cams.forEach(function (d, i) {
         var o = document.createElement("option");
         o.value = d.deviceId || "";
-        o.textContent = d.label || ("Камера " + (i + 1));
+        o.textContent = (d.label && d.label.trim()) ? d.label : ("Камера " + (i + 1));
         sel.appendChild(o);
       });
     } catch (e) { setCamStatus("Рӯйхати камера: " + (e.message || e)); }
@@ -75,4 +75,26 @@
       setCamStatus("Камера дастгирӣ намешавад (HTTPS лозим)"); return;
     }
     stopCamera();
-    var sel = document.g
+    var sel = document.getElementById("cameraSelect");
+    var video = document.getElementById("cameraVideo");
+    if (!video) { setCamStatus("Элементи video нест"); return; }
+    var id = sel && sel.value ? String(sel.value).trim() : "";
+    var tries = [];
+    if (id) tries.push({ video: { deviceId: { ideal: id } }, audio: false });
+    tries.push({ video: { facingMode: "user" }, audio: false });
+    tries.push({ video: true, audio: false });
+    setCamStatus("Кушода истодааст… Allow-ро пахш кунед");
+    var err = null;
+    for (var i = 0; i < tries.length; i++) {
+      try {
+        _camStream = await navigator.mediaDevices.getUserMedia(tries[i]);
+        err = null;
+        break;
+      } catch (e) {
+        err = e;
+        _camStream = null;
+      }
+    }
+    if (!_camStream) {
+      var name = (err && err.name) || "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError")

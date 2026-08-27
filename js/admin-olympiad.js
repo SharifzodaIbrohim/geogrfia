@@ -178,7 +178,7 @@
       if (!list || !list.parentElement) return;
       el = document.createElement("div");
       el.id = "olyTotalScore";
-      el.style.cssText = "font-weight:700;margin:.5rem 0;padding:.4rem .6rem;background:#f0f7ff;border-radius:6px";
+      el.style.cssText = "font-weight:700;margin:.5rem 0;padding:.45rem .7rem;background:rgba(112,219,151,.12);color:#d8f0dc;border:1px solid rgba(112,219,151,.28);border-radius:8px";
       list.parentElement.insertBefore(el, list);
     }
     var sum = 0;

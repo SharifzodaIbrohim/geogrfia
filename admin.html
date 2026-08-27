@@ -184,12 +184,65 @@
           <button type="button" id="refreshLiveBtn" class="btn" style="display:none">refresh</button>
           <button type="button" id="loadResultsBtn" class="btn" style="display:none">load</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Хонанда</th><th>Мактаб</th><th>Синф</th><th>Хол</th><th>Статус</th><th>Вақт</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>Хонанда</th><th>Student ID</th><th>Мактаб</th><th>Синф</th><th>Хол</th><th>Статус</th><th>Вақт</th>
+        </tr></thead><tbody id="resultsBody"></tbody></table></div>
       </section>
 
       <section id="tab-leaderboard" class="tab-panel hidden">
         <h2>Leaderboard (public)</h2>
-        <div id="leaderboardAdminRoot"></div>
+        <div id="leaderboardAdminRoot">
+          <div class="card" style="margin-bottom:1rem">
+            <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <input type="checkbox" id="lbPublicToggle" checked /> Оммавӣ (public)
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <input type="checkbox" id="lbShowSchool" checked /> Нишон додани мактаб
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <input type="checkbox" id="lbShowClass" checked /> Нишон додани синф
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+              <input type="checkbox" id="lbUseDemo" checked /> Demo ҳангоми холӣ
+            </label>
+            <label>Унвон
+              <input id="lbTitleInput" type="text" placeholder="Leaderboard · Top Rated" style="width:100%;margin-top:.25rem" />
+            </label>
+            <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
+              <button type="button" class="btn primary" id="lbSaveSettings">Сабт</button>
+              <button type="button" class="btn" id="lbRefresh">Навсозӣ</button>
+            </div>
+            <p id="lbMsg" class="muted" style="margin-top:.5rem"></p>
+          </div>
+
+          <h3>Рейтинг</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ҷой</th>
+                  <th>Ном</th>
+                  <th>Мактаб</th>
+                  <th>Синф</th>
+                  <th>Рейтинг</th>
+                  <th>Ҳал</th>
+                  <th>Мусобиқа</th>
+                  <th>Pin</th>
+                </tr>
+              </thead>
+              <tbody id="lbGlobalBody"></tbody>
+            </table>
+          </div>
+
+          <h3 style="margin-top:1.25rem">Pinned ranks (ҷойҳои дастӣ)</h3>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:center">
+            <input id="pinUserId" placeholder="userId / studentId" style="min-width:160px" />
+            <input id="pinRank" type="number" min="1" placeholder="ҷой (1,2,3…)" style="width:110px" />
+            <input id="pinName" placeholder="ном (ихтиёрӣ)" />
+            <button type="button" class="btn" id="pinAdd">Илова</button>
+          </div>
+          <div id="pinList" class="muted">Pinned нест</div>
+        </div>
       </section>
 
       <section id="tab-gmail" class="tab-panel hidden">

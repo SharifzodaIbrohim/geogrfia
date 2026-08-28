@@ -5,168 +5,91 @@
   }
   async function api(path, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-    if (tok()) headers['X-Admin-Token'] = tok();
+    const t = tok();
+    if (t) headers['X-Admin-Token'] = t;
     const res = await fetch(path, { ...opts, headers, credentials: 'include' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Хато');
     return data;
   }
-  function isGmail(r) {
-    const id = String(r.studentId || r.studentCode || '');
-    const name = String(r.studentName || '');
-    return id.startsWith('g:') || id.startsWith('gmail:') || /^gmail/i.test(name);
+  function isGmailUser(r) {
+    const id = String(r.studentId || r.code || r.id || '');
+    const name = String(r.studentName || r.name || r.fullName || '');
+    if (/gmail|@/.test(name.toLowerCase())) return true;
+    if (/^g_/i.test(id)) return true;
+    return false;
   }
-  function displayName(r) {
-    let n = String(r.studentName || '').trim();
-    if (!n || /^gmail/i.test(n)) n = r.email || r.userEmail || 'Иштирокчӣ';
-    return n;
-  }
-
-  async function doClearRecent() {
-    if (!confirm('Натиҷаҳои охирин (то 30) аз база пок шаванд? Ин бебозгашт аст.')) return;
+  const origLoadResults = window.loadResultsIntoBody;
+  // Filter Gmail from ID-based results if helper exists
+  document.addEventListener('DOMContentLoaded', () => {
     try {
-      let data;
-      try {
-        data = await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' });
-      } catch (_) {
-        data = await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' });
+      const btn = document.getElementById('clearRecentResultsBtn') || document.getElementById('clearRecentBtn');
+      if (btn && !btn.dataset.fixed) {
+        btn.dataset.fixed = '1';
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!confirm('Натиҷаҳои охиринро пок кунем?')) return;
+          try {
+            try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); }
+            catch (_) { await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' }); }
+            if (typeof window.loadMonitor === 'function') window.loadMonitor();
+          } catch (err) { alert(err.message || 'Пок нашуд'); }
+        }, true);
       }
-      const n = (data && data.cleared != null) ? data.cleared : '?';
-      const body = document.getElementById('recentResultsBody');
-      if (body) body.innerHTML = '<tr><td colspan="6">Пок шуд (' + n + ')</td></tr>';
-      if (typeof window.loadMonitor === 'function') {
-        window.loadMonitor();
-      } else {
-        const refresh = document.getElementById('refreshLiveBtn');
-        if (refresh) refresh.click();
-      }
-    } catch (e) {
-      alert(e.message || 'Пок карда нашуд');
+    } catch (_) {}
+  });
+})();
+
+/** Display-only: format monitor/results scores as points + percent. Does not change scoring. */
+(function () {
+  'use strict';
+  function formatScoreCell(r) {
+    if (!r) return '—';
+    var earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : r.points);
+    var totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : r.totalPoints);
+    var pct = null;
+    if (r.score != null && r.score !== '') {
+      pct = String(r.score).indexOf('%') >= 0 ? String(r.score) : (r.score + '%');
     }
+    var points = '';
+    if (earned != null && totalMax != null) points = earned + '/' + totalMax + ' хол';
+    else if (r.correct != null && r.total != null) points = r.correct + '/' + r.total;
+    if (points && pct) return points + ' · ' + pct;
+    if (points) return points;
+    if (pct) return pct;
+    return '—';
   }
+  window.formatScoreCell = formatScoreCell;
 
-  function wire() {
-    const saveLb = document.getElementById('saveLbVisBtn');
-    if (saveLb && !saveLb._fixed) {
-      saveLb._fixed = true;
-      saveLb.addEventListener('click', async () => {
-        const id = document.getElementById('resultOlympiadSelect')?.value;
-        if (!id) { alert('Аввал олимпиадаро интихоб кунед'); return; }
-        const isPublic = document.getElementById('leaderboardPublicChk')?.checked !== false;
-        try {
-          await api('/api/admin/olympiads/' + id + '/leaderboard', {
-            method: 'PATCH',
-            body: JSON.stringify({ public: isPublic }),
-          });
-          alert('Сабт шуд: Leaderboard ' + (isPublic ? 'оммавӣ' : 'пӯшида'));
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    }
-
-    const loadLb = document.getElementById('loadLeaderboardBtn');
-    if (loadLb && !loadLb._fixed) {
-      loadLb._fixed = true;
-      loadLb.addEventListener('click', async () => {
-        const id = document.getElementById('resultOlympiadSelect')?.value;
-        const body = document.getElementById('leaderboardBody');
-        if (!id) { alert('Аввал олимпиадаро интихоб кунед'); return; }
-        try {
-          const data = await api('/api/admin/olympiads/' + id + '/leaderboard');
-          const rows = (data.entries || data.leaderboard || []).filter((r) => !isGmail(r));
-          if (data.leaderboardPublic != null && document.getElementById('leaderboardPublicChk')) {
-            document.getElementById('leaderboardPublicChk').checked = !!data.leaderboardPublic;
-          }
-          body.innerHTML = rows.length
-            ? rows.map((r, i) => `<tr><td>${r.rank || i + 1}</td><td>${displayName(r)}</td><td>${r.studentClass || ''}</td><td>${r.studentSchool || ''}</td><td><b>${r.score ?? '—'}%</b></td><td>${r.status || ''}</td></tr>`).join('')
-            : '<tr><td colspan="6">Холӣ</td></tr>';
-        } catch (e) {
-          body.innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
-        }
-      });
-    }
-
-    ['clearRecentResultsBtn', 'clearRecentBtn', 'btnClearRecent'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el && !el._fixed) {
-        el._fixed = true;
-        el.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          doClearRecent();
-        });
-      }
+  function patchRecentTable(rows) {
+    var body = document.getElementById('recentResultsBody');
+    if (!body || !rows || !rows.length) return;
+    var trs = body.querySelectorAll('tr');
+    if (trs.length !== rows.length) return;
+    rows.forEach(function (r, i) {
+      var tds = trs[i].querySelectorAll('td');
+      if (tds.length >= 4) tds[3].textContent = formatScoreCell(r);
     });
-    let clearBtn = document.getElementById('clearRecentResultsBtn');
-    if (!clearBtn) {
-      const h3s = [...document.querySelectorAll('h3')].filter((h) => h.textContent.includes('Натиҷаҳои охирин'));
-      if (h3s[0]) {
-        clearBtn = document.createElement('button');
-        clearBtn.type = 'button';
-        clearBtn.className = 'btn small';
-        clearBtn.id = 'clearRecentResultsBtn';
-        clearBtn.textContent = 'Пок кардан';
-        clearBtn.style.marginLeft = '0.5rem';
-        h3s[0].appendChild(clearBtn);
-        clearBtn._fixed = true;
-        clearBtn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          doClearRecent();
-        });
-      }
-    }
-
-    let clearAll = document.getElementById('clearAllResultsBtn');
-    if (!clearAll) {
-      const save = document.getElementById('saveLbVisBtn');
-      if (save && save.parentElement) {
-        clearAll = document.createElement('button');
-        clearAll.type = 'button';
-        clearAll.className = 'btn danger';
-        clearAll.id = 'clearAllResultsBtn';
-        clearAll.textContent = 'Пок кардани ҳама натиҷаҳо';
-        save.parentElement.appendChild(clearAll);
-      }
-    }
-    if (clearAll && !clearAll._fixed) {
-      clearAll._fixed = true;
-      clearAll.addEventListener('click', async () => {
-        if (!confirm('ҲАМА натиҷаҳо нест шаванд? Бебозгашт!')) return;
-        try {
-          await api('/api/admin/results/clear-all', { method: 'POST', body: '{}' });
-          alert('Пок шуд');
-          const rb = document.getElementById('resultsBody');
-          if (rb) rb.innerHTML = '';
-          const rcb = document.getElementById('recentResultsBody');
-          if (rcb) rcb.innerHTML = '<tr><td colspan="6">Холӣ</td></tr>';
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    }
-
-    const recent = document.getElementById('recentResultsBody');
-    if (recent && !recent._obs) {
-      recent._obs = new MutationObserver(() => {
-        [...recent.querySelectorAll('tr')].forEach((tr) => {
-          const t = tr.textContent || '';
-          if (/gmail/i.test(t) || t.includes('g:')) tr.remove();
-        });
-      });
-      recent._obs.observe(recent, { childList: true, subtree: true });
-    }
-
-    const resultsTab = document.getElementById('tab-results');
-    if (resultsTab && !document.getElementById('resultsGmailNote')) {
-      const note = document.createElement('p');
-      note.id = 'resultsGmailNote';
-      note.className = 'muted';
-      note.textContent = 'Ин ҷо танҳо хонандагони ID. Натиҷаҳои Gmail → «Gmail корбарон».';
-      const h2 = resultsTab.querySelector('h2');
-      if (h2) h2.after(note);
-    }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(wire, 300));
-  else setTimeout(wire, 300);
+  var _fetch = window.fetch;
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var p = _fetch.apply(this, arguments);
+    if (String(url).indexOf('/api/admin/monitor') >= 0) {
+      return p.then(function (res) {
+        var clone = res.clone();
+        clone.json().then(function (data) {
+          try {
+            var rows = data.recentResults || data.results || [];
+            setTimeout(function () { patchRecentTable(rows); }, 50);
+            setTimeout(function () { patchRecentTable(rows); }, 300);
+          } catch (e) {}
+        }).catch(function () {});
+        return res;
+      });
+    }
+    return p;
+  };
 })();

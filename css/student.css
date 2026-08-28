@@ -30,50 +30,50 @@
 }
 
 .exam-title {
+  margin: 0 0 10px;
   font-size: 1.15rem;
   font-weight: 700;
-  line-height: 1.35;
-  color: var(--text, #f2f4f1);
+  line-height: 1.3;
 }
 
 .exam-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   justify-content: center;
-  margin-top: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .exam-chip {
-  font-size: 0.78rem;
-  padding: 4px 10px;
+  display: inline-block;
+  padding: 4px 12px;
   border-radius: 999px;
   background: rgba(255,255,255,0.06);
   color: var(--muted, #9aa39a);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .exam-chip.accent {
   background: var(--accent-dim, rgba(112, 219, 151, 0.15));
   color: var(--accent, #70db97);
-  font-weight: 600;
 }
 
 .exam-body {
-  min-height: 200px;
+  min-height: 220px;
 }
 
 .exam-q-num {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--muted, #9aa39a);
   margin-bottom: 8px;
+  font-weight: 600;
 }
 
 .exam-q-text {
-  font-size: 1.08rem;
+  font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.45;
-  margin-bottom: 14px;
-  color: var(--text, #f2f4f1);
+  margin: 0 0 16px;
 }
 
 .exam-opts {
@@ -130,56 +130,6 @@
   padding-top: 3px;
 }
 
-/* Alias: student.js renders button.exam-opt + span.opt-letter (not exam-opt-btn) */
-.exam-opt {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
-  background: var(--bg, #141614);
-  color: var(--text, #f2f4f1);
-  cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  transition: border-color 0.15s, background 0.15s;
-}
-.exam-opt:hover {
-  border-color: rgba(112, 219, 151, 0.45);
-}
-.exam-opt.selected {
-  border-color: var(--accent, #70db97);
-  background: var(--accent-dim, rgba(112, 219, 151, 0.15));
-}
-.exam-opt .opt-letter,
-.exam-opt .exam-opt-letter {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 0.85rem;
-  background: rgba(255,255,255,0.08);
-  color: var(--muted, #9aa39a);
-}
-.exam-opt.selected .opt-letter,
-.exam-opt.selected .exam-opt-letter {
-  background: var(--accent, #70db97);
-  color: #0c1510;
-}
-.exam-q {
-  font-size: 1.08rem;
-  font-weight: 600;
-  line-height: 1.45;
-  margin-bottom: 14px;
-  color: var(--text, #f2f4f1);
-}
-
 .exam-nav {
   display: flex;
   align-items: center;
@@ -190,31 +140,105 @@
   border-top: 1px solid var(--border, rgba(255,255,255,0.08));
 }
 
+/* Language select — match dark topbar / ghost buttons */
+#pfLang,
+.pf-lang {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface-2, #262c26);
+  color: var(--text, #f2f4f1);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  border-radius: 11px;
+  padding: 8px 12px;
+  height: 38px;
+  min-height: 38px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+#pfLang:hover,
+.pf-lang:hover {
+  background: #303830;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+#pfLang:focus,
+.pf-lang:focus {
+  outline: none;
+  border-color: rgba(112, 219, 151, 0.55);
+  box-shadow: 0 0 0 3px var(--accent-dim, rgba(112, 219, 151, 0.14));
+}
+#pfLang option,
+.pf-lang option {
+  background: var(--surface, #1c211c);
+  color: var(--text, #f2f4f1);
+}
+
 .exam-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
   justify-content: center;
-  max-width: 40%;
+  max-width: 48%;
+  align-items: center;
 }
 
-.exam-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  border: none;
+/* Question number nav — dark pills, touch-friendly (exam-dot + .dot) */
+.exam-dot,
+.exam-dots .dot,
+#examDots .dot,
+#examDots button {
+  min-width: 36px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
   padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background: var(--bg, #141614);
+  color: var(--text, #f2f4f1);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
 }
-
-.exam-dot.answered {
-  background: rgba(112, 219, 151, 0.55);
+.exam-dot:hover,
+.exam-dots .dot:hover,
+#examDots .dot:hover,
+#examDots button:hover {
+  background: var(--surface-2, #262c26);
+  border-color: rgba(112, 219, 151, 0.4);
+  color: var(--accent, #70db97);
 }
-
-.exam-dot.current {
+.exam-dot.answered,
+.exam-dot.done,
+.exam-dots .dot.done,
+#examDots .dot.done {
+  background: rgba(112, 219, 151, 0.18);
+  border-color: rgba(112, 219, 151, 0.35);
+  color: var(--accent, #70db97);
+}
+.exam-dot.current,
+.exam-dots .dot.active,
+#examDots .dot.active,
+#examDots button.active {
   background: var(--accent, #70db97);
-  transform: scale(1.25);
+  border-color: var(--accent, #70db97);
+  color: #0c1510;
+  transform: none;
+  box-shadow: 0 0 0 2px rgba(112, 219, 151, 0.25);
+}
+.exam-dot.current:hover,
+.exam-dots .dot.active:hover,
+#examDots .dot.active:hover {
+  background: var(--accent-hover, #5fcf88);
+  color: #0c1510;
 }
 
 .exam-footer {
@@ -251,23 +275,12 @@
     line-height: 1.5;
   }
 
+  /* Large tap targets for A–D options */
   .exam-opt-btn {
     min-height: 48px;
     padding: 14px 14px;
     font-size: 0.98rem;
     gap: 14px;
-  }
-
-  .exam-opt {
-    min-height: 48px;
-    padding: 14px 14px;
-    font-size: 0.98rem;
-    gap: 14px;
-  }
-  .exam-opt .opt-letter {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
   }
 
   .exam-opt-letter {
@@ -292,7 +305,23 @@
     order: 3;
     width: 100%;
     justify-content: center;
-    margin-top: 4px;
+    margin-top: 6px;
+    gap: 8px;
+  }
+  .exam-dot,
+  .exam-dots .dot,
+  #examDots .dot,
+  #examDots button {
+    min-width: 40px;
+    min-height: 40px;
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+  #pfLang,
+  .pf-lang {
+    height: 40px;
+    min-height: 40px;
   }
 
   .exam-submit {
@@ -304,42 +333,37 @@
   .exam-text-input,
   .match-select {
     min-height: 44px;
-    font-size: 16px;
+    font-size: 16px; /* avoid iOS zoom */
     width: 100%;
   }
 
   .oly-card .btn,
+  .cards .btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 520px) {
   .exam-card { padding: 14px 12px; border-radius: 12px; }
   .exam-title { font-size: 1.02rem; }
   .exam-nav .btn { padding: 10px 12px; font-size: 0.88rem; }
   .exam-body { min-height: 180px; }
+  .exam-meta { gap: 6px; }
+  .exam-chip { font-size: 0.75rem; padding: 4px 10px; }
 }
 
+
+.result-card, .card.highlight.result-card, .card.highlight {
+  background: var(--surface, #141b16) !important;
+  border: 1px solid var(--border, #2a362e) !important;
+  color: var(--text, #e8ece7) !important;
+  box-shadow: none !important;
+}
+.score-big { color: var(--accent, #70db97); font-size: 2.4rem; font-weight: 800; }
 .exam-text-input, .match-select {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border, rgba(255,255,255,0.12));
-  background: var(--bg, #141614);
-  color: var(--text, #f2f4f1);
-  font-size: 1rem;
-}
-
-.exam-match-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.match-left {
-  flex: 1;
-  min-width: 120px;
-  font-weight: 600;
-}
-
-.match-select {
-  flex: 1;
-  min-width: 140px;
+  color: var(--text, #e8ece7);
+  background: var(--surface-2, #1a221c);
+  border: 1px solid var(--border, #2a362e);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
 }

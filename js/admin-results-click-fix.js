@@ -12,10 +12,10 @@
   function esc(s) {
     if (window.esc) return window.esc(s);
     return String(s ?? '')
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function statusLabel(st) {
@@ -45,7 +45,13 @@
     var name = r.studentName || r.name || r.fullName || r.studentId || '—';
     var school = r.school || r.studentSchool || '';
     var cls = r.className || r.studentClass || '';
-    var score = r.score != null ? r.score + '%' : '—';
+    var earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : r.points);
+    var totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : r.totalPoints);
+    var pct = r.score != null && r.score !== '' ? (String(r.score).indexOf('%') >= 0 ? String(r.score) : r.score + '%') : null;
+    var points = '';
+    if (earned != null && totalMax != null) points = earned + '/' + totalMax + ' хол';
+    else if (r.correct != null && r.total != null) points = r.correct + '/' + r.total;
+    var score = points && pct ? points + ' · ' + pct : (points || pct || '—');
     var st = statusLabel(r.status);
     var fin = r.finishedAt || '';
     return (
@@ -140,7 +146,6 @@
 
     installClick();
 
-    // Clone once to drop competing listeners that render without data-attempt-id
     var parent = sel.parentNode;
     var clone = sel.cloneNode(true);
     clone.id = 'resultOlympiadSelect';
@@ -173,7 +178,6 @@
       refresh();
     });
 
-    // One-shot load if olympiad already selected — NO MutationObserver (was the freeze)
     if (clone.value) {
       setTimeout(function () {
         loadResults(

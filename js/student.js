@@ -1,4 +1,4 @@
-// Student portal — olympiad UI + full i18n (GeoI18n.t)
+// Student portal — olympiad UI (aligned with student.html IDs)
 (function () {
   'use strict';
 
@@ -165,13 +165,13 @@
     let quizzes = data.quizzes || [];
     if (!quizzes.length) {
       quizzes = oly.filter(function (o) {
-        const ty = String(o.type || '').toLowerCase();
-        return ty === 'quiz' || ty === 'викторина';
+        const t = String(o.type || '').toLowerCase();
+        return t === 'quiz' || t === 'викторина';
       });
     }
     const pureOly = oly.filter(function (o) {
-      const ty = String(o.type || '').toLowerCase();
-      return ty !== 'quiz' && ty !== 'викторина';
+      const t = String(o.type || '').toLowerCase();
+      return t !== 'quiz' && t !== 'викторина';
     });
     renderEventCards($('olympiadList'), pureOly, $('emptyOly'), 'Олимпиада');
     renderEventCards($('quizList'), quizzes, $('emptyQuiz'), 'Викторина');
@@ -228,8 +228,8 @@
     if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
       const inp = $('examTextInput');
       if (inp) {
-        const tv = inp.value.trim();
-        exam.answers[qid] = { t: tv, text: tv };
+        const t = inp.value.trim();
+        exam.answers[qid] = { t: t, text: t };
       }
     } else if (qtype === 'matching' || qtype === 'match') {
       const selects = document.querySelectorAll('.match-select');
@@ -243,8 +243,8 @@
       const selected = document.querySelector('.exam-opt.selected');
       if (selected) {
         const i = parseInt(selected.getAttribute('data-i'), 10);
-        const tv = selected.getAttribute('data-t') || '';
-        exam.answers[qid] = { i: i, t: tv };
+        const t = selected.getAttribute('data-t') || '';
+        exam.answers[qid] = { i: i, t: t };
       }
     }
   }
@@ -298,7 +298,7 @@
       const right = q.rightItems || q.right || [];
       const cur = (selected && typeof selected === 'object' && !Array.isArray(selected)) ? selected : {};
       if (!left.length) {
-        body += '<p class="muted">' + t('empty') + '</p>';
+        body += '<p class="muted">Банди matching холӣ аст</p>';
       } else {
         body += '<div class="exam-match">' + left.map(function (L, li) {
           const sel = cur[String(li)] != null ? String(cur[String(li)]) : '';
@@ -336,16 +336,8 @@
 
     const prev = $('examPrevBtn');
     const next = $('examNextBtn');
-    if (prev) {
-      prev.disabled = exam.idx <= 0;
-      prev.textContent = t('previous');
-    }
-    if (next) {
-      next.disabled = exam.idx >= total - 1;
-      next.textContent = t('next');
-    }
-    const sub = $('submitExamBtn');
-    if (sub) sub.textContent = t('submitExam');
+    if (prev) prev.disabled = exam.idx <= 0;
+    if (next) next.disabled = exam.idx >= total - 1;
   }
 
   async function autosave(silent) {
@@ -397,16 +389,33 @@
           data.message || t('waiting');
         if ($('resultStatus')) $('resultStatus').textContent = t('waiting');
       } else {
-        const score = data.score != null ? data.score : (data.result && data.result.score);
-        const correct = data.correct != null ? data.correct : (data.result && data.result.correct);
-        const total = data.total != null ? data.total : (data.result && data.result.total);
-        if ($('resultScore')) $('resultScore').textContent = (score != null ? score : '—') + '%';
+        const r = Object.assign({}, data, data.result || {});
+        const score = r.score != null ? r.score : null;
+        const earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : null);
+        const totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : null);
+        const correct = r.correct != null ? r.correct : null;
+        const total = r.total != null ? r.total : null;
+        const passThr = r.passScore != null ? r.passScore : (r.pass_score != null ? r.pass_score : 70);
+        if ($('resultScore')) {
+          if (earned != null && totalMax != null) {
+            $('resultScore').textContent = earned + ' / ' + totalMax + ' хол';
+          } else {
+            $('resultScore').textContent = (score != null ? score : '—') + '%';
+          }
+        }
         if ($('resultDetail')) {
-          $('resultDetail').textContent =
-            (correct != null && total != null) ? (correct + ' ' + t('of') + ' ' + total + ' ' + t('correct')) : '';
+          const parts = [];
+          if (earned != null && totalMax != null) {
+            parts.push((score != null ? score : '—') + '%');
+          } else if (correct != null && total != null) {
+            parts.push(correct + ' ' + t('of') + ' ' + total + ' ' + t('correct'));
+          }
+          parts.push('Ҳад: ' + passThr + '%');
+          $('resultDetail').textContent = parts.join(' · ');
         }
         if ($('resultStatus')) {
-          $('resultStatus').textContent = (data.status || (data.result && data.result.status) || '') + '';
+          const st = (r.status || '') + '';
+          $('resultStatus').textContent = st === 'passed' ? 'Гузашт' : st === 'failed' ? 'Нагузашт' : st;
         }
       }
     } catch (e) {

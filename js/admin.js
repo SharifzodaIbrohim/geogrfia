@@ -82,6 +82,28 @@
     if (r.lastName || r.firstName) return [r.lastName, r.firstName].filter(Boolean).join(' ');
     return n || '—';
   }
+  /** Display score as points + percent (not only %). Does not change scoring. */
+  function formatScoreCell(r) {
+    const earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : r.points);
+    const totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : r.totalPoints);
+    const correct = r.correct;
+    const total = r.total;
+    let pct = null;
+    if (r.score != null && r.score !== '') {
+      pct = String(r.score).includes('%') ? String(r.score) : (r.score + '%');
+    }
+    let points = '';
+    if (earned != null && totalMax != null) {
+      points = earned + '/' + totalMax + ' хол';
+    } else if (correct != null && total != null) {
+      points = correct + '/' + total;
+    }
+    if (points && pct) return points + ' · ' + pct;
+    if (points) return points;
+    if (pct) return pct;
+    return '—';
+  }
+
   async function loadMonitor() {
     try {
       const data = await api('/api/admin/monitor');
@@ -118,7 +140,7 @@
           ? rows.map((r) => {
               const st = statusLabel(r.status);
               const stClass = (String(r.status||'').toLowerCase()==='passed') ? 'ok' : ((String(r.status||'').toLowerCase()==='failed') ? 'error' : '');
-              const score = (r.score != null && r.score !== '') ? (String(r.score).includes('%') ? r.score : (r.score + '%')) : '—';
+              const score = formatScoreCell(r);
               const school = [r.school, r.className].filter(Boolean).join(' / ');
               return `<tr>
                 <td>${esc(displayName(r))}</td>
@@ -138,14 +160,22 @@
     }
   }
 
+  window.loadMonitor = loadMonitor;
   document.getElementById('refreshLiveBtn')?.addEventListener('click', loadMonitor);
-  document.getElementById('clearRecentBtn')?.addEventListener('click', async () => {
-    if (!confirm('Натиҷаҳои охиринро аз рӯйхат пок кунем?')) return;
+  async function clearRecentHandler() {
+    if (!confirm('Натиҷаҳои охирин (то 30) аз база пок шаванд? Ин бебозгашт аст.')) return;
     try {
       try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); }
       catch (_) { await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' }); }
       loadMonitor();
     } catch (err) { alert(err.message || 'Пок карда нашуд'); }
+  }
+  ['clearRecentBtn', 'btnClearRecent', 'clearRecentResultsBtn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && !el._adminJsClear) {
+      el._adminJsClear = true;
+      el.addEventListener('click', (ev) => { ev.preventDefault(); clearRecentHandler(); });
+    }
   });
   async function loadStudents() {
     try {
@@ -253,7 +283,7 @@
       if (!body) return;
       const rows = data.results || data.items || [];
       body.innerHTML = rows.length
-        ? rows.map((r) => `<tr><td>${esc(displayName(r))}</td><td>${esc(r.school || '')}</td><td>${esc(r.className || '')}</td><td>${r.score ?? '—'}%</td><td>${esc(statusLabel(r.status))}</td><td>${esc(r.finishedAt || '')}</td></tr>`).join('')
+        ? rows.map((r) => `<tr><td>${esc(displayName(r))}</td><td>${esc(r.school || '')}</td><td>${esc(r.className || '')}</td><td>${esc(formatScoreCell(r))}</td><td>${esc(statusLabel(r.status))}</td><td>${esc(r.finishedAt || '')}</td></tr>`).join('')
         : '<tr><td colspan="6" class="muted">Холӣ</td></tr>';
     } catch (err) { console.warn(err); }
   });

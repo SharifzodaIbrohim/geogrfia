@@ -1,1 +1,345 @@
-PLACEHOLDER_WILL_REPLACE2
+/* Student exam UI — one question at a time */
+
+.exam-shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 32px;
+}
+
+.exam-card {
+  background: var(--surface, #1e221e);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 16px;
+  padding: 20px 18px 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+}
+
+.exam-head {
+  text-align: center;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.exam-brand {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--accent, #70db97);
+  margin-bottom: 6px;
+}
+
+.exam-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text, #f2f4f1);
+}
+
+.exam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.exam-chip {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: var(--muted, #9aa39a);
+}
+
+.exam-chip.accent {
+  background: var(--accent-dim, rgba(112, 219, 151, 0.15));
+  color: var(--accent, #70db97);
+  font-weight: 600;
+}
+
+.exam-body {
+  min-height: 200px;
+}
+
+.exam-q-num {
+  font-size: 0.8rem;
+  color: var(--muted, #9aa39a);
+  margin-bottom: 8px;
+}
+
+.exam-q-text {
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 14px;
+  color: var(--text, #f2f4f1);
+}
+
+.exam-opts {
+  display: grid;
+  gap: 10px;
+}
+
+.exam-opt-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: var(--bg, #141614);
+  color: var(--text, #f2f4f1);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.exam-opt-btn:hover {
+  border-color: rgba(112, 219, 151, 0.45);
+}
+
+.exam-opt-btn.selected {
+  border-color: var(--accent, #70db97);
+  background: var(--accent-dim, rgba(112, 219, 151, 0.15));
+}
+
+.exam-opt-letter {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.08);
+  color: var(--muted, #9aa39a);
+}
+
+.exam-opt-btn.selected .exam-opt-letter {
+  background: var(--accent, #70db97);
+  color: #0c1510;
+}
+
+.exam-opt-label {
+  flex: 1;
+  padding-top: 3px;
+}
+
+/* Alias: student.js renders button.exam-opt + span.opt-letter (not exam-opt-btn) */
+.exam-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: var(--bg, #141614);
+  color: var(--text, #f2f4f1);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  transition: border-color 0.15s, background 0.15s;
+}
+.exam-opt:hover {
+  border-color: rgba(112, 219, 151, 0.45);
+}
+.exam-opt.selected {
+  border-color: var(--accent, #70db97);
+  background: var(--accent-dim, rgba(112, 219, 151, 0.15));
+}
+.exam-opt .opt-letter,
+.exam-opt .exam-opt-letter {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.08);
+  color: var(--muted, #9aa39a);
+}
+.exam-opt.selected .opt-letter,
+.exam-opt.selected .exam-opt-letter {
+  background: var(--accent, #70db97);
+  color: #0c1510;
+}
+.exam-q {
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 14px;
+  color: var(--text, #f2f4f1);
+}
+
+.exam-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.exam-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  max-width: 40%;
+}
+
+.exam-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.exam-dot.answered {
+  background: rgba(112, 219, 151, 0.55);
+}
+
+.exam-dot.current {
+  background: var(--accent, #70db97);
+  transform: scale(1.25);
+}
+
+.exam-footer {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.exam-submit {
+  min-width: 160px;
+}
+
+.result-card {
+  max-width: 420px;
+  margin: 24px auto;
+}
+
+@media (max-width: 768px) {
+  .exam-shell {
+    padding: 8px 10px 28px;
+  }
+
+  .exam-card {
+    padding: 16px 14px 14px;
+    border-radius: 14px;
+  }
+
+  .exam-title {
+    font-size: 1.08rem;
+    line-height: 1.35;
+  }
+
+  .exam-q-text {
+    font-size: 1.02rem;
+    line-height: 1.5;
+  }
+
+  .exam-opt-btn {
+    min-height: 48px;
+    padding: 14px 14px;
+    font-size: 0.98rem;
+    gap: 14px;
+  }
+
+  .exam-opt {
+    min-height: 48px;
+    padding: 14px 14px;
+    font-size: 0.98rem;
+    gap: 14px;
+  }
+  .exam-opt .opt-letter {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+
+  .exam-opt-letter {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+
+  .exam-nav {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .exam-nav .btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+
+  .exam-dots {
+    max-width: 100%;
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+
+  .exam-submit {
+    min-height: 48px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .exam-text-input,
+  .match-select {
+    min-height: 44px;
+    font-size: 16px;
+    width: 100%;
+  }
+
+  .oly-card .btn,
+  .exam-card { padding: 14px 12px; border-radius: 12px; }
+  .exam-title { font-size: 1.02rem; }
+  .exam-nav .btn { padding: 10px 12px; font-size: 0.88rem; }
+  .exam-body { min-height: 180px; }
+}
+
+.exam-text-input, .match-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  background: var(--bg, #141614);
+  color: var(--text, #f2f4f1);
+  font-size: 1rem;
+}
+
+.exam-match-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.match-left {
+  flex: 1;
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.match-select {
+  flex: 1;
+  min-width: 140px;
+}

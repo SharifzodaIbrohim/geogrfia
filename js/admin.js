@@ -163,10 +163,20 @@
   window.loadMonitor = loadMonitor;
   document.getElementById('refreshLiveBtn')?.addEventListener('click', loadMonitor);
   async function clearRecentHandler() {
-    if (!confirm('Натиҷаҳои охирин (то 30) аз база пок шаванд? Ин бебозгашт аст.')) return;
+    if (!confirm('Натиҷаҳои охиринро аз рӯйхат тоза кунем?\n\nДиққат: ин амал аз база НЕСТ намекунад (танҳо UI).')) return;
+    const typed = prompt('Барои НЕСТ кардан аз DATABASE, калимаи DELETE-ро нависед.\nАгар фақат рӯйхатро нав кунед — Cancel занед.');
     try {
-      try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); }
-      catch (_) { await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' }); }
+      if (typed && typed.trim() === 'DELETE') {
+        if (!confirm('Охирин 30 натиҷа аз PostgreSQL НЕСТ шаванд? Бебозгашт!')) return;
+        try {
+          await api('/api/admin/monitor/clear-recent', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) });
+        } catch (_) {
+          await api('/api/admin/results/clear-recent', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) });
+        }
+        alert('Аз база нест карда шуд.');
+      } else {
+        try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); } catch (_) {}
+      }
       loadMonitor();
     } catch (err) { alert(err.message || 'Пок карда нашуд'); }
   }

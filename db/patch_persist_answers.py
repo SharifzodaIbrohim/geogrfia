@@ -77,42 +77,14 @@ def _ensure_schema() -> None:
         except Exception:
             pass
         try:
-            s.execute(
-                text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS attempt_answers_attempt_qid_uidx "
-                    "ON attempt_answers (attempt_id, question_id)"
-                )
-            )
+            s.commit()
         except Exception:
             pass
 
 
-def _sel_text(sel) -> str | None:
-    if sel is None:
-        return None
-    if isinstance(sel, str):
-        return sel
-    if isinstance(sel, (int, float, bool)):
-        return str(sel)
-    try:
-        return json.dumps(sel, ensure_ascii=False)
-    except Exception:
-        return str(sel)
-
-
-def _sel_idx(sel) -> int | None:
-    if isinstance(sel, int):
-        return sel
-    if isinstance(sel, dict):
-        for k in ("i", "index", "selectedIndex", "optionIndex"):
-            if k in sel and isinstance(sel[k], int):
-                return sel[k]
-    return None
-
-
 def persist_answers(attempt_id: str, answers: dict, score_map: dict | None = None) -> bool:
-    """Write answers + score_map to PG. Returns True on success."""
-    if not _use_pg() or not attempt_id:
+    """Write full answers dict + optional score_map to PG. Returns True on success."""
+    if not attempt_id or not _use_pg():
         return False
     answers = answers if isinstance(answers, dict) else {}
     score_map = score_map if isinstance(score_map, dict) else {}
@@ -121,40 +93,60 @@ def persist_answers(attempt_id: str, answers: dict, score_map: dict | None = Non
     try:
         with get_session() as s:
             from sqlalchemy import text
-            aj = json.dumps(answers, ensure_ascii=False)
-            sm = json.dumps(score_map, ensure_ascii=False)
             try:
                 s.execute(
                     text(
                         "UPDATE attempts SET answers_json = CAST(:aj AS jsonb), "
                         "score_map_json = CAST(:sm AS jsonb) WHERE id::text = :id"
                     ),
-                    {"aj": aj, "sm": sm, "id": str(attempt_id)},
+                    {
+                        "aj": json.dumps(answers, ensure_ascii=False),
+                        "sm": json.dumps(score_map, ensure_ascii=False),
+                        "id": str(attempt_id),
+                    },
                 )
                 ok = True
-            except Exception as e1:
-                log.warning("answers_json jsonb update failed: %s", e1)
+            except Exception as e:
+                log.warning("answers_json jsonb: %s", e)
                 try:
                     s.execute(
                         text(
-                            "UPDATE attempts SET answers_json = :aj::jsonb, "
-                            "score_map_json = :sm::jsonb WHERE id::text = :id"
+                            "UPDATE attempts SET answers_json = :aj, score_map_json = :sm "
+                            "WHERE id::text = :id"
                         ),
-                        {"aj": aj, "sm": sm, "id": str(attempt_id)},
+                        {
+                            "aj": json.dumps(answers, ensure_ascii=False),
+                            "sm": json.dumps(score_map, ensure_ascii=False),
+                            "id": str(attempt_id),
+                        },
                     )
                     ok = True
                 except Exception as e2:
-                    log.error("answers_json persist FAILED: %s", e2)
-
+                    log.error("answers_json text: %s", e2)
             for qid, sel in answers.items():
+                si = None
+                st = None
+                if isinstance(sel, dict):
+                    for k in ("i", "index", "oi", "optionIndex", "selected_idx"):
+                        if sel.get(k) is not None:
+                            try:
+                                si = int(sel[k])
+                            except Exception:
+                                si = None
+                            break
+                    st = sel.get("t") or sel.get("text") or sel.get("selected_text")
+                    if st is not None:
+                        st = str(st)
+                elif isinstance(sel, (int, float)):
+                    si = int(sel)
+                elif isinstance(sel, str):
+                    st = sel
                 try:
-                    st = _sel_text(sel)
-                    si = _sel_idx(sel)
                     s.execute(
                         text(
                             "INSERT INTO attempt_answers "
-                            "(id, attempt_id, question_id, selected_idx, is_correct, selected_text) "
-                            "VALUES (:id, CAST(:aid AS uuid), :qid, :sel, NULL, :st) "
+                            "(id, attempt_id, question_id, selected_idx, selected_text) "
+                            "VALUES (:id, CAST(:aid AS uuid), :qid, :sel, :st) "
                             "ON CONFLICT (attempt_id, question_id) DO UPDATE SET "
                             "selected_idx = EXCLUDED.selected_idx, "
                             "selected_text = EXCLUDED.selected_text"
@@ -173,7 +165,7 @@ def persist_answers(attempt_id: str, answers: dict, score_map: dict | None = Non
                             text(
                                 "INSERT INTO attempt_answers "
                                 "(id, attempt_id, question_id, selected_idx, selected_text) "
-                                "VALUES (:id, CAST(:aid AS uuid), :qid, :sel, :st)"
+                                "VALUES (:id, :aid, :qid, :sel, :st)"
                             ),
                             {
                                 "id": str(uuid.uuid4()),
@@ -185,6 +177,10 @@ def persist_answers(attempt_id: str, answers: dict, score_map: dict | None = Non
                         )
                     except Exception as e4:
                         log.debug("attempt_answers row %s: %s / %s", qid, e3, e4)
+            try:
+                s.commit()
+            except Exception:
+                pass
         if ok:
             log.info("persist_answers OK attempt=%s n=%d", attempt_id, len(answers))
         return ok
@@ -212,6 +208,8 @@ def _wrap_submit():
             answers = session_token
             session_token = kwargs.get("sessionToken") or kwargs.get("session_token")
         answers = answers if isinstance(answers, dict) else {}
+        if not answers and isinstance(kwargs.get("answers"), dict):
+            answers = kwargs.get("answers") or {}
         result = orig(session_id, session_token, answers, fingerprint=fingerprint, **kwargs)
 
         try:
@@ -220,13 +218,18 @@ def _wrap_submit():
                 sessions = oe._load_sessions()
                 sess = sessions.get(str(session_id)) or {}
                 score_map = sess.get("scoreMap") or {}
+                if not answers and isinstance(sess.get("answers"), dict):
+                    answers = sess.get("answers") or answers
                 if sess:
                     sess["answers"] = answers
                     sessions[str(session_id)] = sess
                     oe._save_sessions(sessions)
             except Exception:
                 pass
-            persist_answers(str(session_id), answers, score_map)
+            # Always persist to PG — answers must survive Render restart
+            ok = persist_answers(str(session_id), answers, score_map)
+            if not ok:
+                log.error("persist_answers returned False for attempt=%s", session_id)
         except Exception as e:
             log.error("post-submit persist_answers: %s", e)
         return result
@@ -242,4 +245,19 @@ def install(app=None):
     except Exception as e:
         log.warning("schema ensure: %s", e)
     _wrap_submit()
+    # Re-wrap after other boot patches that may replace submit_exam
+    if app is not None:
+        @app.before_request
+        def _ensure_persist_wrap():
+            if not getattr(app, "_persist_rewrap_done", False):
+                app._persist_rewrap_done = True
+                try:
+                    try:
+                        from db import olympiad_engine as oe
+                    except Exception:
+                        import olympiad_engine as oe
+                    oe._persist_answers_wrapped = False
+                    _wrap_submit()
+                except Exception as e:
+                    log.warning("late rewrap: %s", e)
     print("[boot] patch_persist_answers: PG answers_json + attempt_answers on submit")

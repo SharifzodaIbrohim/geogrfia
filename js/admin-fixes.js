@@ -1,4 +1,4 @@
-/** Admin fixes: LB save, clear recent (real delete), filter Gmail from ID results */
+/** Admin fixes: LB save, clear recent (SAFE), filter Gmail from ID results */
 (() => {
   function tok() {
     return localStorage.getItem('geo_admin_token') || '';
@@ -29,10 +29,17 @@
         btn.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (!confirm('Натиҷаҳои охиринро пок кунем?')) return;
+          if (!confirm('Натиҷаҳои охиринро аз рӯйхат тоза кунем? (база тағйир намеёбад)')) return;
+          const typed = prompt('Барои нест кардан аз DATABASE калимаи DELETE-ро нависед (Cancel = фақат навсозӣ):');
           try {
-            try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); }
-            catch (_) { await api('/api/admin/results/clear-recent', { method: 'POST', body: '{}' }); }
+            if (typed && typed.trim() === 'DELETE') {
+              if (!confirm('Охирин 30 натиҷа аз база НЕСТ шаванд? Бебозгашт!')) return;
+              try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) }); }
+              catch (_) { await api('/api/admin/results/clear-recent', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) }); }
+              alert('Аз база нест карда шуд.');
+            } else {
+              try { await api('/api/admin/monitor/clear-recent', { method: 'POST', body: '{}' }); } catch (_) {}
+            }
             if (typeof window.loadMonitor === 'function') window.loadMonitor();
           } catch (err) { alert(err.message || 'Пок нашуд'); }
         }, true);

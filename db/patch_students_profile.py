@@ -43,6 +43,7 @@ def ensure_student_profile_columns() -> None:
                 ("birth_date", "DATE"), ("address", "TEXT"), ("teacher_name", "TEXT"),
                 ("photo_data", "TEXT"), ("gender", "TEXT"),
                 ("olympiad_title", "TEXT"), ("olympiad_start", "DATE"),
+                ("exam_subject", "TEXT"),
             ]:
                 s.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col} {typ}"))
         print("[boot] students profile columns OK")
@@ -71,6 +72,7 @@ def _row_public(r: dict) -> dict:
         "gender": r.get("gender") or "",
         "olympiadTitle": r.get("olympiadTitle") or r.get("olympiad_title") or "",
         "olympiadStart": oly_start,
+        "examSubject": r.get("examSubject") or r.get("exam_subject") or r.get("subject") or r.get("fan") or "",
         "hasPhoto": bool(r.get("photo_data") or r.get("photoData") or r.get("hasPhoto")),
         "photoData": r.get("photoData") if r.get("photoData") else None,
         "createdAt": r.get("createdAt"),
@@ -95,7 +97,7 @@ def install(app=None) -> None:
                     rows = s.execute(text(
                         "SELECT student_code, full_name, last_name, first_name, patronymic, "
                         "birth_date, address, class_name, school_name, teacher_name, "
-                        "gender, olympiad_title, olympiad_start, "
+                        "gender, olympiad_title, olympiad_start, exam_subject, "
                         "CASE WHEN photo_data IS NOT NULL AND length(photo_data) > 10 THEN true ELSE false END AS has_photo, "
                         "status, created_at FROM students WHERE status = 'active' ORDER BY full_name"
                     )).mappings().all()
@@ -109,7 +111,9 @@ def install(app=None) -> None:
                             "address": r.get("address"), "className": r.get("class_name"),
                             "school": r.get("school_name"), "teacher": r.get("teacher_name"),
                             "gender": r.get("gender") or "", "olympiadTitle": r.get("olympiad_title") or "",
-                            "olympiadStart": r.get("olympiad_start"), "hasPhoto": bool(r.get("has_photo")),
+                            "olympiadStart": r.get("olympiad_start"),
+                            "examSubject": r.get("exam_subject") or "",
+                            "hasPhoto": bool(r.get("has_photo")),
                             "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
                             "status": r.get("status") or "active",
                         }))
@@ -130,7 +134,7 @@ def install(app=None) -> None:
                     r = s.execute(text(
                         "SELECT student_code, full_name, last_name, first_name, patronymic, "
                         "birth_date, address, class_name, school_name, teacher_name, "
-                        "gender, olympiad_title, olympiad_start, photo_data, status, created_at "
+                        "gender, olympiad_title, olympiad_start, exam_subject, photo_data, status, created_at "
                         "FROM students WHERE student_code = :c LIMIT 1"
                     ), {"c": code}).mappings().first()
                     if not r:
@@ -144,6 +148,7 @@ def install(app=None) -> None:
                         "school": r.get("school_name"), "teacher": r.get("teacher_name"),
                         "gender": r.get("gender") or "", "olympiadTitle": r.get("olympiad_title") or "",
                         "olympiadStart": r.get("olympiad_start"),
+                        "examSubject": r.get("exam_subject") or "",
                         "hasPhoto": bool(r.get("photo_data")), "photoData": r.get("photo_data"),
                         "createdAt": r["created_at"].isoformat() if r.get("created_at") else None,
                         "status": r.get("status") or "active",
@@ -167,6 +172,7 @@ def install(app=None) -> None:
         gender = _norm_gender(str(extra.get("gender") or ""))
         olympiad_title = str(extra.get("olympiad_title") or extra.get("olympiadTitle") or "").strip()
         olympiad_start = extra.get("olympiad_start") or extra.get("olympiadStart") or None
+        exam_subject = str(extra.get("exam_subject") or extra.get("examSubject") or extra.get("subject") or extra.get("fan") or "").strip()
         if olympiad_start:
             olympiad_start = str(olympiad_start).strip()[:10] or None
             if olympiad_start and not re.match(r"^\d{4}-\d{2}-\d{2}$", olympiad_start):
@@ -178,23 +184,24 @@ def install(app=None) -> None:
                         "INSERT INTO students ("
                         " student_code, full_name, last_name, first_name, patronymic, "
                         " birth_date, address, class_name, school_name, teacher_name, "
-                        " photo_data, gender, olympiad_title, olympiad_start, status, created_by"
+                        " photo_data, gender, olympiad_title, olympiad_start, exam_subject, status, created_by"
                         ") VALUES ("
                         " :c, :n, :ln, :fn, :pat, :bd, :addr, :cl, :sch, :tea, "
-                        " :photo, :gender, :oly_t, :oly_s, 'active', :cb)"
+                        " :photo, :gender, :oly_t, :oly_s, :exam_s, 'active', :cb)"
                     ), {
                         "c": code, "n": full_name, "ln": last_name or None, "fn": first_name or None,
                         "pat": patronymic or None, "bd": birth_date, "addr": address or None,
                         "cl": class_name, "sch": school or "", "tea": teacher or None,
                         "photo": photo_data, "gender": gender or None,
-                        "oly_t": olympiad_title or None, "oly_s": olympiad_start, "cb": created_by or None,
+                        "oly_t": olympiad_title or None, "oly_s": olympiad_start,
+                        "exam_s": exam_subject or None, "cb": created_by or None,
                     })
                 return find_student_by_code(code) or _row_public({
                     "id": code, "fullName": full_name, "lastName": last_name, "firstName": first_name,
                     "patronymic": patronymic, "birthDate": birth_date or "", "address": address,
                     "className": class_name, "school": school, "teacher": teacher, "gender": gender,
                     "olympiadTitle": olympiad_title, "olympiadStart": olympiad_start or "",
-                    "hasPhoto": bool(photo_data),
+                    "examSubject": exam_subject, "hasPhoto": bool(photo_data),
                 })
             except Exception as e:
                 log.error("create_student profile: %s", e)
@@ -205,6 +212,7 @@ def install(app=None) -> None:
             "patronymic": patronymic, "birthDate": birth_date or "", "address": address,
             "className": class_name, "school": school, "teacher": teacher, "gender": gender,
             "olympiadTitle": olympiad_title, "olympiadStart": olympiad_start or "",
+            "examSubject": exam_subject,
             "photoData": photo_data, "hasPhoto": bool(photo_data), "status": "active",
             "createdAt": _utc_now(), "createdBy": created_by,
         }
@@ -253,6 +261,7 @@ def install(app=None) -> None:
         gender = _norm_gender(str(payload.get("gender") or ""))
         olympiad_title = str(payload.get("olympiadTitle") or "").strip()
         olympiad_start = str(payload.get("olympiadStart") or "").strip()
+        exam_subject = str(payload.get("examSubject") or payload.get("subject") or payload.get("fan") or "").strip()
         photo_data = payload.get("photoData")
         full_name = _compose_full_name(last_name, first_name, patronymic, str(payload.get("fullName") or ""))
         if not last_name or not first_name:
@@ -293,6 +302,7 @@ def install(app=None) -> None:
             birth_date=birth_date or None, address=address, teacher=teacher,
             photo_data=photo_data, gender=gender,
             olympiad_title=olympiad_title, olympiad_start=olympiad_start or None,
+            exam_subject=exam_subject,
         )
         return jsonify({"student": student, "ok": True}), 201
 

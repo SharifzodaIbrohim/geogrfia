@@ -1,5 +1,6 @@
 (function(){
-  var F=["/js/_asr_p0.js","/js/_asr_p1.js","/js/_asr_p2.js","/js/_asr_p3.js"];
+  var F=[];
+  for (var i=0;i<8;i++) F.push("/js/_asr8_"+i+".js");
   Promise.all(F.map(function(f){
     return fetch(f,{credentials:"same-origin"}).then(function(r){
       if(!r.ok) throw new Error(f+" "+r.status);

@@ -78,6 +78,12 @@ _EXTRA_PUBLIC = {
     "js/_asr_p0.txt", "js/_asr_p1.txt", "js/_asr_p2.txt", "js/_asr_p3.txt",
     "js/_asr_body_a.txt", "js/_asr_body_b.txt",
     "js/admin-students-reg-body-a.js", "js/admin-students-reg-body-b.js",
+    "js/_asr_x0.txt", "js/_asr_x1.txt", "js/_asr_x2.txt", "js/_asr_x3.txt",
+    "js/_asr_x4.txt", "js/_asr_x5.txt", "js/_asr_x6.txt", "js/_asr_x7.txt",
+    "js/_asr_x8.txt", "js/_asr_x9.txt", "js/_asr_x10.txt", "js/_asr_x11.txt",
+    "js/_asr_x12.txt", "js/_asr_x13.txt", "js/_asr_x14.txt", "js/_asr_x15.txt",
+    "js/_asr_x16.txt", "js/_asr_x17.txt", "js/_asr_x18.txt", "js/_asr_x19.txt",
+    "js/_asr_x20.txt", "js/_asr_x21.txt", "js/_asr_x22.txt", "js/_asr_x23.txt",
     "Аз_тарафи_чап.jpg", "Аз_тарафи_рост.jpg",
 }
 

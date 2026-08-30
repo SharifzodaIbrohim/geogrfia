@@ -1,1 +1,136 @@
-PLACEHOLDER_P0
+/* Student reg + camera + CSV + folder + Даватнома */
+(function () {
+  var TOKEN_KEY = "geo_admin_token";
+  var DIR_DB = "geografia_admin_fs";
+  var DIR_STORE = "handles";
+  var DIR_KEY = "students_info_dir";
+  var _regLock = false;
+  var _dirMemory = null;
+  var _camStream = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&" + "amp;")
+      .replace(/</g, "&" + "lt;")
+      .replace(/>/g, "&" + "gt;")
+      .replace(/"/g, "&" + "quot;")
+      .replace(/'/g, "&#" + "39;");
+  }
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem("adminToken") || "";
+  }
+  async function api(path, options) {
+    options = options || {};
+    var headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+    var token = getToken();
+    if (token) {
+      headers["X-Admin-Token"] = token;
+      headers["Authorization"] = "Bearer " + token;
+    }
+    var res = await fetch(path, Object.assign({}, options, { headers: headers, credentials: "include" }));
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || data.message || ("Хато " + res.status));
+    return data;
+  }
+  function val(id) {
+    var el = document.getElementById(id);
+    return el && el.value != null ? String(el.value).trim() : "";
+  }
+  function applyPhoto(dataUrl) {
+    var hidden = document.getElementById("stPhotoData");
+    var img = document.getElementById("photoImg");
+    var ph = document.getElementById("photoPlaceholder");
+    if (hidden) hidden.value = dataUrl || "";
+    if (img && dataUrl) { img.src = dataUrl; img.style.display = "block"; }
+    else if (img) { img.removeAttribute("src"); img.style.display = "none"; }
+    if (ph) ph.style.display = dataUrl ? "none" : "";
+  }
+  function clearPhoto() {
+    applyPhoto("");
+    var f = document.getElementById("photoFileInput");
+    if (f) f.value = "";
+  }
+  function setCamStatus(msg) {
+    var el = document.getElementById("cameraStatus");
+    if (el) el.textContent = msg || "";
+  }
+  async function listCameras() {
+    var sel = document.getElementById("cameraSelect");
+    if (!sel || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      var cams = devices.filter(function (d) { return d.kind === "videoinput"; });
+      sel.innerHTML = "";
+      if (!cams.length) { sel.innerHTML = '<option value="">Камера ёфт нашуд</option>'; return; }
+      cams.forEach(function (d, i) {
+        var o = document.createElement("option");
+        o.value = d.deviceId || "";
+        o.textContent = d.label || ("Камера " + (i + 1));
+        sel.appendChild(o);
+      });
+    } catch (e) { setCamStatus("Рӯйхати камера: " + (e.message || e)); }
+  }
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCamStatus("Камера дастгирӣ намешавад (HTTPS лозим)"); return;
+    }
+    stopCamera();
+    var sel = document.getElementById("cameraSelect");
+    var video = document.getElementById("cameraVideo");
+    if (!video) return;
+    var constraints = { video: { facingMode: "user" }, audio: false };
+    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
+    try {
+      setCamStatus("Кушода истодааст…");
+      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = _camStream;
+      video.style.display = "block";
+      await video.play().catch(function () {});
+      setCamStatus("Камера фаъол");
+      await listCameras();
+    } catch (e) {
+      setCamStatus("Хато: " + (e.message || e));
+      _camStream = null;
+    }
+  }
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      _camStream = null;
+    }
+    var video = document.getElementById("cameraVideo");
+    if (video) { video.srcObject = null; video.style.display = "none"; }
+  }
+  function capturePhoto() {
+    var video = document.getElementById("cameraVideo");
+    var canvas = document.getElementById("cameraCanvas");
+    if (!video || !canvas || !_camStream) { setCamStatus("Аввал камераро кушоед"); return; }
+    var w = video.videoWidth || 640, h = video.videoHeight || 480;
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    applyPhoto(dataUrl);
+    setCamStatus("Акс гирифта шуд");
+  }
+  async function pickStudentsFolder() {
+    if (!window.showDirectoryPicker) {
+      alert("Браузер File System Access API-ро дастгирӣ намекунад");
+      return;
+    }
+    try {
+      var handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      _dirMemory = handle;
+      updateFolderStatus(true, handle.name || "папка");
+    } catch (e) {
+      if (e && e.name !== "AbortError") alert("Папка: " + (e.message || e));
+    }
+  }
+  async function tryRestoreDir() {
+    return _dirMemory;
+  }
+  function updateFolderStatus(ok, name) {
+    var el = document.getElementById("localFolderStatus");
+    if (!el) return;
+    el.textContent = ok ? ("Папка: " + (name || "OK")) : "Папка интихоб нашудааст";
+  }

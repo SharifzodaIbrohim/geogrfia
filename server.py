@@ -128,6 +128,7 @@ _boot_patch("patch_duration_api", "patch_duration_api", "db.patch_duration_api")
 _boot_patch("patch_attempt_review", "patch_attempt_review", "db.patch_attempt_review")
 _boot_patch("patch_persist_answers", "patch_persist_answers", "db.patch_persist_answers")
 _boot_patch("patch_answers_durable", "db.patch_answers_durable", "patch_answers_durable")
+_boot_patch("patch_monitor_durable", "db.patch_monitor_durable", "patch_monitor_durable")
 _boot_patch("patch_review_text_fix", "patch_review_text_fix", "db.patch_review_text_fix")
 _boot_patch("patch_admin_export", "patch_admin_export", "db.patch_admin_export")
 

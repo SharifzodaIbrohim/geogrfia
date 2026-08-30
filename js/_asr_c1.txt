@@ -1,0 +1,52 @@
+    if (!sel || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      var cams = devices.filter(function (d) { return d.kind === "videoinput"; });
+      sel.innerHTML = "";
+      if (!cams.length) { sel.innerHTML = '<option value="">Камера ёфт нашуд</option>'; return; }
+      cams.forEach(function (d, i) {
+        var o = document.createElement("option");
+        o.value = d.deviceId || "";
+        o.textContent = d.label || ("Камера " + (i + 1));
+        sel.appendChild(o);
+      });
+    } catch (e) { setCamStatus("Рӯйхати камера: " + (e.message || e)); }
+  }
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCamStatus("Камера дастгирӣ намешавад (HTTPS лозим)"); return;
+    }
+    stopCamera();
+    var sel = document.getElementById("cameraSelect");
+    var video = document.getElementById("cameraVideo");
+    if (!video) return;
+    var constraints = { video: { facingMode: "user" }, audio: false };
+    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
+    try {
+      setCamStatus("Кушода истодааст…");
+      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = _camStream;
+      video.style.display = "block";
+      await video.play().catch(function () {});
+      setCamStatus("Камера фаъол");
+      await listCameras();
+    } catch (e) {
+      setCamStatus("Хато: " + (e.message || e));
+      _camStream = null;
+    }
+  }
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      _camStream = null;
+    }
+    var video = document.getElementById("cameraVideo");
+    if (video) { video.srcObject = null; video.style.display = "none"; }
+    setCamStatus("");
+  }
+  function capturePhoto() {
+    var video = document.getElementById("cameraVideo");
+    var canvas = document.getElementById("cameraCanvas");
+    if (!video || !canvas || !video.srcObject || video.videoWidth < 2) {
+      setCamStatus("Аввал камераро кушоед"); return;
+    }

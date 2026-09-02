@@ -1,0 +1,49 @@
+                    "school": d.get("school") or "",
+                    "className": d.get("class_name") or "",
+                    "gender": d.get("gender") or "",
+                    "olympiadTitle": d.get("olympiad_title") or "",
+                    "earned": earned,
+                    "totalMax": total,
+                    "scorePercent": pct,
+                    "correctCount": correct,
+                    "wrongCount": max(0, total - correct) if total else 0,
+                    "blankCount": 0,
+                    "status": d.get("status") or "",
+                    "finishedAt": d.get("finished_at"),
+                })
+            return out
+    except Exception as e:
+        log.warning("export load_results: %s", e)
+        return []
+
+
+def _results_rows(results):
+    headers = [
+        "Ном", "Student ID", "Мактаб", "Синф", "Ҷинс",
+        "Олимпиада", "Хол", "Ҷамъ", "Фоиз", "Дуруст", "Нодуруст", "Беҷавоб",
+        "Статус", "Вақти супоридан", "Attempt ID",
+    ]
+    rows = []
+    for r in results:
+        sid = str(r.get("studentId") or "")
+        rows.append([
+            r.get("studentName") or "",
+            sid,
+            r.get("school") or "",
+            r.get("className") or "",
+            _g(r.get("gender")),
+            r.get("olympiadTitle") or "",
+            r.get("earned") if r.get("earned") is not None else "",
+            r.get("totalMax") if r.get("totalMax") is not None else "",
+            r.get("scorePercent") if r.get("scorePercent") is not None else "",
+            r.get("correctCount") if r.get("correctCount") is not None else "",
+            r.get("wrongCount") if r.get("wrongCount") is not None else "",
+            r.get("blankCount") if r.get("blankCount") is not None else "",
+            _st(r.get("status")),
+            _iso(r.get("finishedAt")),
+            str(r.get("id") or ""),
+        ])
+    return headers, rows
+
+
+def _xlsx_response(filename, sheets):

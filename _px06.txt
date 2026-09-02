@@ -1,0 +1,48 @@
+        log.warning("list_students: %s", e)
+    return []
+
+
+def install(app=None):
+    if app is None:
+        from flask import current_app
+        app = current_app._get_current_object()
+
+    from flask import request, jsonify
+
+    @app.get("/api/admin/export/results")
+    def admin_export_results():
+        a, err = _auth()
+        if err:
+            return err
+        oid = (request.args.get("olympiadId") or request.args.get("olympiad_id") or "").strip() or None
+        headers, rows = _results_rows(_load_results(oid))
+        return _xlsx_response(
+            f"Geografia_Results_{_today()}.xlsx",
+            {"Results": (headers, rows)},
+        )
+
+    @app.get("/api/admin/export/olympiad/<olympiad_id>")
+    def admin_export_olympiad(olympiad_id):
+        a, err = _auth()
+        if err:
+            return err
+        headers, rows = _results_rows(_load_results(olympiad_id))
+        return _xlsx_response(
+            f"Geografia_Olympiad_Results_{_today()}.xlsx",
+            {"Results": (headers, rows)},
+        )
+
+    @app.get("/api/admin/export/students")
+    def admin_export_students_full():
+        a, err = _auth()
+        if err:
+            return err
+        students = _load_students()
+        headers = ["Student ID", "Насаб", "Ном", "Номи пурра", "Ҷинс", "Мактаб", "Синф", "Сана"]
+        rows = [[
+            s.get("id") or "",
+            s.get("lastName") or "",
+            s.get("firstName") or "",
+            s.get("fullName") or "",
+            _g(s.get("gender")),
+            s.get("school") or "",

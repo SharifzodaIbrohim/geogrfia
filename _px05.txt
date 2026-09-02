@@ -1,0 +1,48 @@
+                if ci in text_cols or (isinstance(val, str) and val.isdigit() and len(val) >= 12):
+                    cell = ws.cell(ri, ci, str(val))
+                    cell.number_format = "@"
+                else:
+                    cell = ws.cell(ri, ci, val)
+                cell.border = thin
+        for col in range(1, len(headers) + 1):
+            letter = get_column_letter(col)
+            maxlen = len(str(headers[col - 1] or ""))
+            for ri in range(2, min(len(rows) + 2, 40)):
+                v = ws.cell(ri, col).value
+                if v is not None:
+                    maxlen = max(maxlen, min(len(str(v)), 40))
+            ws.column_dimensions[letter].width = min(max(maxlen + 2, 10), 36)
+        if rows:
+            ws.auto_filter.ref = ws.dimensions
+        ws.freeze_panes = "A2"
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _load_students() -> list[dict]:
+    try:
+        from db import repo
+        rows = repo.list_students() or []
+        out = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            out.append({
+                "id": str(r.get("id") or r.get("student_code") or r.get("studentId") or ""),
+                "fullName": r.get("fullName") or r.get("full_name") or "",
+                "lastName": r.get("lastName") or r.get("last_name") or "",
+                "firstName": r.get("firstName") or r.get("first_name") or "",
+                "school": r.get("school") or r.get("school_name") or "",
+                "className": r.get("className") or r.get("class_name") or "",
+                "gender": r.get("gender") or "",
+                "createdAt": r.get("createdAt") or r.get("created_at"),
+            })
+        if out:
+            return out
+    except Exception as e:

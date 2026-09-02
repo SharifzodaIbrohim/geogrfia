@@ -1,0 +1,46 @@
+    from flask import Response
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        # CSV fallback with sep=, for Excel
+        name, (hdr, rows) = next(iter(sheets.items()))
+        buf = io.StringIO()
+        buf.write("sep=," + chr(10))
+        w = csv.writer(buf)
+        w.writerow(hdr)
+        for row in rows:
+            w.writerow(["" if v is None else str(v) for v in row])
+        data = chr(0xFEFF) + buf.getvalue()
+        return Response(
+            data.encode("utf-8"),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename.replace(".xlsx", ".csv")}"'},
+        )
+    wb = Workbook()
+    wb.remove(wb.active)
+    hf = Font(bold=True, color="FFFFFF")
+    fill = PatternFill("solid", fgColor="1F4E79")
+    thin = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+    for sheet_name, (headers, rows) in sheets.items():
+        ws = wb.create_sheet(title=str(sheet_name)[:31])
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(1, col, h)
+            cell.font = hf
+            cell.fill = fill
+            cell.border = thin
+        text_cols = set()
+        for i, h in enumerate(headers, 1):
+            hl = str(h).lower()
+            if "id" in hl or "сан" in hl or "вақт" in hl or "student" in hl:
+                text_cols.add(i)
+        for ri, row in enumerate(rows, 2):
+            for ci, val in enumerate(row, 1):
+                if val is None:
+                    val = ""

@@ -1,0 +1,41 @@
+            s.get("className") or "",
+            _iso(s.get("createdAt")),
+        ] for s in students]
+        return _xlsx_response(
+            f"Geografia_Students_{_today()}.xlsx",
+            {"Students": (headers, rows)},
+        )
+
+    @app.get("/api/admin/export/full")
+    def admin_export_full():
+        a, err = _auth()
+        if err:
+            return err
+        results = _load_results()
+        students = _load_students()
+        headers, rows = _results_rows(results)
+        sheets = {
+            "Results": (headers, rows),
+            "Students": (
+                ["Student ID", "Насаб", "Ном", "Номи пурра", "Ҷинс", "Мактаб", "Синф", "Сана"],
+                [[
+                    s.get("id") or "", s.get("lastName") or "", s.get("firstName") or "",
+                    s.get("fullName") or "", _g(s.get("gender")), s.get("school") or "",
+                    s.get("className") or "", _iso(s.get("createdAt")),
+                ] for s in students],
+            ),
+        }
+        return _xlsx_response(f"Geografia_Full_Export_{_today()}.xlsx", sheets)
+
+    @app.get("/api/admin/export/preview")
+    def admin_export_preview():
+        a, err = _auth()
+        if err:
+            return err
+        oid = (request.args.get("olympiadId") or request.args.get("olympiad_id") or "").strip() or None
+        results = _load_results(oid)
+        return jsonify({"results": len(results), "students": len(_load_students())})
+
+    log.info("patch_admin_export installed (self-contained)")
+    print("[boot] patch_admin_export OK (self-contained)")
+    return True

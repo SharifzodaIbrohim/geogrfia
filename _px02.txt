@@ -1,0 +1,45 @@
+        "COALESCE(o.title, '') AS olympiad_title "
+        "FROM attempts a "
+        "LEFT JOIN students st ON st.id = a.student_id "
+        "LEFT JOIN olympiads o ON o.id = a.olympiad_id "
+        "WHERE LOWER(COALESCE(a.status::text,'')) IN "
+        "('passed','failed','submitted','timeout','finished') "
+    )
+    params: dict[str, Any] = {}
+    if olympiad_id:
+        sql += "AND a.olympiad_id::text = :oid "
+        params["oid"] = str(olympiad_id)
+    sql += "ORDER BY a.finished_at DESC NULLS LAST LIMIT 5000"
+    try:
+        with get_session() as s:
+            from sqlalchemy import text
+            rows = s.execute(text(sql), params).mappings().all()
+            out = []
+            for r in rows:
+                d = dict(r)
+                score = d.get("score")
+                try:
+                    score_f = float(score) if score is not None else 0.0
+                except Exception:
+                    score_f = 0.0
+                total = d.get("total") or 0
+                correct = d.get("correct") or 0
+                try:
+                    total = int(total)
+                except Exception:
+                    total = 0
+                try:
+                    correct = int(correct)
+                except Exception:
+                    correct = 0
+                earned = score_f if score_f > 0 and score_f <= 100 and total else score_f
+                # Prefer percent-style score already stored
+                pct = score_f
+                if total and score_f <= total and score_f > 1:
+                    # likely correct/total style
+                    pct = round(100.0 * score_f / total, 1) if total else 0
+                    earned = score_f
+                out.append({
+                    "id": d.get("id") or "",
+                    "studentName": d.get("student_name") or "",
+                    "studentId": d.get("student_code") or "",

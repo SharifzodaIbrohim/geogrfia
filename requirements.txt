@@ -11,3 +11,6 @@ PyJWT>=2.8.0,<3
 
 # Load .env on Ubuntu/local (Render sets env in dashboard)
 python-dotenv>=1.0.0,<2
+
+# Admin Results export (XLSX columns + Tajik text + text Student IDs)
+openpyxl>=3.1.0,<4

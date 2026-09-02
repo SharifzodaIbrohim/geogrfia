@@ -57,7 +57,7 @@ def install(app=None) -> None:
                         ") AS student_name, "
                         "COALESCE(NULLIF(TRIM(st.class_name), ''), a.student_class) AS student_class, "
                         "COALESCE(NULLIF(TRIM(st.school_name), ''), a.student_school) AS student_school, "
-                        "a.score, a.status, a.finished_at, "
+                        "a.score, a.correct, a.total, a.pass_score, a.status, a.finished_at, "
                         "a.student_id::text AS student_uuid, "
                         "st.student_code AS student_code "
                         "FROM attempts a "
@@ -88,6 +88,9 @@ def install(app=None) -> None:
                                 nm = st["fullName"]
                             else:
                                 nm = "\u0418\u0448\u0442\u0438\u0440\u043e\u043a\u0447\u04e3"
+                        correct = r.get("correct")
+                        total = r.get("total")
+                        score = r.get("score")
                         out.append({
                             "id": r["id"],
                             "olympiadId": r.get("olympiad_id"),
@@ -95,7 +98,15 @@ def install(app=None) -> None:
                             "fullName": nm,
                             "className": r.get("student_class"),
                             "school": r.get("student_school"),
-                            "score": r.get("score"),
+                            "studentId": r.get("student_code") or "",
+                            "score": score,
+                            "scorePercent": score,
+                            "correct": correct,
+                            "correctCount": correct,
+                            "total": total,
+                            "earned": correct,
+                            "totalMax": total,
+                            "passScore": r.get("pass_score"),
                             "status": r.get("status"),
                             "finishedAt": r["finished_at"].isoformat() if r.get("finished_at") else None,
                         })
@@ -155,61 +166,3 @@ def install(app=None) -> None:
         print("[boot] patch_names: start_exam stores fullName")
     except Exception as e:
         log.warning("patch_names start_exam: %s", e)
-
-    if app is not None:
-        try:
-            from flask import jsonify
-
-            for rule in list(app.url_map.iter_rules()):
-                if "monitor" in (rule.rule or "") and "GET" in (rule.methods or set()):
-                    ep = rule.endpoint
-                    orig = app.view_functions.get(ep)
-                    if not orig:
-                        continue
-
-                    def make_mon(orig_fn):
-                        def wrapped(*a, **k):
-                            resp = orig_fn(*a, **k)
-                            try:
-                                body, status = resp, 200
-                                if isinstance(resp, tuple):
-                                    body, status = resp[0], resp[1]
-                                if status and int(status) >= 400:
-                                    return resp
-                                data = body.get_json(silent=True) if hasattr(body, "get_json") else None
-                                if not isinstance(data, dict):
-                                    return resp
-                                changed = False
-                                for key in ("recentResults", "results", "sessions", "liveSessions"):
-                                    items = data.get(key)
-                                    if not isinstance(items, list):
-                                        continue
-                                    for r in items:
-                                        if not isinstance(r, dict):
-                                            continue
-                                        nm = (r.get("studentName") or r.get("fullName") or "").strip()
-                                        if not nm or nm == "\u0418\u0448\u0442\u0438\u0440\u043e\u043a\u0447\u04e3" or _looks_like_code(nm):
-                                            sid = str(r.get("studentId") or r.get("student_id") or nm or "")
-                                            st = _resolve_student(sid)
-                                            if st and st.get("fullName"):
-                                                r["studentName"] = st["fullName"]
-                                                r["fullName"] = st["fullName"]
-                                                if not r.get("className"):
-                                                    r["className"] = st.get("className")
-                                                if not r.get("school"):
-                                                    r["school"] = st.get("school")
-                                                changed = True
-                                if changed:
-                                    return jsonify(data)
-                            except Exception as e:
-                                log.warning("monitor name enrich: %s", e)
-                            return resp
-
-                        wrapped.__name__ = getattr(orig_fn, "__name__", "wrapped_monitor_names")
-                        return wrapped
-
-                    app.view_functions[ep] = make_mon(orig)
-                    print(f"[boot] patch_names: monitor enrich on {ep}")
-                    break
-        except Exception as e:
-            log.warning("patch_names monitor: %s", e)

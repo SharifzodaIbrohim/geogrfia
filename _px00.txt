@@ -1,0 +1,66 @@
+"""Admin export — self-contained (no external body). Registers XLSX routes."""
+from __future__ import annotations
+
+import csv
+import io
+import logging
+from datetime import datetime, timezone, date
+from typing import Any
+
+log = logging.getLogger("geografia.patch_admin_export")
+
+STATUS_TJ = {
+    "passed": "Гузашт", "pass": "Гузашт",
+    "failed": "Нагузашт", "fail": "Нагузашт",
+    "timeout": "Вақт тамом", "submitted": "Супорида шуд", "finished": "Анҷом",
+}
+GENDER_TJ = {
+    "male": "Мард", "female": "Зан", "m": "Мард", "f": "Зан",
+    "мард": "Мард", "зан": "Зан",
+}
+
+
+def _use_pg() -> bool:
+    try:
+        from db.connection import is_postgres_enabled
+        return bool(is_postgres_enabled())
+    except Exception:
+        try:
+            from connection import is_postgres_enabled
+            return bool(is_postgres_enabled())
+        except Exception:
+            return False
+
+
+def _session():
+    try:
+        from db.connection import get_session
+        return get_session
+    except Exception:
+        from connection import get_session
+        return get_session
+
+
+def _require_admin():
+    try:
+        from flask import request
+        import sys
+        for mod_name in ("server_core", "__main__", "server"):
+            mod = sys.modules.get(mod_name)
+            if not mod:
+                continue
+            if hasattr(mod, "require_admin"):
+                try:
+                    a = mod.require_admin()
+                    if a:
+                        return a
+                except Exception:
+                    pass
+            tokens = getattr(mod, "ADMIN_TOKENS", None)
+            if tokens:
+                tok = (
+                    request.headers.get("X-Admin-Token")
+                    or (request.headers.get("Authorization") or "").replace("Bearer ", "").strip()
+                )
+                if tok and tok in tokens:
+                    return tokens[tok]

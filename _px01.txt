@@ -1,0 +1,62 @@
+        return None
+    except Exception:
+        return None
+
+
+def _iso(v) -> str:
+    if v is None or v == "":
+        return ""
+    if isinstance(v, datetime):
+        try:
+            return v.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return str(v)[:19]
+    if isinstance(v, date):
+        return v.strftime("%Y-%m-%d")
+    if hasattr(v, "isoformat"):
+        try:
+            s = v.isoformat().replace("T", " ")
+            return s[:19] if len(s) >= 19 else s
+        except Exception:
+            pass
+    s = str(v).replace("T", " ").strip()
+    if len(s) >= 19 and s[4] == "-" and s[10] == " ":
+        return s[:19]
+    if len(s) >= 10 and s[4] == "-":
+        return s[:10]
+    return s
+
+
+def _st(s) -> str:
+    return STATUS_TJ.get(str(s or "").lower(), str(s or "") or "")
+
+
+def _g(g) -> str:
+    return GENDER_TJ.get(str(g or "").lower().strip(), str(g or "") or "")
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _auth():
+    from flask import jsonify
+    a = _require_admin()
+    if not a:
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+    return a, None
+
+
+def _load_results(olympiad_id: str | None = None) -> list[dict]:
+    if not _use_pg():
+        return []
+    get_session = _session()
+    sql = (
+        "SELECT a.id::text AS id, a.olympiad_id::text AS olympiad_id, "
+        "COALESCE(NULLIF(TRIM(st.full_name), ''), NULLIF(TRIM(a.student_name), ''), 'Иштирокчӣ') AS student_name, "
+        "COALESCE(NULLIF(TRIM(st.student_code), ''), '') AS student_code, "
+        "COALESCE(NULLIF(TRIM(st.class_name), ''), NULLIF(TRIM(a.student_class), ''), '') AS class_name, "
+        "COALESCE(NULLIF(TRIM(st.school_name), ''), NULLIF(TRIM(a.student_school), ''), '') AS school, "
+        "COALESCE(st.gender, '') AS gender, "
+        "a.score, a.correct, a.total, a.pass_score, a.status::text AS status, "
+        "a.started_at, a.finished_at, "

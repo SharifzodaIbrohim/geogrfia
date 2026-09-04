@@ -3,7 +3,7 @@
   const DICT = {
     tg: {
       navHome: 'Хона', navCountries: 'Кишварҳо', navCourses: 'Курсҳо', navQuizzes: 'Викторинаҳо',
-      navOlympiads: 'Олимпиадаҳо', navLeaderboard: 'Рейтинг', navProfile: 'Профил',
+      navOlympiads: 'Олимпиадаҳо', navLeaderboard: 'Рейтинг', navProfile: 'Профил', navSettings: 'Танзимот',
       language: 'Забон', theme: 'Тема', notif: 'Огоҳӣ',
       platformActivity: 'Фаъолияти платформа', liveDashboard: 'Дашборди зинда',
       countries: 'Кишварҳо', quizzes: 'Викторинаҳо', students: 'Хонандагон', olympiads: 'Олимпиадаҳо',
@@ -32,8 +32,8 @@
       studentIdPlaceholder: 'Рақами донишҷӯ', studentLoginHint: 'Танҳо бо ID-е, ки админ додааст',
       activeOlympiads: 'Олимпиадаҳои фаъол', quizzesSection: 'Викторинаҳо',
       noActiveOlympiad: 'Ҳоло олимпиадаи фаъол нест.', noQuizzesStudent: 'Ҳоло викторина нест.',
-      selectAnswer: 'Ҷавобро интихоб кунед', of: 'аз', correct: 'Дуруст', waiting: 'Интизор',
-      result: 'Натиҷа', back: 'Бозгашт',
+      selectAnswer: 'Ҷавобро интихоб кунед', correct: 'Дуруст', waiting: 'Интизор',
+      result: 'Натиҷа',
       lbParticipants: 'иштирокчӣ', lbAutoRefresh: 'навсозӣ автоматӣ', lbClosed: 'Рейтинг пӯшида аст.',
       lbColRank: 'Ҷой', lbColName: 'Иштирокчӣ', lbColRating: 'Рейтинг', lbColSolved: 'Ҳал', lbColContests: 'Мусобиқа',
       lbBackHome: '← Хона', lbSubtitle: 'Рейтинги ҳамаи иштирокчиён',
@@ -41,7 +41,7 @@
     },
     ru: {
       navHome: 'Главная', navCountries: 'Страны', navCourses: 'Курсы', navQuizzes: 'Викторины',
-      navOlympiads: 'Олимпиады', navLeaderboard: 'Рейтинг', navProfile: 'Профиль',
+      navOlympiads: 'Олимпиады', navLeaderboard: 'Рейтинг', navProfile: 'Профиль', navSettings: 'Настройки',
       language: 'Язык', theme: 'Тема', notif: 'Уведомления',
       platformActivity: 'Активность платформы', liveDashboard: 'Живая панель',
       countries: 'Страны', quizzes: 'Викторины', students: 'Ученики', olympiads: 'Олимпиады',
@@ -78,7 +78,7 @@
     },
     en: {
       navHome: 'Home', navCountries: 'Countries', navCourses: 'Courses', navQuizzes: 'Quizzes',
-      navOlympiads: 'Olympiads', navLeaderboard: 'Leaderboard', navProfile: 'Profile',
+      navOlympiads: 'Olympiads', navLeaderboard: 'Leaderboard', navProfile: 'Profile', navSettings: 'Settings',
       language: 'Language', theme: 'Theme', notif: 'Notifications',
       platformActivity: 'Platform activity', liveDashboard: 'Live Dashboard',
       countries: 'Countries', quizzes: 'Quizzes', students: 'Students', olympiads: 'Olympiads',
@@ -142,7 +142,7 @@
     try {
       if (typeof window.applyLanguage === 'function') window.applyLanguage(code);
     } catch (e) {}
-    apply(); // restore platform labels after app.js wipe
+    apply();
     document.querySelectorAll('#pfLang, #languageSelect, [data-lang-select]').forEach((sel) => {
       if (!sel) return;
       if (sel.querySelector('option[value="tg"]')) sel.value = code;
@@ -180,18 +180,6 @@
     document.querySelectorAll('[data-i18n-title]').forEach((el) => {
       el.title = t(el.getAttribute('data-i18n-title'));
     });
-    const mapPairs = [['.pf-dash-title', 'liveDashboard'], ['.pf-kicker', 'platformActivity']];
-    mapPairs.forEach(([sel, key]) => {
-      document.querySelectorAll(sel).forEach((el) => {
-        if (!el.getAttribute('data-i18n') && !el.getAttribute('data-pf-i18n')) el.textContent = t(key);
-      });
-    });
-    const prev = document.getElementById('examPrevBtn');
-    if (prev) prev.textContent = t('previous');
-    const next = document.getElementById('examNextBtn');
-    if (next) next.textContent = t('next');
-    const sub = document.getElementById('submitExamBtn');
-    if (sub) sub.textContent = t('submitExam');
   }
 
   function bind() {

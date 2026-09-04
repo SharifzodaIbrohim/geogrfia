@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile — Geografia</title>
+  <link rel="stylesheet" href="css/platform.css" />
+  <link rel="stylesheet" href="css/profile.css" />
+</head>
+<body class="pf-page-profile">
+  <header class="pf-topbar">
+    <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
+    <nav class="pf-nav">
+      <a href="/" data-i18n="navHome">Home</a>
+      <a href="/countries" data-i18n="navCountries">Countries</a>
+      <a href="/courses" data-i18n="navCourses">Courses</a>
+      <a href="/quiz" data-i18n="navQuizzes">Quizzes</a>
+      <a href="/student" data-i18n="navOlympiads">Olympiads</a>
+      <a href="/profile" class="active" data-i18n="navProfile">Profile</a>
+    </nav>
+    <div class="pf-actions">
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+      <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
+      <a class="pf-avatar" id="pfAvatar" href="/profile">G</a>
+    </div>
+  </header>
+
+  <div id="loginGate" class="pr-gate">
+    <div class="pr-gate-card">
+      <h1>🎯 Profile</h1>
+      <p>Барои дидани профил ва иштирок дар викторинаҳо бо Google ворид шавед.</p>
+      <div id="googleSignInBtn"></div>
+      <p class="pr-muted"><a href="/">← Home</a></p>
+    </div>
+  </div>
+
+  <main id="profileApp" class="pr-wrap hidden">
+    <section class="pr-hero">
+      <div class="pr-identity">
+        <div class="pr-avatar-lg" id="prAvatar">?</div>
+        <div class="pr-id-text">
+          <div class="pr-role">🎯 Participant</div>
+          <h1 id="prName">—</h1>
+          <p class="pr-email" id="prEmail">—</p>
+          <p class="pr-meta" id="prMeta">—</p>
+        </div>
+      </div>
+      <div class="pr-metrics">
+        <div class="pr-metric">
+          <span class="pr-metric-label">Rating</span>
+          <div class="pr-metric-row">
+            <b id="prRating">1200</b>
+            <span class="pr-delta" id="prDelta"></span>
+          </div>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Max Rating</span>
+          <b id="prMaxRating">1200</b>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Contests</span>
+          <b id="prContests">0</b>
+        </div>
+        <div class="pr-metric">
+          <span class="pr-metric-label">Solved</span>
+          <b id="prSolved">0</b>
+        </div>
+      </div>
+    </section>
+
+    <nav class="pr-tabs">
+      <button type="button" class="pr-tab active" data-tab="overview">Overview</button>
+      <button type="button" class="pr-tab" data-tab="history">History</button>
+      <button type="button" class="pr-tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <section id="tab-overview" class="pr-panel">
+      <h2>Recent activity</h2>
+      <div id="prActivity" class="pr-list"><p class="pr-muted">—</p></div>
+    </section>
+
+    <section id="tab-history" class="pr-panel hidden">
+      <h2>Contest history</h2>
+      <div id="prHistory" class="pr-list"><p class="pr-muted">—</p></div>
+    </section>
+
+    <section id="tab-settings" class="pr-panel hidden">
+      <h2>Profile settings</h2>
+      <form id="prForm" class="pr-form">
+        <label>Ҷинс</label>
+        <select id="fGender">
+          <option value="">—</option>
+          <option value="male">Писар</option>
+          <option value="female">Духтар</option>
+        </select>
+        <label>Мактаб</label>
+        <input id="fSchool" type="text" placeholder="Номи мактаб" />
+        <label>Минтақа / шаҳр</label>
+        <input id="fRegion" type="text" required placeholder="Масалан: Бохтар" />
+        <label>Синф</label>
+        <input id="fClass" type="text" required placeholder="Масалан: 10б" />
+        <button type="submit" class="pr-btn">Нигоҳ доштан</button>
+        <p id="prFormMsg" class="pr-muted"></p>
+      </form>
+      <button type="button" id="prLogout" class="pr-btn ghost">Баромадан</button>
+    </section>
+  </main>
+
+  <div id="onboardModal" class="pr-modal hidden">
+    <div class="pr-modal-card">
+      <h2>Пур кардани профил</h2>
+      <p class="pr-muted">Барои иштирок дар викторинаҳо ин маълумотро пур кунед (ҳатмӣ).</p>
+      <form id="onboardForm" class="pr-form">
+        <label>Ҷинс</label>
+        <select id="oGender" required>
+          <option value="">Интихоб</option>
+          <option value="male">Писар</option>
+          <option value="female">Духтар</option>
+        </select>
+        <label>Мактаб</label>
+        <input id="oSchool" required placeholder="Номи мактаб" />
+        <label>Минтақа / шаҳр</label>
+        <input id="oRegion" required placeholder="Масалан: Душанбе, Бохтар" />
+        <label>Синф</label>
+        <input id="oClass" required placeholder="Масалан: 9а, 11б" />
+        <button type="submit" class="pr-btn">Сабт ва идома</button>
+        <p id="oMsg" class="pr-muted"></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/platform.js"></script>
+  <script src="js/profile.js"></script>
+
+<nav class="bottom-nav" aria-label="Bottom navigation" id="mobileBottomNav">
+  <a href="/countries" class="nav-item" data-nav="countries">
+    <span class="nav-icon" aria-hidden="true">🌍</span>
+    <span data-i18n="navCountries" data-pf-i18n="navCountries">Кишварҳо</span>
+  </a>
+  <a href="/courses" class="nav-item" data-nav="courses">
+    <span class="nav-icon" aria-hidden="true">📚</span>
+    <span data-i18n="books" data-pf-i18n="books">Китобҳо</span>
+  </a>
+  <a href="/student" class="nav-item nav-item--center" data-nav="olympiads">
+    <span class="nav-icon" aria-hidden="true">🏆</span>
+    <span data-i18n="navOlympiads" data-pf-i18n="navOlympiads">Олимпиадаҳо</span>
+  </a>
+  <a href="/profile" class="nav-item" data-nav="profile">
+    <span class="nav-icon" aria-hidden="true">👤</span>
+    <span data-i18n="navProfile" data-pf-i18n="navProfile">Ҳисоб</span>
+  </a>
+  <button type="button" class="nav-item" id="bottomSettingsBtn" data-nav="settings" aria-label="Settings">
+    <span class="nav-icon" aria-hidden="true">⚙️</span>
+    <span data-i18n="navSettings" data-pf-i18n="navSettings">Танзимот</span>
+  </button>
+</nav>
+<script>
+(function () {
+  var path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+  var map = {
+    '/': 'countries',
+    '/countries': 'countries',
+    '/courses': 'courses',
+    '/student': 'olympiads',
+    '/profile': 'profile',
+    '/quiz': 'courses',
+    '/leaderboard': 'olympiads'
+  };
+  var key = map[path] || '';
+  document.querySelectorAll('#mobileBottomNav .nav-item').forEach(function (el) {
+    if (el.getAttribute('data-nav') === key) el.classList.add('active');
+  });
+  var btn = document.getElementById('bottomSettingsBtn');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var st = document.getElementById('settingsToggle');
+      if (st) { st.click(); return; }
+      var lang = document.getElementById('pfLang');
+      if (lang) { lang.focus(); lang.click && lang.click(); }
+    });
+  }
+  try { if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply(); } catch (e) {}
+})();
+</script>
+
+</body>
+</html>

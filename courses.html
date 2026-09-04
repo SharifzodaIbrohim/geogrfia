@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Geografia — Courses</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/platform.css" />
+  <style>
+    .cs-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .cs-tab { padding: 0.45rem 0.85rem; border-radius: 999px; border: 1px solid var(--pf-line, rgba(255,255,255,.08)); background: var(--pf-panel, #1a211d); color: var(--pf-muted, #8b968c); font-weight: 600; font-size: 0.88rem; cursor: pointer; }
+    .cs-tab.active { background: #70db97; color: #0a120e; border-color: #70db97; }
+    .cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.85rem; }
+    .cs-card { background: var(--pf-panel, #1a211d); border: 1px solid var(--pf-line, rgba(255,255,255,.08)); border-radius: 14px; padding: 1rem 1.1rem; }
+    .cs-card h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+    .cs-card p { margin: 0 0 0.55rem; color: var(--pf-muted, #8b968c); font-size: 0.88rem; }
+    .cs-card a { color: #70db97; font-weight: 600; text-decoration: none; font-size: 0.88rem; }
+    .cs-card .kind { display: inline-block; font-size: 0.72rem; font-weight: 700; color: #0a120e; background: #70db97; padding: 0.15rem 0.45rem; border-radius: 999px; margin-bottom: 0.4rem; }
+    .cs-empty { text-align: center; color: var(--pf-muted, #8b968c); padding: 2rem 1rem; }
+    .cs-wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    .cs-title { margin: 0 0 0.25rem; font-size: 1.45rem; }
+    .cs-sub { margin: 0 0 1.1rem; color: var(--pf-muted, #8b968c); font-size: 0.92rem; }
+  </style>
+</head>
+<body class="pf-page-courses">
+  <header class="pf-topbar">
+    <a class="pf-brand" href="/"><span class="pf-brand-mark">Г</span> Geografia</a>
+    <nav class="pf-nav">
+      <a href="/" data-i18n="navHome">Home</a>
+      <a href="/countries" data-i18n="navCountries">Countries</a>
+      <a href="/courses" class="active" data-i18n="navCourses">Courses</a>
+      <a href="/quiz" data-i18n="navQuizzes">Quizzes</a>
+      <a href="/student" data-i18n="navOlympiads">Olympiads</a>
+      <a href="/profile" data-i18n="navProfile">Profile</a>
+    </nav>
+    <div class="pf-actions">
+      <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language">
+        <option value="tg">TJ</option>
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+      <button type="button" class="pf-icon-btn" id="pfNotif" title="Огоҳӣ">🔔</button>
+      <button type="button" class="pf-icon-btn" id="pfTheme" title="Тема">🌙</button>
+      <a class="pf-avatar" id="pfAvatar" href="/profile" title="Профил">G</a>
+    </div>
+  </header>
+  <div class="cs-wrap">
+    <h1 class="cs-title" data-i18n="coursesTitle">Курсҳо · Китобҳо ва маводҳо</h1>
+    <p class="cs-sub" data-i18n="coursesSub">Китобҳои ҷуғрофия, мақолаҳо ва маҷаллаҳо барои омӯзиш.</p>
+    <div class="cs-tabs">
+      <button type="button" class="cs-tab active" data-kind="all" data-i18n="all">Ҳама</button>
+      <button type="button" class="cs-tab" data-kind="book" data-i18n="books">Китобҳо</button>
+      <button type="button" class="cs-tab" data-kind="article" data-i18n="articles">Мақолаҳо</button>
+      <button type="button" class="cs-tab" data-kind="magazine" data-i18n="magazines">Маҷаллаҳо</button>
+      <button type="button" class="cs-tab" data-kind="link" data-i18n="links">Пайвандҳо</button>
+    </div>
+    <div id="csGrid" class="cs-grid"></div>
+    <div id="csEmpty" class="cs-empty hidden" data-i18n="emptyContent">Ҳоло мавод нест.</div>
+  </div>
+<nav class="bottom-nav" aria-label="Bottom navigation" id="mobileBottomNav">
+  <a href="/countries" class="nav-item" data-nav="countries">
+    <span class="nav-icon" aria-hidden="true">🌍</span>
+    <span data-i18n="navCountries" data-pf-i18n="navCountries">Кишварҳо</span>
+  </a>
+  <a href="/courses" class="nav-item" data-nav="courses">
+    <span class="nav-icon" aria-hidden="true">📚</span>
+    <span data-i18n="books" data-pf-i18n="books">Китобҳо</span>
+  </a>
+  <a href="/student" class="nav-item nav-item--center" data-nav="olympiads">
+    <span class="nav-icon" aria-hidden="true">🏆</span>
+    <span data-i18n="navOlympiads" data-pf-i18n="navOlympiads">Олимпиадаҳо</span>
+  </a>
+  <a href="/profile" class="nav-item" data-nav="profile">
+    <span class="nav-icon" aria-hidden="true">👤</span>
+    <span data-i18n="navProfile" data-pf-i18n="navProfile">Ҳисоб</span>
+  </a>
+  <button type="button" class="nav-item" id="bottomSettingsBtn" data-nav="settings" aria-label="Settings">
+    <span class="nav-icon" aria-hidden="true">⚙️</span>
+    <span data-i18n="navSettings" data-pf-i18n="navSettings">Танзимот</span>
+  </button>
+</nav>
+<script>
+(function () {
+  var path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+  var map = {
+    '/': 'countries',
+    '/countries': 'countries',
+    '/courses': 'courses',
+    '/student': 'olympiads',
+    '/profile': 'profile',
+    '/quiz': 'courses',
+    '/leaderboard': 'olympiads'
+  };
+  var key = map[path] || '';
+  document.querySelectorAll('#mobileBottomNav .nav-item').forEach(function (el) {
+    if (el.getAttribute('data-nav') === key) el.classList.add('active');
+  });
+  var btn = document.getElementById('bottomSettingsBtn');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var st = document.getElementById('settingsToggle');
+      if (st) { st.click(); return; }
+      var lang = document.getElementById('pfLang');
+      if (lang) { lang.focus(); lang.click && lang.click(); }
+    });
+  }
+  try { if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply(); } catch (e) {}
+})();
+</script>
+  <script src="js/i18n.js"></script>
+  <script src="js/platform.js"></script>
+  <script>
+  (function () {
+    var grid = document.getElementById('csGrid');
+    var empty = document.getElementById('csEmpty');
+    var kind = 'all';
+    var items = [];
+    var kindLabel = { book: 'Китоб', article: 'Мақола', magazine: 'Маҷалла', link: 'Пайванд' };
+    function paint() {
+      var rows = kind === 'all' ? items : items.filter(function (i) { return i.type === kind; });
+      empty.classList.toggle('hidden', rows.length > 0);
+      grid.innerHTML = rows.map(function (i) {
+        var url = i.url || '#';
+        var open = url && url !== '#' ? '<a href="' + url + '" target="_blank" rel="noopener">Кушодан →</a>' : '';
+        return '<article class="cs-card"><span class="kind">' + (kindLabel[i.type] || i.type) + '</span><h3>' + esc(i.title) + '</h3><p>' + esc(i.description || '') + '</p>' + open + '</article>';
+      }).join('');
+    }
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; });
+    }
+    document.querySelectorAll('.cs-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.cs-tab').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        kind = btn.dataset.kind;
+        paint();
+      });
+    });
+    fetch('/api/content').then(function (r) { return r.json(); }).then(function (d) {
+      items = d.items || [];
+      paint();
+    }).catch(function () { empty.classList.remove('hidden'); });
+  })();
+  </script>
+</body>
+</html>

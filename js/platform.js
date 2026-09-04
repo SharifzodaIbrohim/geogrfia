@@ -23,7 +23,6 @@
     document.getElementById('authToggle')?.click();
   });
 
-  // Scroll links only — do NOT hide countries app
   document.querySelectorAll('.pf-nav a[href^="#"]').forEach((a) => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href');
@@ -97,6 +96,112 @@
       else if (u.name) av.textContent = u.name.trim().slice(0, 1).toUpperCase();
     }
   } catch (_) {}
+
+  function ensureMobileSettingsSheet() {
+    if (document.getElementById('mobileSettingsSheet')) return;
+    const sheet = document.createElement('div');
+    sheet.id = 'mobileSettingsSheet';
+    sheet.innerHTML = `
+      <div class="mss-card" role="dialog" aria-label="Settings">
+        <div class="mss-head">
+          <h3 data-i18n="navSettings">Танзимот</h3>
+          <button type="button" class="mss-close" id="mssClose" aria-label="Close">×</button>
+        </div>
+        <div class="mss-row">
+          <div>
+            <span class="mss-label" data-i18n="language">Забон</span>
+            <span class="mss-hint">TJ / RU / EN</span>
+          </div>
+          <select id="mssLang">
+            <option value="tg">TJ — Тоҷикӣ</option>
+            <option value="ru">RU — Русский</option>
+            <option value="en">EN — English</option>
+          </select>
+        </div>
+        <div class="mss-row">
+          <div>
+            <span class="mss-label" data-i18n="theme">Тема</span>
+            <span class="mss-hint">Dark / Light</span>
+          </div>
+          <button type="button" class="mss-theme-btn" id="mssTheme">🌙 Dark</button>
+        </div>
+      </div>`;
+    document.body.appendChild(sheet);
+
+    const close = () => sheet.classList.remove('open');
+    sheet.querySelector('#mssClose')?.addEventListener('click', close);
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) close(); });
+
+    const langSel = sheet.querySelector('#mssLang');
+    const cur = (localStorage.getItem('geografia_lang') || localStorage.getItem('geo_lang') || localStorage.getItem('siteLanguage') || 'tg').toLowerCase();
+    if (langSel) {
+      langSel.value = cur === 'tj' ? 'tg' : (['tg','ru','en'].includes(cur) ? cur : 'tg');
+      langSel.addEventListener('change', () => {
+        const code = langSel.value;
+        localStorage.setItem('geografia_lang', code);
+        localStorage.setItem('geo_lang', code);
+        localStorage.setItem('siteLanguage', code);
+        const pf = document.getElementById('pfLang');
+        if (pf) pf.value = code === 'tg' ? 'tg' : code;
+        try {
+          if (window.GeoI18n && window.GeoI18n.setLang) window.GeoI18n.setLang(code);
+          else if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply();
+        } catch (_) {}
+        window.dispatchEvent(new CustomEvent('geo:lang', { detail: code }));
+      });
+    }
+
+    const themeBtn = sheet.querySelector('#mssTheme');
+    const syncThemeBtn = () => {
+      if (!themeBtn) return;
+      const light = document.body.classList.contains('light-theme');
+      themeBtn.textContent = light ? '☀️ Light' : '🌙 Dark';
+    };
+    syncThemeBtn();
+    themeBtn?.addEventListener('click', () => {
+      const next = document.body.classList.contains('light-theme') ? 'dark' : 'light';
+      setTheme(next);
+      syncThemeBtn();
+    });
+  }
+
+  function openMobileSettings() {
+    ensureMobileSettingsSheet();
+    const sheet = document.getElementById('mobileSettingsSheet');
+    if (sheet) sheet.classList.add('open');
+    try { if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply(); } catch (_) {}
+  }
+
+  function markBottomNavActive() {
+    const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+    const map = {
+      '/': 'countries',
+      '/countries': 'countries',
+      '/courses': 'courses',
+      '/student': 'olympiads',
+      '/profile': 'profile',
+      '/quiz': 'courses',
+      '/leaderboard': 'olympiads',
+    };
+    const key = map[path] || '';
+    document.querySelectorAll('#mobileBottomNav .nav-item').forEach((el) => {
+      el.classList.toggle('active', el.getAttribute('data-nav') === key);
+    });
+  }
+
+  document.getElementById('bottomSettingsBtn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openMobileSettings();
+  });
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('#bottomSettingsBtn');
+    if (btn) {
+      e.preventDefault();
+      openMobileSettings();
+    }
+  });
+  markBottomNavActive();
+  try { if (window.GeoI18n && window.GeoI18n.apply) window.GeoI18n.apply(); } catch (_) {}
 
   loadHomeData();
 })();

@@ -196,10 +196,8 @@ body.pf-page-countries .settings-panel {
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* BLUE: hide top nav links — bottom nav replaces them */
   .pf-nav { display: none !important; }
 
-  /* RED: lang / notif / theme → Settings sheet */
   .pf-actions .pf-lang,
   .pf-actions #pfNotif,
   .pf-actions #pfTheme {
@@ -234,7 +232,6 @@ body.pf-page-countries .settings-panel {
   .countries-hero h1 { font-size: 1.25rem; }
   .pf-drawer { right: 0.5rem; left: 0.5rem; width: auto; }
 
-  /* GREEN: shared bottom nav (fixes Profile) */
   .bottom-nav {
     display: grid !important;
     grid-template-columns: repeat(5, 1fr);
@@ -306,10 +303,8 @@ body.pf-page-countries .settings-panel {
   #mobileSettingsSheet { display: none !important; }
 }
 
-/* Desktop default: bottom-nav hidden until mobile media */
 .bottom-nav { display: none; }
 
-/* Mobile settings sheet */
 #mobileSettingsSheet {
   display: none;
   position: fixed;
@@ -355,7 +350,6 @@ body.pf-page-countries .settings-panel {
 }
 #mobileSettingsSheet .mss-theme-btn { cursor: pointer; min-width: 110px; }
 
-/* Featured cards */
 .pf-card {
   display: block;
   background: var(--pf-panel);
@@ -383,3 +377,52 @@ body.pf-page-countries .settings-panel {
 .pf-lb-rank { color: #70db97; font-weight: 800; width: 2rem; }
 .pf-lb-name { flex: 1; }
 .pf-lb-score { font-weight: 700; }
+
+/* =========================================================
+   DESKTOP countries grid (3 columns) — phones untouched
+   Lives in platform.css because Render was stuck on old style.css
+   ========================================================= */
+@media (min-width: 900px) {
+  body.pf-page-countries .app-content {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 8px 28px 48px;
+  }
+  body.pf-page-countries .search-wrap {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 22px;
+  }
+  body.pf-page-countries .results-grid {
+    max-width: 1180px;
+    margin: 0 auto;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 18px;
+  }
+  body.pf-page-countries .country-card {
+    border-radius: 20px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  body.pf-page-countries .country-card:hover {
+    transform: translateY(-6px) scale(1.015);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(112, 219, 151, 0.25);
+    border-color: rgba(112, 219, 151, 0.35);
+  }
+  body.pf-page-countries .card-flag {
+    height: 140px;
+  }
+  body.pf-page-countries .card-content {
+    padding: 14px 16px 16px;
+  }
+  body.pf-page-countries .card-title {
+    font-size: 1.12rem;
+  }
+  body.pf-page-countries .countries-hero {
+    max-width: 1180px;
+    padding: 1.25rem 28px 0.35rem;
+  }
+  body.pf-page-countries .countries-hero h1 {
+    font-size: 1.75rem;
+  }
+}

@@ -531,8 +531,139 @@ button { border: 0; outline: none; background: none; color: inherit; cursor: poi
     .card-flag { height: 110px; }
 }
 
-/* Desktop: hide bottom nav */
+/* =========================================================
+   DESKTOP ONLY — richer design (phones untouched)
+   ========================================================= */
 @media (min-width: 900px) {
-    body { padding-bottom: 0; }
+    body {
+        padding-bottom: 0;
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(112, 219, 151, 0.14), transparent 55%),
+            radial-gradient(ellipse 40% 30% at 90% 20%, rgba(112, 219, 151, 0.06), transparent 50%),
+            linear-gradient(180deg, #141614 0%, #1a1c19 40%, #121412 100%);
+    }
+
+    body.light-theme {
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(31, 157, 87, 0.1), transparent 55%),
+            linear-gradient(180deg, #f8faf7 0%, #f3f5f2 50%, #eef1ec 100%);
+    }
+
     .bottom-nav { display: none !important; }
+
+    .app-content {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 8px 28px 48px;
+    }
+
+    .search-wrap {
+        max-width: 640px;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 22px;
+        padding: 14px 20px;
+    }
+
+    .region-label {
+        max-width: 1180px;
+        margin: 0 auto 10px;
+        font-size: 0.9rem;
+    }
+
+    .region-chips {
+        max-width: 1180px;
+        margin: 0 auto 16px;
+        gap: 10px;
+        flex-wrap: wrap;
+        overflow: visible;
+    }
+
+    .chip {
+        padding: 10px 18px;
+        font-size: 0.92rem;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(112, 219, 151, 0.12);
+    }
+
+    .list-meta {
+        max-width: 1180px;
+        margin: 0 auto 16px;
+        font-size: 0.95rem;
+    }
+
+    .results-grid {
+        max-width: 1180px;
+        margin: 0 auto;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+    }
+
+    .country-card {
+        border-radius: 20px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        animation: cardIn 0.45s ease both;
+    }
+
+    .country-card:nth-child(1) { animation-delay: 0.05s; }
+    .country-card:nth-child(2) { animation-delay: 0.09s; }
+    .country-card:nth-child(3) { animation-delay: 0.13s; }
+    .country-card:nth-child(4) { animation-delay: 0.17s; }
+    .country-card:nth-child(5) { animation-delay: 0.21s; }
+    .country-card:nth-child(6) { animation-delay: 0.25s; }
+    .country-card:nth-child(n+7) { animation-delay: 0.28s; }
+
+    .country-card:hover {
+        transform: translateY(-6px) scale(1.015);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(112, 219, 151, 0.25);
+        border-color: rgba(112, 219, 151, 0.35);
+    }
+
+    .country-card:active { transform: translateY(-4px) scale(1.01); }
+
+    .card-flag {
+        height: 140px;
+        transition: transform 0.35s ease;
+    }
+
+    .country-card:hover .card-flag {
+        transform: scale(1.04);
+    }
+
+    .card-content { padding: 14px 16px 16px; }
+
+    .card-title {
+        font-size: 1.12rem;
+        margin-bottom: 8px;
+    }
+
+    .card-meta {
+        font-size: 0.84rem;
+        gap: 6px;
+    }
+
+    .modal {
+        place-items: center;
+        padding: 24px;
+    }
+
+    .modal-window {
+        max-width: 720px;
+        max-height: 88vh;
+        border-radius: 22px;
+    }
+}
+
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .country-card { animation: none !important; }
+    .country-card:hover { transform: none; }
 }

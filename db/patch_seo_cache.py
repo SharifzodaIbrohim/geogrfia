@@ -6,20 +6,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
 def _og_png_bytes():
     p = ROOT / "og-default.png"
     if p.is_file():
         return p.read_bytes()
-    b64p = ROOT / "db" / "_og_png_b64.txt"
-    if not b64p.is_file():
-        b64p = ROOT / "_og_png_b64.txt"
-    if b64p.is_file():
-        import base64 as _b64
-        return _b64.b64decode(b64p.read_text(encoding="ascii").strip())
+    import base64 as _b64
+    for candidate in (ROOT / "db" / "_og_png_b64.txt", ROOT / "_og_png_b64.txt"):
+        if candidate.is_file() and candidate.stat().st_size > 1000:
+            try:
+                return _b64.b64decode(candidate.read_text(encoding="ascii").strip())
+            except Exception:
+                pass
+    parts = sorted((ROOT / "db").glob("_og_png_b64_*.txt"))
+    if not parts:
+        parts = sorted(ROOT.glob("_og_png_b64_*.txt"))
+    if parts:
+        try:
+            joined = "".join(x.read_text(encoding="ascii").strip() for x in parts)
+            if len(joined) > 1000:
+                return _b64.b64decode(joined)
+        except Exception:
+            pass
     return b""
 
 
-# path -> (title, description, indexable)
 _SEO = {
     "/": (
         "Geografia.tj — Платформаи ҷуғрофия ва олимпиада",
@@ -124,13 +135,8 @@ def install(app):
     try:
         paths = set(getattr(app, "config", {}).get("PUBLIC_PATHS") or [])
         for p in (
-            "robots.txt",
-            "sitemap.xml",
-            "favicon.svg",
-            "favicon.ico",
-            "og-default.png",
-            "db/_og_png_b64.txt",
-            "_og_png_b64.txt",
+            "robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico",
+            "og-default.png", "db/_og_png_b64.txt", "_og_png_b64.txt",
         ):
             paths.add(p)
         app.config["PUBLIC_PATHS"] = paths
@@ -157,14 +163,8 @@ def install(app):
             body = p.read_text(encoding="utf-8")
         else:
             body = """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url><loc>https://geografia.tj/</loc><changefreq>daily</changefreq><priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="tg" href="https://geografia.tj/" />
-    <xhtml:link rel="alternate" hreflang="ru" href="https://geografia.tj/" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geografia.tj/" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geografia.tj/" />
-  </url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>https://geografia.tj/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
   <url><loc>https://geografia.tj/countries</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://geografia.tj/courses</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://geografia.tj/quiz</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
@@ -221,13 +221,7 @@ def install(app):
                     title, desc, indexable = _SEO[path]
                     block = _meta_block(path, title, desc, indexable)
                     data2 = re.sub(r"<title>[^<]*</title>", "", data, count=1, flags=re.I)
-                    data2 = re.sub(
-                        r"(<head[^>]*>)",
-                        r"\1" + block,
-                        data2,
-                        count=1,
-                        flags=re.I,
-                    )
+                    data2 = re.sub(r"(<head[^>]*>)", r"\1" + block, data2, count=1, flags=re.I)
                     resp.set_data(data2)
                     try:
                         resp.headers["Content-Length"] = str(len(resp.get_data()))

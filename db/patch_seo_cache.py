@@ -1,9 +1,23 @@
-"""SEO: robots/sitemap/favicon routes + meta injection + static cache headers."""
+"""SEO Phase 1+2: robots/sitemap/favicon/og + meta injection (hreflang) + cache."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+def _og_png_bytes():
+    p = ROOT / "og-default.png"
+    if p.is_file():
+        return p.read_bytes()
+    b64p = ROOT / "db" / "_og_png_b64.txt"
+    if not b64p.is_file():
+        b64p = ROOT / "_og_png_b64.txt"
+    if b64p.is_file():
+        import base64 as _b64
+        return _b64.b64decode(b64p.read_text(encoding="ascii").strip())
+    return b""
+
 
 # path -> (title, description, indexable)
 _SEO = {
@@ -49,28 +63,44 @@ _SEO = {
     ),
 }
 
+_OG_IMAGE = "https://geografia.tj/og-default.png"
+
 
 def _meta_block(path: str, title: str, description: str, indexable: bool) -> str:
     url = "https://geografia.tj" + (path if path != "/" else "/")
     robots = "index,follow" if indexable else "noindex,nofollow"
+    hreflang = f"""
+  <link rel="alternate" hreflang="tg" href="{url}" />
+  <link rel="alternate" hreflang="ru" href="{url}" />
+  <link rel="alternate" hreflang="en" href="{url}" />
+  <link rel="alternate" hreflang="x-default" href="{url}" />"""
     og = ""
     if indexable:
         og = f"""
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Geografia.tj" />
   <meta property="og:locale" content="tg_TJ" />
+  <meta property="og:locale:alternate" content="ru_RU" />
+  <meta property="og:locale:alternate" content="en_US" />
   <meta property="og:title" content="{title}" />
   <meta property="og:description" content="{description}" />
   <meta property="og:url" content="{url}" />
-  <meta property="og:image" content="https://geografia.tj/favicon.svg" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="{_OG_IMAGE}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Geografia.tj" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{title}" />
-  <meta name="twitter:description" content="{description}" />"""
+  <meta name="twitter:description" content="{description}" />
+  <meta name="twitter:image" content="{_OG_IMAGE}" />"""
     jsonld = ""
     if path == "/":
         jsonld = """
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebSite","name":"Geografia.tj","url":"https://geografia.tj/","description":"Платформаи ҷуғрофия, олимпиада ва викторина барои хонандагони Тоҷикистон.","inLanguage":["tg","ru","en"]}
+  {"@context":"https://schema.org","@graph":[
+    {"@type":"WebSite","name":"Geografia.tj","url":"https://geografia.tj/","description":"Платформаи ҷуғрофия, олимпиада ва викторина барои хонандагони Тоҷикистон.","inLanguage":["tg","ru","en"],"potentialAction":{"@type":"SearchAction","target":"https://geografia.tj/countries?q={search_term_string}","query-input":"required name=search_term_string"}},
+    {"@type":"Organization","name":"Geografia.tj","url":"https://geografia.tj/","logo":"https://geografia.tj/favicon.svg"}
+  ]}
   </script>"""
     return f"""
   <!-- geo-seo -->
@@ -80,7 +110,7 @@ def _meta_block(path: str, title: str, description: str, indexable: bool) -> str
   <meta name="robots" content="{robots}" />
   <link rel="canonical" href="{url}" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/favicon.svg" />{og}{jsonld}
+  <link rel="apple-touch-icon" href="/favicon.svg" />{hreflang}{og}{jsonld}
   <!-- /geo-seo -->
 """
 
@@ -93,7 +123,15 @@ def install(app):
 
     try:
         paths = set(getattr(app, "config", {}).get("PUBLIC_PATHS") or [])
-        for p in ("robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico"):
+        for p in (
+            "robots.txt",
+            "sitemap.xml",
+            "favicon.svg",
+            "favicon.ico",
+            "og-default.png",
+            "db/_og_png_b64.txt",
+            "_og_png_b64.txt",
+        ):
             paths.add(p)
         app.config["PUBLIC_PATHS"] = paths
     except Exception:
@@ -119,12 +157,18 @@ def install(app):
             body = p.read_text(encoding="utf-8")
         else:
             body = """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://geografia.tj/</loc><priority>1.0</priority></url>
-  <url><loc>https://geografia.tj/countries</loc><priority>0.9</priority></url>
-  <url><loc>https://geografia.tj/courses</loc><priority>0.8</priority></url>
-  <url><loc>https://geografia.tj/quiz</loc><priority>0.8</priority></url>
-  <url><loc>https://geografia.tj/leaderboard</loc><priority>0.7</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>https://geografia.tj/</loc><changefreq>daily</changefreq><priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="tg" href="https://geografia.tj/" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://geografia.tj/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://geografia.tj/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geografia.tj/" />
+  </url>
+  <url><loc>https://geografia.tj/countries</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://geografia.tj/courses</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://geografia.tj/quiz</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://geografia.tj/leaderboard</loc><changefreq>hourly</changefreq><priority>0.7</priority></url>
 </urlset>
 """
         return Response(body, mimetype="application/xml; charset=utf-8")
@@ -143,6 +187,13 @@ def install(app):
         )
         return Response(svg, mimetype="image/svg+xml")
 
+    @app.route("/og-default.png")
+    def seo_og_image():
+        data = _og_png_bytes()
+        if data:
+            return Response(data, mimetype="image/png")
+        return Response(b"", status=404)
+
     @app.after_request
     def seo_after(resp):
         try:
@@ -150,23 +201,25 @@ def install(app):
             if path != "/" and path.endswith("/"):
                 path = path.rstrip("/") or "/"
 
-            # Cache policy
             pl = path.lower()
             if pl.endswith((".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".woff")):
                 resp.headers["Cache-Control"] = "public, max-age=604800, immutable"
-            elif pl in ("/robots.txt", "/sitemap.xml", "/favicon.svg", "/favicon.ico"):
+            elif pl in ("/robots.txt", "/sitemap.xml", "/favicon.svg", "/favicon.ico", "/og-default.png"):
                 resp.headers["Cache-Control"] = "public, max-age=86400"
             elif path in _SEO or pl.endswith(".html"):
                 resp.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
 
-            # Inject SEO meta into HTML
             ctype = (resp.mimetype or "").lower()
             if "html" in ctype and path in _SEO and resp.status_code == 200:
+                try:
+                    if getattr(resp, "direct_passthrough", False):
+                        resp.direct_passthrough = False
+                except Exception:
+                    pass
                 data = resp.get_data(as_text=True)
                 if data and "<!-- geo-seo -->" not in data and "<head" in data.lower():
                     title, desc, indexable = _SEO[path]
                     block = _meta_block(path, title, desc, indexable)
-                    import re
                     data2 = re.sub(r"<title>[^<]*</title>", "", data, count=1, flags=re.I)
                     data2 = re.sub(
                         r"(<head[^>]*>)",
@@ -176,7 +229,10 @@ def install(app):
                         flags=re.I,
                     )
                     resp.set_data(data2)
-                    resp.headers["Content-Length"] = str(len(resp.get_data()))
+                    try:
+                        resp.headers["Content-Length"] = str(len(resp.get_data()))
+                    except Exception:
+                        pass
         except Exception as e:
             try:
                 print("[seo] after_request skip:", e)
@@ -184,4 +240,4 @@ def install(app):
                 pass
         return resp
 
-    print("[boot] patch_seo_cache installed (routes+inject+cache)")
+    print("[boot] patch_seo_cache installed (P2: hreflang+og+passthrough fix)")

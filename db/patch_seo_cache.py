@@ -1,21 +1,24 @@
-"""SEO Phase 1+2: robots/sitemap/favicon/og + meta injection (hreflang) + cache."""
+"""SEO Phase 1+2: robots/sitemap/favicon/og + meta injection + Google verify."""
 from __future__ import annotations
 
+import base64 as _b64mod
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Embedded 48x48 PNG favicon (Bing/Google prefer PNG/ICO over SVG)
+_FAVICON_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABoElEQVR42u2aMW7DMAxFZUJThw69Qg7QMejQqeglegDP2YKiaxafIICLniQn8Ji5yEWCJO6kQE4sWaJJhUqt1bL1n0iRlOTi4emxVY5WNpWS0Or50vms6AOQIjwE5ArgUryPPkUb0tMBsDvfWrgPxNZ2BjAdpAl3gRidINnnQ0BAkr9jFjLkOPu2FYrF77qlnn3fpFCNY8bQKUSHRBNs0xzCfcLs/hSRT1OJDxVh9zPvl02FhtCphPtgyqZCWwNuJX7IKmwAXDkD+z3AzD5XwrNdihwgVa0UC6EpB5+9P6u31Ye3T3s6qe+XT7IxQdLsY6ygOYX8vH6p4/7ACgsq8wbS3CfWje7fAhPABDABZA6AKbAot6hD4Tt7C5CWErvNVu02W3lrILUbxWT//xOFUlkhtvaKsgA3BKZwhLGDUYtnT2RjjkBCxMeW7agwSnEgNVY4SR6o58vO8WCImNizVPZE1rewQ12LYpd3vh+g3DZy3w/Y39e2G1DvZ1Psm4EzNHLmik4YzeFyz2Xl+7nodpkoq18NpK+FoJ89JIL4vOAPxeTjKbNUgO4AAAAASUVORK5CYII="
 
 
 def _og_png_bytes():
     p = ROOT / "og-default.png"
     if p.is_file():
         return p.read_bytes()
-    import base64 as _b64
     for candidate in (ROOT / "db" / "_og_png_b64.txt", ROOT / "_og_png_b64.txt"):
         if candidate.is_file() and candidate.stat().st_size > 1000:
             try:
-                return _b64.b64decode(candidate.read_text(encoding="ascii").strip())
+                return _b64mod.b64decode(candidate.read_text(encoding="ascii").strip())
             except Exception:
                 pass
     parts = sorted((ROOT / "db").glob("_og_png_b64_*.txt"))
@@ -25,7 +28,7 @@ def _og_png_bytes():
         try:
             joined = "".join(x.read_text(encoding="ascii").strip() for x in parts)
             if len(joined) > 1000:
-                return _b64.b64decode(joined)
+                return _b64mod.b64decode(joined)
         except Exception:
             pass
     return b""
@@ -75,6 +78,9 @@ _SEO = {
 }
 
 _OG_IMAGE = "https://geografia.tj/og-default.png"
+_FAVICON_SVG = "https://geografia.tj/favicon.svg"
+_FAVICON_PNG = "https://geografia.tj/favicon.png"
+_GSC_VERIFY = "OAUh0qgRBDH2IJCC7bg0nRG3MiNVWI9RZhrWXEaHc4U"
 
 
 def _meta_block(path: str, title: str, description: str, indexable: bool) -> str:
@@ -106,12 +112,12 @@ def _meta_block(path: str, title: str, description: str, indexable: bool) -> str
   <meta name="twitter:image" content="{_OG_IMAGE}" />"""
     jsonld = ""
     if path == "/":
-        jsonld = """
+        jsonld = f"""
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@graph":[
-    {"@type":"WebSite","name":"Geografia.tj","url":"https://geografia.tj/","description":"Платформаи ҷуғрофия, олимпиада ва викторина барои хонандагони Тоҷикистон.","inLanguage":["tg","ru","en"],"potentialAction":{"@type":"SearchAction","target":"https://geografia.tj/countries?q={search_term_string}","query-input":"required name=search_term_string"}},
-    {"@type":"Organization","name":"Geografia.tj","url":"https://geografia.tj/","logo":"https://geografia.tj/favicon.svg"}
-  ]}
+  {{"@context":"https://schema.org","@graph":[
+    {{"@type":"WebSite","name":"Geografia.tj","url":"https://geografia.tj/","description":"Платформаи ҷуғрофия, олимпиада ва викторина барои хонандагони Тоҷикистон.","inLanguage":["tg","ru","en"],"potentialAction":{{"@type":"SearchAction","target":"https://geografia.tj/countries?q={{search_term_string}}","query-input":"required name=search_term_string"}}}},
+    {{"@type":"Organization","name":"Geografia.tj","url":"https://geografia.tj/","logo":"{_FAVICON_PNG}"}}
+  ]}}
   </script>"""
     return f"""
   <!-- geo-seo -->
@@ -119,9 +125,12 @@ def _meta_block(path: str, title: str, description: str, indexable: bool) -> str
   <meta name="description" content="{description}" />
   <meta name="theme-color" content="#0a120e" />
   <meta name="robots" content="{robots}" />
+  <meta name="google-site-verification" content="{_GSC_VERIFY}" />
   <link rel="canonical" href="{url}" />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/favicon.svg" />{hreflang}{og}{jsonld}
+  <link rel="icon" href="{_FAVICON_SVG}" type="image/svg+xml" />
+  <link rel="icon" href="{_FAVICON_PNG}" type="image/png" sizes="48x48" />
+  <link rel="shortcut icon" href="{_FAVICON_PNG}" />
+  <link rel="apple-touch-icon" href="{_FAVICON_PNG}" />{hreflang}{og}{jsonld}
   <!-- /geo-seo -->
 """
 
@@ -135,7 +144,7 @@ def install(app):
     try:
         paths = set(getattr(app, "config", {}).get("PUBLIC_PATHS") or [])
         for p in (
-            "robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico",
+            "robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico", "favicon.png",
             "og-default.png", "db/_og_png_b64.txt", "_og_png_b64.txt",
         ):
             paths.add(p)
@@ -163,12 +172,12 @@ def install(app):
             body = p.read_text(encoding="utf-8")
         else:
             body = """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url><loc>https://geografia.tj/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
-  <url><loc>https://geografia.tj/countries</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://geografia.tj/courses</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://geografia.tj/quiz</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://geografia.tj/leaderboard</loc><changefreq>hourly</changefreq><priority>0.7</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://geografia.tj/</loc><priority>1.0</priority></url>
+  <url><loc>https://geografia.tj/countries</loc><priority>0.9</priority></url>
+  <url><loc>https://geografia.tj/courses</loc><priority>0.8</priority></url>
+  <url><loc>https://geografia.tj/quiz</loc><priority>0.8</priority></url>
+  <url><loc>https://geografia.tj/leaderboard</loc><priority>0.7</priority></url>
 </urlset>
 """
         return Response(body, mimetype="application/xml; charset=utf-8")
@@ -187,12 +196,35 @@ def install(app):
         )
         return Response(svg, mimetype="image/svg+xml")
 
+    @app.route("/favicon.png")
+    def seo_favicon_png():
+        p = ROOT / "favicon.png"
+        if p.is_file():
+            return Response(p.read_bytes(), mimetype="image/png")
+        try:
+            return Response(_b64mod.b64decode(_FAVICON_PNG_B64), mimetype="image/png")
+        except Exception:
+            return Response(b"", status=404)
+
+    @app.route("/favicon.ico")
+    def seo_favicon_ico():
+        p = ROOT / "favicon.ico"
+        if p.is_file():
+            return Response(p.read_bytes(), mimetype="image/x-icon")
+        try:
+            return Response(_b64mod.b64decode(_FAVICON_PNG_B64), mimetype="image/png")
+        except Exception:
+            return Response(b"", status=404)
+
     @app.route("/og-default.png")
     def seo_og_image():
         data = _og_png_bytes()
         if data:
             return Response(data, mimetype="image/png")
-        return Response(b"", status=404)
+        try:
+            return Response(_b64mod.b64decode(_FAVICON_PNG_B64), mimetype="image/png")
+        except Exception:
+            return Response(b"", status=404)
 
     @app.after_request
     def seo_after(resp):
@@ -202,9 +234,9 @@ def install(app):
                 path = path.rstrip("/") or "/"
 
             pl = path.lower()
-            if pl.endswith((".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".woff")):
+            if pl.endswith((".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".woff", ".ico")):
                 resp.headers["Cache-Control"] = "public, max-age=604800, immutable"
-            elif pl in ("/robots.txt", "/sitemap.xml", "/favicon.svg", "/favicon.ico", "/og-default.png"):
+            elif pl in ("/robots.txt", "/sitemap.xml", "/favicon.svg", "/favicon.ico", "/favicon.png", "/og-default.png"):
                 resp.headers["Cache-Control"] = "public, max-age=86400"
             elif path in _SEO or pl.endswith(".html"):
                 resp.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
@@ -234,4 +266,4 @@ def install(app):
                 pass
         return resp
 
-    print("[boot] patch_seo_cache installed (P2: hreflang+og+passthrough fix)")
+    print("[boot] patch_seo_cache installed (GSC verify + favicon png/svg)")

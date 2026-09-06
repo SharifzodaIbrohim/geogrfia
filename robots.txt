@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /student
+Disallow: /profile
+
+Sitemap: https://geografia.tj/sitemap.xml

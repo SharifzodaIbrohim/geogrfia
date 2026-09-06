@@ -92,6 +92,7 @@ _EXTRA_PUBLIC = {
     "_asr_x16.txt", "_asr_x17.txt", "_asr_x18.txt", "_asr_x19.txt",
     "_asr_x20.txt", "_asr_x21.txt", "_asr_x22.txt", "_asr_x23.txt",
     "Аз_тарафи_чап.jpg", "Аз_тарафи_рост.jpg",
+    "robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico",
 }
 
 try:
@@ -149,6 +150,7 @@ _boot_patch("patch_monitor_durable", "db.patch_monitor_durable", "patch_monitor_
 _boot_patch("patch_review_text_fix", "patch_review_text_fix", "db.patch_review_text_fix")
 _boot_patch("patch_admin_export", "patch_admin_export", "db.patch_admin_export")
 _boot_patch("patch_google_login_detail", "db.patch_google_login_detail", "patch_google_login_detail")
+_boot_patch("patch_seo_cache", "db.patch_seo_cache", "patch_seo_cache")
 
 
 def _install_safety_net() -> None:

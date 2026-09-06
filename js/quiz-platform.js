@@ -366,8 +366,14 @@
   }
 
   function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) =>
-      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+    const map = {
+      '&': String.fromCharCode(38) + 'amp;',
+      '<': String.fromCharCode(38) + 'lt;',
+      '>': String.fromCharCode(38) + 'gt;',
+      '"': String.fromCharCode(38) + 'quot;',
+      "'": String.fromCharCode(38) + '#39;',
+    };
+    return String(s ?? '').replace(/[&<>"']/g, (ch) => map[ch]);
   }
 
   function on(id, evt, fn) {

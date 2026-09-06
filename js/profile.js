@@ -14,10 +14,19 @@
       headers['X-User-Token'] = t;
     }
     const res = await fetch(path, Object.assign({}, opts, { headers }));
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch (_) {
+      data = { error: 'Ҷавоби ғайри-JSON', detail: raw.slice(0, 180) };
+    }
     if (!res.ok) {
-      const detail = data.detail ? (' — ' + data.detail) : '';
-      throw new Error((data.error || 'Хато') + detail);
+      const parts = [];
+      if (data.error) parts.push(String(data.error));
+      if (data.detail) parts.push(String(data.detail));
+      if (data.reason) parts.push(String(data.reason));
+      if (!parts.length) parts.push('Хато HTTP ' + res.status);
+      else parts.push('(HTTP ' + res.status + ')');
+      throw new Error(parts.join(' — '));
     }
     return data;
   }

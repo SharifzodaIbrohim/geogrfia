@@ -41,11 +41,12 @@
   }
 
   function escapeHtml(s) {
+    const amp = String.fromCharCode(38);
     return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, amp + 'amp;')
+      .replace(/</g, amp + 'lt;')
+      .replace(/>/g, amp + 'gt;')
+      .replace(/"/g, amp + 'quot;');
   }
 
   function formatWhen(iso) {
@@ -262,23 +263,43 @@
           client_id: clientId,
           callback: async (resp) => {
             try {
+              if (!resp || !resp.credential) {
+                throw new Error('Google credential нест — бори дигар кӯшиш кунед');
+              }
               const data = await api('/api/auth/google', {
                 method: 'POST',
-                body: JSON.stringify({ credential: resp.credential }),
+                body: JSON.stringify({
+                  idToken: resp.credential,
+                  credential: resp.credential,
+                }),
               });
-              if (data.token) {
-                localStorage.setItem('geo_user_token', data.token);
-                localStorage.setItem('userToken', data.token);
+              if (!data.token) {
+                throw new Error(data.error || 'Token аз сервер наомад');
               }
+              localStorage.setItem('geo_user_token', data.token);
+              localStorage.setItem('userToken', data.token);
               localStorage.setItem('geo_user', JSON.stringify(data.user || {}));
               localStorage.setItem('currentUser', JSON.stringify(data.user || {}));
               location.reload();
             } catch (err) {
-              alert(err.message);
+              console.error('Google login', err);
+              const msg = (err && err.message) || 'Хатои Google login';
+              alert(msg);
+              const hostEl = document.getElementById('googleSignInBtn');
+              if (hostEl) {
+                let e = hostEl.parentNode && hostEl.parentNode.querySelector('.pr-login-err');
+                if (!e) {
+                  e = document.createElement('p');
+                  e.className = 'pr-muted pr-login-err';
+                  e.style.color = '#f88';
+                  e.style.marginTop = '0.5rem';
+                  if (hostEl.parentNode) hostEl.parentNode.insertBefore(e, hostEl.nextSibling);
+                }
+                e.textContent = msg;
+              }
             }
           },
           auto_select: false,
-          ux_mode: 'popup',
         });
         host.innerHTML = '';
         google.accounts.id.renderButton(host, {

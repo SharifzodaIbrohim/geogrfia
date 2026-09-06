@@ -234,12 +234,34 @@
       paintProfile(data.profile || {}, data.stats || {});
       showOnboarding(!!data.needsOnboarding);
     } catch (err) {
-      console.warn(err);
-      localStorage.removeItem('geo_user_token');
-      localStorage.removeItem('userToken');
-      $('#loginGate')?.classList.remove('hidden');
-      $('#profileApp')?.classList.add('hidden');
-      initGoogle();
+      console.warn('profile load', err);
+      const msg = (err && err.message) || 'Хатои профил';
+      const isAuth = /401|ворид|Дастрасӣ|Unauthorized|token/i.test(msg);
+      if (isAuth) {
+        localStorage.removeItem('geo_user_token');
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('geo_user');
+        localStorage.removeItem('currentUser');
+        $('#loginGate')?.classList.remove('hidden');
+        $('#profileApp')?.classList.add('hidden');
+        initGoogle();
+        const host = document.getElementById('googleSignInBtn');
+        if (host && host.parentNode) {
+          let e = host.parentNode.querySelector('.pr-login-err');
+          if (!e) {
+            e = document.createElement('p');
+            e.className = 'pr-muted pr-login-err';
+            e.style.color = '#f88';
+            e.style.marginTop = '0.5rem';
+            host.parentNode.insertBefore(e, host.nextSibling);
+          }
+          e.textContent = msg;
+        }
+      } else {
+        alert('Профил: ' + msg);
+        $('#loginGate')?.classList.add('hidden');
+        $('#profileApp')?.classList.remove('hidden');
+      }
     }
   }
 
@@ -287,6 +309,9 @@
               });
               if (!data.token) {
                 throw new Error(data.error || 'Token аз сервер наомад');
+              }
+              if (String(data.token).split('.').length !== 3) {
+                throw new Error('Token JWT нест (формати нодуруст)');
               }
               localStorage.setItem('geo_user_token', data.token);
               localStorage.setItem('userToken', data.token);

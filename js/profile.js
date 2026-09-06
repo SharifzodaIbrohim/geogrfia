@@ -105,27 +105,36 @@
     $('#profileApp')?.classList.remove('hidden');
 
     const name = profile.name || 'Иштирокчӣ';
-    $('#prName').textContent = name;
-    $('#prEmail').textContent = profile.email || '';
+    const setText = (sel, val) => {
+      const el = $(sel);
+      if (el) el.textContent = val == null ? '' : String(val);
+    };
+    const setHtml = (sel, html) => {
+      const el = $(sel);
+      if (el) el.innerHTML = html;
+    };
+
+    setText('#prName', name);
+    setText('#prEmail', profile.email || '');
 
     const genderLabel =
       profile.gender === 'male' ? 'Писар' : profile.gender === 'female' ? 'Духтар' : '—';
     const locBits = [];
-    if (profile.region) locBits.push('TJ \u00b7 ' + profile.region);
+    if (profile.region) locBits.push('TJ · ' + profile.region);
     else locBits.push('TJ');
     if (profile.className) locBits.push('синф ' + profile.className);
     if (profile.school) locBits.push(profile.school);
-    $('#prMeta').textContent = locBits.join(' \u00b7 ');
+    setText('#prMeta', locBits.join(' · '));
 
-    $('#prGender').textContent = genderLabel;
-    $('#prSchool').textContent = profile.school || '—';
-    $('#prRegion').textContent = profile.region || '—';
-    $('#prClass').textContent = profile.className || '—';
+    setText('#prGender', genderLabel);
+    setText('#prSchool', profile.school || '—');
+    setText('#prRegion', profile.region || '—');
+    setText('#prClass', profile.className || '—');
 
     const rating = Number(profile.rating) || 1200;
     const maxR = Math.max(Number(profile.maxRating) || rating, rating);
-    $('#prRating').textContent = String(rating);
-    $('#prMaxRating').textContent = String(maxR);
+    setText('#prRating', String(rating));
+    setText('#prMaxRating', String(maxR));
 
     const deltaEl = $('#prDelta');
     if (deltaEl) {
@@ -142,14 +151,15 @@
       }
     }
 
+    const pic = profile.picture || profile.avatarUrl || profile.avatar;
     const av = $('#prAvatar');
-    const pic = profile.picture || profile.avatarUrl;
-    if (pic) av.innerHTML = '<img src="' + pic + '" alt="" />';
-    else av.textContent = name.trim().slice(0, 1).toUpperCase() || '?';
-
+    if (av) {
+      if (pic) av.innerHTML = '<img src="' + String(pic).replace(/"/g, '') + '" alt="" />';
+      else av.textContent = name.trim().slice(0, 1).toUpperCase() || '?';
+    }
     const topAv = $('#pfAvatar');
     if (topAv) {
-      if (pic) topAv.innerHTML = '<img src="' + pic + '" alt="" />';
+      if (pic) topAv.innerHTML = '<img src="' + String(pic).replace(/"/g, '') + '" alt="" />';
       else topAv.textContent = name.trim().slice(0, 1).toUpperCase() || 'G';
     }
 
@@ -158,11 +168,11 @@
     const passed = Number(st.passed || st.problemsSolved || 0);
     const failed = Number(st.failed || Math.max(0, attempts - passed));
 
-    $('#prContests').textContent = String(attempts);
-    $('#prSolved').textContent = String(passed);
-    $('#prPassed').textContent = String(passed);
-    $('#prFailed').textContent = String(failed);
-    $('#prAttempts').textContent = String(attempts);
+    setText('#prContests', String(attempts));
+    setText('#prSolved', String(passed));
+    setText('#prPassed', String(passed));
+    setText('#prFailed', String(failed));
+    setText('#prAttempts', String(attempts));
 
     const prog = progressToNext(rating);
     const bar = $('#prBar');
@@ -172,13 +182,12 @@
     if (!profile.profileComplete) {
       progressText = 'Профилро пурра кунед ва викторина супоред';
     } else if (prog.need > 0) {
-      progressText =
-        rating + ' \u2192 ' + prog.next + ' \u00b7 ' + prog.need + ' балл то ' + prog.nextLabel;
+      progressText = rating + ' → ' + prog.next + ' · ' + prog.need + ' балл то ' + prog.nextLabel;
     } else {
       progressText = 'Сатҳи баландтарин';
     }
-    $('#prProgressText').textContent = progressText;
-    $('#prTier').textContent = prog.currentLabel + ' \u00b7 Rating ' + rating;
+    setText('#prProgressText', progressText);
+    setText('#prTier', prog.currentLabel + ' · Rating ' + rating);
 
     if ($('#fName')) $('#fName').value = profile.name || '';
     if ($('#fGender')) $('#fGender').value = profile.gender || '';
@@ -187,31 +196,24 @@
     if ($('#fClass')) $('#fClass').value = profile.className || '';
 
     const recent = st.recent || [];
-    const empty =
-      '<p class="pr-muted">Ҳоло холӣ — викторина супоред то натиҷа пайдо шавад.</p>';
+    const empty = '<p class="pr-muted">Ҳоло холӣ — викторина супоред то натиҷа пайдо шавад.</p>';
     const listHtml = recent.length === 0 ? empty : recent.map(rowHtml).join('');
 
-    const recentEl = $('#prRecent');
-    if (recentEl) recentEl.innerHTML = listHtml;
+    setHtml('#prRecent', listHtml);
+    setHtml('#prActivity', listHtml);
 
     const histEl = $('#prHistory');
     if (histEl) {
-      if (!recent.length) {
-        histEl.innerHTML =
-          '<p class="pr-muted">Баъди супоридани викторинаҳо таърихи рейтинг пайдо мешавад.</p>';
-      } else {
-        histEl.innerHTML = recent.map(rowHtml).join('');
-      }
+      histEl.innerHTML = !recent.length
+        ? '<p class="pr-muted">Баъди супоридани викторинаҳо таърихи рейтинг пайдо мешавад.</p>'
+        : recent.map(rowHtml).join('');
     }
 
     const contestsEl = $('#prContestsList');
     if (contestsEl) {
-      if (!recent.length) {
-        contestsEl.innerHTML =
-          '<p class="pr-muted">Ҳоло мусобиқа нест. Аз <a href="/quiz" style="color:#70db97">Викторинаҳо</a> оғоз кунед.</p>';
-      } else {
-        contestsEl.innerHTML = recent.map(rowHtml).join('');
-      }
+      contestsEl.innerHTML = !recent.length
+        ? '<p class="pr-muted">Ҳоло мусобиқа нест. Аз <a href="/quiz" style="color:#70db97">Викторинаҳо</a> оғоз кунед.</p>'
+        : recent.map(rowHtml).join('');
     }
   }
 
@@ -231,8 +233,14 @@
     }
     try {
       const data = await api('/api/me/profile');
-      paintProfile(data.profile || {}, data.stats || {});
-      showOnboarding(!!data.needsOnboarding);
+      try {
+        paintProfile(data.profile || {}, data.stats || {});
+        showOnboarding(!!data.needsOnboarding);
+      } catch (paintErr) {
+        console.warn('paintProfile', paintErr);
+        $('#loginGate')?.classList.add('hidden');
+        $('#profileApp')?.classList.remove('hidden');
+      }
     } catch (err) {
       console.warn('profile load', err);
       const msg = (err && err.message) || 'Хатои профил';
@@ -373,19 +381,19 @@
       const data = await api('/api/me/profile', {
         method: 'PATCH',
         body: JSON.stringify({
-          name: $('#fName').value.trim(),
-          gender: $('#fGender').value,
-          school: $('#fSchool').value.trim(),
-          region: $('#fRegion').value.trim(),
-          className: $('#fClass').value.trim(),
+          name: ($('#fName') && $('#fName').value.trim()) || '',
+          gender: ($('#fGender') && $('#fGender').value) || '',
+          school: ($('#fSchool') && $('#fSchool').value.trim()) || '',
+          region: ($('#fRegion') && $('#fRegion').value.trim()) || '',
+          className: ($('#fClass') && $('#fClass').value.trim()) || '',
         }),
       });
-      $('#prFormMsg').textContent = 'Сабт шуд \u2713';
+      if ($('#prFormMsg')) $('#prFormMsg').textContent = 'Сабт шуд \u2713';
       const again = await api('/api/me/profile');
       paintProfile(again.profile || data.profile, again.stats || {});
       showOnboarding(!!again.needsOnboarding);
     } catch (err) {
-      $('#prFormMsg').textContent = err.message;
+      if ($('#prFormMsg')) $('#prFormMsg').textContent = err.message;
     }
   });
 
@@ -395,10 +403,10 @@
       await api('/api/me/profile', {
         method: 'PATCH',
         body: JSON.stringify({
-          gender: $('#oGender').value,
-          school: $('#oSchool').value.trim(),
-          region: $('#oRegion').value.trim(),
-          className: $('#oClass').value.trim(),
+          gender: ($('#oGender') && $('#oGender').value) || '',
+          school: ($('#oSchool') && $('#oSchool').value.trim()) || '',
+          region: ($('#oRegion') && $('#oRegion').value.trim()) || '',
+          className: ($('#oClass') && $('#oClass').value.trim()) || '',
         }),
       });
       $('#onboardModal')?.classList.add('hidden');

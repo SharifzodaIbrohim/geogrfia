@@ -154,7 +154,7 @@ _boot_patch("patch_seo_cache", "db.patch_seo_cache", "patch_seo_cache")
 
 
 def _install_safety_net() -> None:
-    from flask import request
+    from flask import request, jsonify
     if "student_login" in app.view_functions:
         _orig = app.view_functions["student_login"]
         def student_login_safe():
@@ -168,6 +168,137 @@ def _install_safety_net() -> None:
             return _orig()
         app.view_functions["student_login"] = student_login_safe
         print("[boot] safety-net: student_login id|studentId|code")
+
+    def _google_login_safe():
+        try:
+            from db.google_auth import (
+                google_configured,
+                GOOGLE_CLIENT_ID,
+                verify_google_id_token,
+            )
+            try:
+                from db.google_auth import last_verify_error
+            except Exception:
+                def last_verify_error():
+                    return None
+            import repo as _repo
+
+            if not google_configured():
+                return jsonify({"error": "Google OAuth танзим нашудааст.", "detail": "no_client_id"}), 503
+
+            payload = request.get_json(silent=True) or {}
+            id_token = str(
+                payload.get("idToken") or payload.get("credential") or payload.get("token") or ""
+            ).strip()
+            if not id_token:
+                return jsonify({"error": "idToken лозим аст.", "detail": "missing_token"}), 400
+
+            info = verify_google_id_token(id_token)
+            if not info:
+                err = None
+                try:
+                    err = last_verify_error()
+                except Exception:
+                    err = None
+                return jsonify({
+                    "error": "Google token нодуруст аст.",
+                    "detail": err or "verify_failed",
+                    "clientIdPrefix": (GOOGLE_CLIENT_ID[:24] + "\u2026") if GOOGLE_CLIENT_ID else None,
+                }), 401
+
+            try:
+                user = _repo.upsert_google_user(
+                    google_id=info["sub"],
+                    email=info["email"],
+                    name=info["name"],
+                    avatar=info.get("picture"),
+                )
+            except Exception as e:
+                detail = f"{type(e).__name__}: {e}"
+                try:
+                    from sqlalchemy import text as _text
+                    from db.connection import get_session
+                    import uuid as _uuid
+                    email = (info["email"] or "").lower().strip()
+                    with get_session() as s:
+                        r = s.execute(
+                            _text("SELECT id::text FROM users WHERE google_id = :g OR lower(email) = :e"),
+                            {"g": info["sub"], "e": email},
+                        ).first()
+                        if r:
+                            uid = str(r[0])
+                            try:
+                                s.execute(
+                                    _text("UPDATE users SET google_id=:g, email=:e, name=:n WHERE id::text=:id"),
+                                    {"g": info["sub"], "e": email, "n": info["name"], "id": uid},
+                                )
+                            except Exception:
+                                pass
+                        else:
+                            uid = str(_uuid.uuid4())
+                            s.execute(
+                                _text("INSERT INTO users (id, google_id, email, name) VALUES (:id,:g,:e,:n)"),
+                                {"id": uid, "g": info["sub"], "e": email, "n": info["name"]},
+                            )
+                        user = {
+                            "id": uid,
+                            "email": email,
+                            "name": info["name"],
+                            "avatar": info.get("picture"),
+                            "googleId": info["sub"],
+                        }
+                        detail = detail + " | fallback_ok"
+                except Exception as e2:
+                    return jsonify({
+                        "error": "Сабти корбар ноком шуд.",
+                        "detail": detail + " | fallback: " + f"{type(e2).__name__}: {e2}",
+                    }), 500
+
+            if not user or not user.get("id"):
+                return jsonify({"error": "Корбар холӣ.", "detail": "empty_user"}), 500
+
+            try:
+                create_tok = globals().get("create_user_token")
+                if not callable(create_tok):
+                    from db.phase23_hooks import create_user_token as create_tok
+                token = create_tok(user)
+            except Exception as e:
+                try:
+                    from db.auth_tokens import issue_user_token
+                    token = issue_user_token(user)
+                except Exception as e2:
+                    return jsonify({
+                        "error": "Сохтани session ноком шуд.",
+                        "detail": f"{type(e).__name__}: {e} | {type(e2).__name__}: {e2}",
+                    }), 500
+
+            if not token:
+                return jsonify({"error": "Token холӣ.", "detail": "empty_token"}), 500
+
+            pub = {
+                "id": user.get("id"),
+                "email": user.get("email"),
+                "name": user.get("name"),
+                "avatar": user.get("avatar") or user.get("avatar_url"),
+                "googleId": user.get("googleId") or user.get("google_id"),
+            }
+            return jsonify({"user": pub, "token": token, "ok": True})
+        except Exception as e:
+            return jsonify({
+                "error": "Хатои дохилии Google login.",
+                "detail": f"{type(e).__name__}: {e}",
+            }), 500
+
+    bound = 0
+    for rule in list(app.url_map.iter_rules()):
+        if str(rule.rule).rstrip("/") == "/api/auth/google":
+            app.view_functions[rule.endpoint] = _google_login_safe
+            bound += 1
+            print(f"[boot] safety-net: rebound {rule.endpoint} -> google_login_safe")
+    if "google_login" in app.view_functions:
+        app.view_functions["google_login"] = _google_login_safe
+        bound += 1
+    print(f"[boot] safety-net: google_login bound={bound}")
     print("[boot] safety-net OK")
 
 try:

@@ -44,8 +44,8 @@
   function $(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
   function show(el, on) {
     if (!el) return;
@@ -160,7 +160,18 @@
 
   async function loadList() {
     const sid = student && (student.id || student.studentId || student.code);
-    const data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid));
+    let data = null;
+    try {
+      data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid || ''));
+    } catch (e) {
+      // Fallback if /api/student/olympiads missing (404) — use public active list
+      try {
+        const act = await api('/api/olympiads/active');
+        data = { olympiads: act.olympiads || act.items || [], quizzes: act.quizzes || [] };
+      } catch (e2) {
+        data = { olympiads: [], quizzes: [] };
+      }
+    }
     const oly = data.olympiads || data.items || [];
     let quizzes = data.quizzes || [];
     if (!quizzes.length) {
@@ -198,161 +209,86 @@
         questions: data.questions || [],
         remainingSec: remaining,
         noTimeLimit: noTimeLimit,
-        durationMin: durationMin,
-        answers: {},
         idx: 0,
-        title: data.title || 'Олимпиада',
+        answers: {},
       };
       show($('listView'), false);
-      show($('resultView'), false);
       show($('examView'), true);
-      if ($('examTitle')) $('examTitle').textContent = exam.title;
-      renderExam();
+      renderQuestion();
       startTimers();
     } catch (e) {
-      alert(e.message || t('errGeneric'));
+      alert(e.message || String(e));
     }
   }
 
-  function currentQ() {
-    if (!exam || !exam.questions) return null;
-    return exam.questions[exam.idx] || null;
-  }
-
-  function collectCurrentAnswer() {
-    if (!exam) return;
-    const q = currentQ();
+  function renderQuestion() {
+    if (!exam || !exam.questions.length) return;
+    const q = exam.questions[exam.idx];
     if (!q) return;
-    const qid = String(q.id);
+    const box = $('examQuestion');
+    if (!box) return;
     const qtype = String(q.type || 'single').toLowerCase();
-    if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
-      const inp = $('examTextInput');
-      if (inp) {
-        const t = inp.value.trim();
-        exam.answers[qid] = { t: t, text: t };
-      }
-    } else if (qtype === 'matching' || qtype === 'match') {
-      const selects = document.querySelectorAll('.match-select');
-      const m = {};
-      selects.forEach(function (sel) {
-        const li = sel.getAttribute('data-left');
-        if (sel.value !== '') m[String(li)] = parseInt(sel.value, 10);
+    let html = '<div class="q-text">' + esc(q.text || q.question || '') + '</div>';
+    if (qtype === 'single' || qtype === 'multiple' || !qtype) {
+      const opts = q.options || [];
+      html += '<div class="exam-opts">' + opts.map(function (opt, i) {
+        const letter = LETTERS[i] || String(i + 1);
+        const val = typeof opt === 'string' ? opt : (opt.text || opt.label || '');
+        const checked = exam.answers[q.id] === i || exam.answers[q.id] === String(i);
+        return '<label class="exam-opt' + (checked ? ' selected' : '') + '"><input type="radio" name="ans" value="' + i + '"' +
+          (checked ? ' checked' : '') + ' /> <span>' + letter + '. ' + esc(val) + '</span></label>';
+      }).join('') + '</div>';
+    } else if (qtype === 'short' || qtype === 'text') {
+      const cur = exam.answers[q.id] != null ? exam.answers[q.id] : '';
+      html += '<textarea class="exam-text" rows="3">' + esc(cur) + '</textarea>';
+    } else if (qtype === 'matching') {
+      const pairs = q.pairs || q.left || [];
+      html += '<div class="exam-match">' + (pairs.map(function (p, i) {
+        return '<div>' + esc(p.left || p) + '</div>';
+      }).join('')) + '</div>';
+    }
+    box.innerHTML = html;
+    box.querySelectorAll('input[name=ans]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        exam.answers[q.id] = Number(inp.value);
+        box.querySelectorAll('.exam-opt').forEach(function (lab) { lab.classList.remove('selected'); });
+        if (inp.closest) inp.closest('.exam-opt').classList.add('selected');
       });
-      exam.answers[qid] = m;
-    } else {
-      const selected = document.querySelector('.exam-opt.selected');
-      if (selected) {
-        const i = parseInt(selected.getAttribute('data-i'), 10);
-        const t = selected.getAttribute('data-t') || '';
-        exam.answers[qid] = { i: i, t: t };
-      }
+    });
+    const ta = box.querySelector('textarea.exam-text');
+    if (ta) {
+      ta.addEventListener('input', function () {
+        exam.answers[q.id] = ta.value;
+      });
     }
-  }
-
-  function renderExam() {
-    if (!exam) return;
-    const q = currentQ();
-    const total = exam.questions.length;
-    const n = exam.idx + 1;
-
-    const progress = $('examProgress');
-    if (progress) progress.textContent = t('questionXofY', { n: n, total: total });
-
-    const timerEl = $('examTimer');
-    if (timerEl) {
-      timerEl.textContent = exam.noTimeLimit ? t('noLimit') : fmtTime(exam.remainingSec);
-    }
-
     const dots = $('examDots');
     if (dots) {
-      dots.innerHTML = exam.questions.map(function (_, i) {
-        const answered = exam.answers[String(exam.questions[i].id)] != null;
+      dots.innerHTML = exam.questions.map(function (qq, i) {
+        const answered = exam.answers[qq.id] != null && exam.answers[qq.id] !== '';
         const cls = i === exam.idx ? 'dot active' : (answered ? 'dot done' : 'dot');
-        return '<button type="button" class="' + cls + '" data-i="' + i + '">' + (i + 1) + '</button>';
+        return '<span class="' + cls + '" data-i="' + i + '"></span>';
       }).join('');
-      dots.querySelectorAll('[data-i]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          collectCurrentAnswer();
-          exam.idx = parseInt(b.getAttribute('data-i'), 10);
-          renderExam();
+      dots.querySelectorAll('[data-i]').forEach(function (d) {
+        d.addEventListener('click', function () {
+          exam.idx = Number(d.getAttribute('data-i'));
+          renderQuestion();
         });
       });
     }
-
-    const pane = $('examQuestionPane');
-    if (!pane || !q) {
-      if (pane) pane.innerHTML = '<p class="muted">' + t('noQuestion') + '</p>';
-      return;
-    }
-
-    const selected = exam.answers[String(q.id)];
-    let body = '';
-    const qtype = String(q.type || 'single').toLowerCase();
-    body += '<div class="exam-q">' + esc(q.text || '') + '</div>';
-
-    if (qtype === 'short' || qtype === 'text' || qtype === 'number' || qtype === 'numeric' || qtype === 'open') {
-      const val = selected != null ? String(selected.t || selected.text || selected || '') : '';
-      body += '<input type="text" class="exam-text-input" id="examTextInput" value="' + esc(val) + '" placeholder="' + t('writeAnswerPlaceholder') + '" autocomplete="off" />';
-    } else if (qtype === 'matching' || qtype === 'match') {
-      const left = q.leftItems || q.left || [];
-      const right = q.rightItems || q.right || [];
-      const cur = (selected && typeof selected === 'object' && !Array.isArray(selected)) ? selected : {};
-      if (!left.length) {
-        body += '<p class="muted">Банди matching холӣ аст</p>';
-      } else {
-        body += '<div class="exam-match">' + left.map(function (L, li) {
-          const sel = cur[String(li)] != null ? String(cur[String(li)]) : '';
-          return '<div class="exam-match-row"><span class="match-left">' + esc(L) + '</span>' +
-            '<select data-left="' + li + '" class="match-select"><option value="">— ' + t('selectAnswer') + ' —</option>' +
-            right.map(function (r, ri) {
-              return '<option value="' + ri + '"' + (sel === String(ri) ? ' selected' : '') + '>' +
-                esc((LETTERS[ri] || (ri + 1)) + '. ' + r) + '</option>';
-            }).join('') +
-            '</select></div>';
-        }).join('') + '</div>';
-      }
-    } else {
-      const opts = q.options || [];
-      body += '<div class="exam-opts" role="listbox">' + opts.map(function (opt, oi) {
-        const lab = typeof opt === 'object' ? (opt.text || opt.label || '') : String(opt);
-        const isSel = selected && (Number(selected.i) === oi || selected.t === lab);
-        return '<button type="button" class="exam-opt' + (isSel ? ' selected' : '') +
-          '" data-i="' + oi + '" data-t="' + esc(lab) + '">' +
-          '<span class="opt-letter">' + (LETTERS[oi] || (oi + 1)) + '</span><span>' + esc(lab) + '</span></button>';
-      }).join('') + '</div>';
-    }
-
-    pane.innerHTML = body;
-    pane.querySelectorAll('.exam-opt').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        pane.querySelectorAll('.exam-opt').forEach(function (b) { b.classList.remove('selected'); });
-        btn.classList.add('selected');
-        exam.answers[String(q.id)] = {
-          i: parseInt(btn.getAttribute('data-i'), 10),
-          t: btn.getAttribute('data-t') || '',
-        };
-      });
-    });
-
-    const prev = $('examPrevBtn');
-    const next = $('examNextBtn');
-    if (prev) prev.disabled = exam.idx <= 0;
-    if (next) next.disabled = exam.idx >= total - 1;
+    const prog = $('examProgress');
+    if (prog) prog.textContent = (exam.idx + 1) + ' / ' + exam.questions.length;
   }
 
   async function autosave(silent) {
     if (!exam) return;
-    collectCurrentAnswer();
-    const sid = student && (student.id || student.studentId);
+    const sid = student && (student.id || student.studentId || student.code);
     try {
       await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/autosave', {
         method: 'POST',
         body: JSON.stringify({
-          studentId: sid,
-          id: sid,
           attemptId: exam.attemptId,
-          sessionId: exam.attemptId,
           sessionToken: exam.sessionToken,
+          studentId: sid,
           answers: exam.answers,
         }),
       });
@@ -361,141 +297,112 @@
     }
   }
 
-  async function submitExam(autoTimeout) {
+  async function submitExam(auto) {
     if (!exam) return;
-    collectCurrentAnswer();
     stopTimers();
-    const sid = student && (student.id || student.studentId);
+    const sid = student && (student.id || student.studentId || student.code);
     try {
       const data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
         method: 'POST',
         body: JSON.stringify({
-          studentId: sid,
-          id: sid,
           attemptId: exam.attemptId,
-          sessionId: exam.attemptId,
           sessionToken: exam.sessionToken,
+          studentId: sid,
           answers: exam.answers,
+          timedOut: !!auto,
         }),
       });
+      const score = data.score != null ? data.score : data.percent;
+      const msg = (auto ? (t('timeUp') + ' ') : '') +
+        (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
+      alert(msg);
       exam = null;
       show($('examView'), false);
-
-      const hide = data.hideScore || (data.result && data.result.hideScore);
-      show($('resultView'), true);
-      if (hide) {
-        if ($('resultScore')) $('resultScore').textContent = '✓';
-        if ($('resultDetail')) $('resultDetail').textContent =
-          data.message || t('waiting');
-        if ($('resultStatus')) $('resultStatus').textContent = t('waiting');
-      } else {
-        const r = Object.assign({}, data, data.result || {});
-        const score = r.score != null ? r.score : null;
-        const earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : null);
-        const totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : null);
-        const correct = r.correct != null ? r.correct : null;
-        const total = r.total != null ? r.total : null;
-        const passThr = r.passScore != null ? r.passScore : (r.pass_score != null ? r.pass_score : 70);
-        if ($('resultScore')) {
-          if (earned != null && totalMax != null) {
-            $('resultScore').textContent = earned + ' / ' + totalMax + ' хол';
-          } else {
-            $('resultScore').textContent = (score != null ? score : '—') + '%';
-          }
-        }
-        if ($('resultDetail')) {
-          const parts = [];
-          if (earned != null && totalMax != null) {
-            parts.push((score != null ? score : '—') + '%');
-          } else if (correct != null && total != null) {
-            parts.push(correct + ' ' + t('of') + ' ' + total + ' ' + t('correct'));
-          }
-          parts.push('Ҳад: ' + passThr + '%');
-          $('resultDetail').textContent = parts.join(' · ');
-        }
-        if ($('resultStatus')) {
-          const st = (r.status || '') + '';
-          $('resultStatus').textContent = st === 'passed' ? 'Гузашт' : st === 'failed' ? 'Нагузашт' : st;
-        }
-      }
+      show($('listView'), true);
+      loadList();
     } catch (e) {
-      alert(e.message || t('errGeneric'));
-      if (!autoTimeout) startTimers();
+      alert(e.message || String(e));
+      startTimers();
     }
   }
 
-  function bind() {
-    const form = $('studentLoginForm');
-    if (form) {
-      form.addEventListener('submit', async function (ev) {
+  function bindUI() {
+    const loginForm = $('studentLoginForm');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async function (ev) {
         ev.preventDefault();
-        const id = ($('studentIdInput') && $('studentIdInput').value || '').trim();
-        const err = $('loginError');
+        const inp = $('studentIdInput') || $('studentLogin');
+        const id = (inp && inp.value || '').trim();
+        if (!id) return;
         try {
           await doLogin(id);
           show($('loginView'), false);
           show($('appView'), true);
-          if ($('studentName')) $('studentName').textContent = student.fullName || student.name || id;
-          if ($('studentMeta')) {
-            $('studentMeta').textContent = [student.className, student.school].filter(Boolean).join(' · ');
+          const nameEl = $('studentName');
+          if (nameEl && student) {
+            nameEl.textContent = (student.fullName || student.name || '') +
+              (student.className ? (' · ' + student.className) : '') +
+              (student.school ? (' · ' + student.school) : '');
           }
-          applyStaticI18n();
           loadList();
         } catch (e) {
-          if (err) { err.textContent = e.message || t('errLogin'); show(err, true); }
+          const err = $('loginError');
+          if (err) { err.textContent = e.message || String(e); show(err, true); }
+          else alert(e.message || String(e));
         }
       });
     }
-    const logoutBtn = $('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', logout);
-
+    const lo = $('logoutBtn');
+    if (lo) lo.addEventListener('click', logout);
     const prev = $('examPrevBtn');
-    const next = $('examNextBtn');
     if (prev) prev.addEventListener('click', function () {
-      collectCurrentAnswer();
-      if (exam && exam.idx > 0) { exam.idx -= 1; renderExam(); }
+      if (!exam) return;
+      exam.idx = Math.max(0, exam.idx - 1);
+      renderQuestion();
     });
+    const next = $('examNextBtn');
     if (next) next.addEventListener('click', function () {
-      collectCurrentAnswer();
-      if (exam && exam.idx < exam.questions.length - 1) { exam.idx += 1; renderExam(); }
+      if (!exam) return;
+      exam.idx = Math.min(exam.questions.length - 1, exam.idx + 1);
+      renderQuestion();
     });
-    const submitBtn = $('submitExamBtn');
-    if (submitBtn) submitBtn.addEventListener('click', function () {
-      if (confirm(t('submitConfirm'))) submitExam(false);
-    });
+    const sub = $('submitExamBtn');
+    if (sub) sub.addEventListener('click', function () { submitExam(false); });
     const back = $('backToListBtn');
     if (back) back.addEventListener('click', function () {
-      show($('resultView'), false);
+      if (exam && !confirm(t('leaveExam'))) return;
+      stopTimers();
+      exam = null;
+      show($('examView'), false);
       show($('listView'), true);
       loadList();
     });
   }
 
-  async function boot() {
-    bind();
+  function init() {
+    bindUI();
     applyStaticI18n();
-    if (window.GeoI18n && typeof window.GeoI18n.onLang === 'function') {
-      window.GeoI18n.onLang(function () {
-        applyStaticI18n();
-        if (exam) renderExam();
-        else if (student) loadList();
-      });
-    }
     const saved = loadLocalStudent();
-    if (saved && (saved.id || saved.studentId)) {
-      try {
-        student = saved;
-        show($('loginView'), false);
-        show($('appView'), true);
-        if ($('studentName')) $('studentName').textContent = student.fullName || student.name || student.id;
-        if ($('studentMeta')) $('studentMeta').textContent = [student.className, student.school].filter(Boolean).join(' · ');
-        await loadList();
-      } catch (e) {
-        logout();
+    if (saved && (saved.id || saved.studentId || saved.code)) {
+      student = saved;
+      show($('loginView'), false);
+      show($('appView'), true);
+      const nameEl = $('studentName');
+      if (nameEl) {
+        nameEl.textContent = (student.fullName || student.name || '') +
+          (student.className ? (' · ' + student.className) : '') +
+          (student.school ? (' · ' + student.school) : '');
       }
+      loadList();
+    } else {
+      show($('loginView'), true);
+      show($('appView'), false);
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

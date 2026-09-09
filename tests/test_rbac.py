@@ -17,17 +17,10 @@ def test_normalize_unknown_is_none():
 
 
 def test_normalize_never_returns_super_for_garbage():
-    for junk in ("admin", "root", "Administrator", "*", "true", "1"):
-        assert normalize_role(junk) is not None or normalize_role(junk) is None
-        assert normalize_role(junk) != "super_admin" or junk.lower() == "super_admin"
-        if junk.lower() != "super_admin":
-            assert normalize_role(junk) is None or normalize_role(junk) in (
-                "user_admin",
-                "quiz_admin",
-                "olympiad_admin",
-                "monitor",
-                "content_admin",
-            )
+    for junk in ("root", "Administrator", "*", "true", "1", "boss"):
+        assert normalize_role(junk) is None
+        assert normalize_role(junk) != "super_admin"
+    assert normalize_role("admin") == "admin"
 
 
 def test_normalize_valid_roles():
@@ -67,3 +60,13 @@ def test_monitor_read_only(monitor_admin):
 def test_is_valid_role():
     assert is_valid_role("quiz_admin")
     assert not is_valid_role("boss")
+
+
+def test_admin_role_full_ops_no_admins_write():
+    a = {"role": "admin"}
+    assert admin_can(a, "students.write")
+    assert admin_can(a, "olympiads.write")
+    assert admin_can(a, "content.write")
+    assert admin_can(a, "admins.read")
+    assert not admin_can(a, "admins.write")
+    assert not is_super_admin(a)

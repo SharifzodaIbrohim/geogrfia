@@ -21,7 +21,10 @@
     if (!admin) return true;
     const role = String(admin.role || "").toLowerCase();
     if (role === "super_admin" || role === "superadmin") return true;
+    // operational admin: all tabs except pure admin-management actions (still can see list)
+    if (role === "admin") return true;
     const allowed = {
+      admin: ["students.read", "schools.read", "olympiads.read", "quizzes.read", "results.read", "monitor.read", "content.read", "admins.read"],
       user_admin: ["students.read", "schools.read", "admins.read"],
       quiz_admin: ["quizzes.read", "results.read"],
       olympiad_admin: ["olympiads.read", "results.read", "monitor.read", "students.read"],

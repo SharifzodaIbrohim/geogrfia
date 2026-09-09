@@ -186,6 +186,19 @@ try:
 except Exception as e:
     print("[boot] safety-net failed:", e)
 
+# --- Student portal: /api/student/login + /api/student/olympiads ---
+try:
+    from db.patch_student_portal import install as _install_student_portal
+    _install_student_portal(app)
+except Exception as e:
+    print("[boot] patch_student_portal failed:", e)
+    try:
+        from db.install_student_portal import install as _isp
+        _isp(app)
+        print("[boot] install_student_portal fallback OK")
+    except Exception as e2:
+        print("[boot] install_student_portal also failed:", e2)
+
 # --- Fix admin create role (pass actor so super_admin sticks) ---
 try:
     from db.patch_admin_create_role import install as _install_admin_create_role

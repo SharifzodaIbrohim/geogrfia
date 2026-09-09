@@ -186,6 +186,13 @@ try:
 except Exception as e:
     print("[boot] safety-net failed:", e)
 
+# --- Fix admin create role (pass actor so super_admin sticks) ---
+try:
+    from db.patch_admin_create_role import install as _install_admin_create_role
+    _install_admin_create_role(app)
+except Exception as e:
+    print("[boot] patch_admin_create_role failed:", e)
+
 # --- Neon / empty-DB bootstrap: migrations + first super_admin ---
 try:
     from db.bootstrap_admin import install_bootstrap

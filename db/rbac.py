@@ -29,6 +29,23 @@ PERMISSIONS = {
 
 ROLE_PERMISSIONS: dict[str, set[str] | str] = {
     "super_admin": "*",
+    # Full ops: everything except create/delete/role-change of admins
+    "admin": {
+        "admins.read",
+        "students.read",
+        "students.write",
+        "schools.read",
+        "schools.write",
+        "olympiads.read",
+        "olympiads.write",
+        "participants.write",
+        "results.read",
+        "monitor.read",
+        "quizzes.read",
+        "quizzes.write",
+        "content.read",
+        "content.write",
+    },
     "user_admin": {
         "admins.read",
         "students.read",

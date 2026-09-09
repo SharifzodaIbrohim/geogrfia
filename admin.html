@@ -267,15 +267,15 @@
         <h2>Gmail корбарон</h2>
         <div class="card grid-form" style="margin-bottom:1rem">
           <div><label>Ҷинс</label><select id="gmGender"><option value="">Ҳама</option><option value="male">Мард</option><option value="female">Зан</option></select></div>
-          <div><label>Синф</label><input id="gmClass" /></div>
-          <div><label>Мактаб</label><input id="gmSchool" /></div>
-          <div class="form-actions"><button type="button" id="btnFilterGmail" class="btn primary">Филтр</button></div>
+          <div><label>Синф</label><input id="gmClass" placeholder="синф" /></div>
+          <div><label>Ҷустуҷӯ</label><input id="gmSearch" placeholder="ном / email" /></div>
+          <div class="form-actions"><button type="button" id="gmRefresh" class="btn">Навсозӣ</button></div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Email</th><th>Ҷинс</th><th>Синф</th><th>Мактаб</th></tr></thead><tbody id="gmailBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Ном</th><th>Email</th><th>Ҷинс</th><th>Синф</th><th>Мактаб</th><th>Вақт</th></tr></thead><tbody id="gmailBody"></tbody></table></div>
       </section>
 
       <section id="tab-content" class="tab-panel hidden">
-        <h2>Контент / Курсы</h2>
+        <h2>Контент / Курсҳо</h2>
         <form id="contentForm" class="card grid-form">
           <div><label>Унвон</label><input id="contentTitle" required /></div>
           <div><label>Навъ</label><select id="contentType"><option value="book">Китоб</option><option value="article">Мақола</option><option value="link">Пайванд</option></select></div>
@@ -293,9 +293,13 @@
           <div><label>Password</label><input id="newAdminPassword" type="password" required /></div>
           <div><label>Role</label>
             <select id="newAdminRole">
-              <option value="super_admin">super_admin</option>
+              <option value="admin">admin — Ҳама кор (бе идораи админҳо)</option>
+              <option value="super_admin">super_admin — Super Admin</option>
               <option value="olympiad_admin">olympiad_admin — Олимпиада</option>
               <option value="user_admin">user_admin — Хонандагон</option>
+              <option value="quiz_admin">quiz_admin — Викторина</option>
+              <option value="content_admin">content_admin — Контент</option>
+              <option value="monitor">monitor — Монитор</option>
             </select>
           </div>
           <div class="form-actions"><button type="submit" class="btn primary">Сохтан</button></div>

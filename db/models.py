@@ -43,6 +43,7 @@ class StudentStatus(str, enum.Enum):
 
 class AdminRole(str, enum.Enum):
     super_admin = "super_admin"
+    admin = "admin"
     user_admin = "user_admin"
     quiz_admin = "quiz_admin"
     olympiad_admin = "olympiad_admin"

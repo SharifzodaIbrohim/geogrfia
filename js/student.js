@@ -10,24 +10,49 @@
       if (window.GeoI18n && typeof window.GeoI18n.t === 'function') return window.GeoI18n.t(key, params);
       if (typeof window.t === 'function' && window.t !== t) return window.t(key, params);
     } catch (e) {}
-    return key;
+    var fallback = {
+      previous: '← Пештар',
+      next: 'Баъдӣ →',
+      submitExam: 'Супоридан',
+      logout: 'Баромадан',
+      back: 'Бозгашт',
+      startExam: 'Оғоз',
+      statusParticipated: 'Иштирок кардед',
+      questionsCount: 'Саволҳо',
+      minutes: 'дақ',
+      noLimit: 'Бе маҳдудият',
+      timeUp: 'Вақт тамом шуд.',
+      yourScore: 'Холи шумо',
+      submitted: 'Супорида шуд',
+      leaveExam: 'Аз имтиҳон баромадан?',
+      noQuestions: 'Саволҳо ёфт нашуданд.',
+      questionLabel: 'Савол'
+    };
+    var s = fallback[key] != null ? fallback[key] : key;
+    if (params && typeof params === 'object') {
+      Object.keys(params).forEach(function (k) {
+        s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), String(params[k]));
+      });
+    }
+    return s;
   }
+
   function applyStaticI18n() {
-    const map = [
+    var map = [
       ['examPrevBtn', 'previous'],
       ['examNextBtn', 'next'],
       ['submitExamBtn', 'submitExam'],
       ['logoutBtn', 'logout'],
-      ['backToListBtn', 'back'],
+      ['backToListBtn', 'back']
     ];
     map.forEach(function (pair) {
-      const el = $(pair[0]);
+      var el = $(pair[0]);
       if (el) el.textContent = t(pair[1]);
     });
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
-      const key = el.getAttribute('data-i18n');
+      var key = el.getAttribute('data-i18n');
       if (!key) return;
-      const val = t(key);
+      var val = t(key);
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = val;
       else el.textContent = val;
     });
@@ -36,30 +61,35 @@
     });
   }
 
-  let student = null;
-  let exam = null;
-  let timerId = null;
-  let autosaveId = null;
+  var student = null;
+  var exam = null;
+  var timerId = null;
+  var autosaveId = null;
 
   function $(id) { return document.getElementById(id); }
+
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
   function show(el, on) {
     if (!el) return;
     el.classList.toggle('hidden', !on);
   }
+
   async function api(path, opts) {
-    const r = await fetch(API + path, Object.assign({
+    var r = await fetch(API + path, Object.assign({
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
+      credentials: 'same-origin'
     }, opts || {}));
-    let data = null;
+    var data = null;
     try { data = await r.json(); } catch (e) { data = {}; }
     if (!r.ok) {
-      const err = new Error((data && (data.error || data.message)) || ('HTTP ' + r.status));
+      var err = new Error((data && (data.error || data.message)) || ('HTTP ' + r.status));
       err.status = r.status;
       err.data = data;
       throw err;
@@ -70,8 +100,8 @@
   function fmtTime(sec) {
     if (sec == null || sec < 0) return '—';
     sec = Math.floor(sec);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   }
 
@@ -85,12 +115,34 @@
     try { localStorage.removeItem('geografia_student'); } catch (e) {}
   }
 
+  function studentId() {
+    if (!student) return '';
+    return String(student.id || student.studentId || student.code || student.student_code || '').trim();
+  }
+
+  function setStudentHeader() {
+    var nameEl = $('studentName');
+    var metaEl = $('studentMeta');
+    if (!student) return;
+    var name = student.fullName || student.name || studentId() || '—';
+    if (nameEl) nameEl.textContent = name;
+    if (metaEl) {
+      var bits = [];
+      if (student.className || student.class_name) bits.push(student.className || student.class_name);
+      if (student.school || student.school_name) bits.push(student.school || student.school_name);
+      metaEl.textContent = bits.length ? (' · ' + bits.join(' · ')) : '';
+    }
+  }
+
   async function doLogin(id) {
-    const data = await api('/api/student/login', {
+    var data = await api('/api/student/login', {
       method: 'POST',
-      body: JSON.stringify({ studentId: id, id: id }),
+      body: JSON.stringify({ studentId: id, id: id, code: id })
     });
     student = data.student || data;
+    if (!student.id && !student.studentId && !student.code) {
+      student.id = id;
+    }
     saveLocalStudent(student);
     return student;
   }
@@ -102,6 +154,9 @@
     stopTimers();
     show($('loginView'), true);
     show($('appView'), false);
+    show($('listView'), true);
+    show($('examView'), false);
+    show($('resultView'), false);
   }
 
   function stopTimers() {
@@ -112,14 +167,14 @@
   function startTimers() {
     stopTimers();
     if (!exam) return;
+    var el = $('examTimer');
     if (exam.noTimeLimit) {
-      const el = $('examTimer');
       if (el) el.textContent = t('noLimit');
     } else {
+      if (el) el.textContent = fmtTime(exam.remainingSec);
       timerId = setInterval(function () {
         if (!exam || exam.noTimeLimit) return;
         exam.remainingSec = Math.max(0, (exam.remainingSec || 0) - 1);
-        const el = $('examTimer');
         if (el) el.textContent = fmtTime(exam.remainingSec);
         if (exam.remainingSec <= 0) {
           stopTimers();
@@ -128,6 +183,14 @@
       }, 1000);
     }
     autosaveId = setInterval(function () { autosave(true); }, 15000);
+  }
+
+  function updateProgress() {
+    var prog = $('examProgress');
+    if (!prog) return;
+    var total = (exam && exam.questions) ? exam.questions.length : 0;
+    var cur = total ? ((exam.idx || 0) + 1) : 0;
+    prog.textContent = t('questionLabel') + ' ' + cur + ' / ' + total;
   }
 
   function renderEventCards(box, list, emptyEl, kindLabel) {
@@ -139,15 +202,22 @@
     }
     show(emptyEl, false);
     box.innerHTML = list.map(function (o) {
-      const id = o.id;
-      const title = esc(o.title || o.name || kindLabel);
-      const nq = o.questionCount || (o.questions && o.questions.length) || '?';
-      const dur = o.durationMin != null ? o.durationMin : o.duration;
-      const durTxt = (dur === 0 || dur === '0') ? t('noLimit') : (dur ? (dur + ' ' + t('minutes')) : '');
-      const done = o.alreadySubmitted || o.finished;
-      const btn = done
-        ? '<button class="btn" disabled>' + t('statusParticipated') + '</button>'
-        : '<button class="btn primary" data-start="' + esc(id) + '">' + t('startExam') + '</button>';
+      var id = o.id;
+      var title = esc(o.title || o.name || kindLabel);
+      var nq = o.questionCount || (o.questions && o.questions.length) || '?';
+      var dur = o.durationMin != null ? o.durationMin
+        : (o.durationSec != null ? Math.round(Number(o.durationSec) / 60) : o.duration);
+      var durTxt = (dur === 0 || dur === '0') ? t('noLimit') : (dur ? (dur + ' ' + t('minutes')) : '');
+      var done = o.alreadySubmitted || o.finished;
+      var locked = o.accessAllowed === false || o.windowStatus === 'locked' || o.windowStatus === 'not_started' || o.windowStatus === 'ended';
+      var btn;
+      if (done) {
+        btn = '<button class="btn" disabled>' + t('statusParticipated') + '</button>';
+      } else if (locked && o.isOpen === false) {
+        btn = '<button class="btn" disabled>' + esc(o.windowStatus || 'locked') + '</button>';
+      } else {
+        btn = '<button class="btn primary" data-start="' + esc(id) + '">' + t('startExam') + '</button>';
+      }
       return '<div class="card"><h3>' + title + '</h3><p class="muted">' + t('questionsCount') + ': ' + nq +
         (durTxt ? (' · ' + durTxt) : '') + '</p>' + btn + '</div>';
     }).join('');
@@ -159,60 +229,98 @@
   }
 
   async function loadList() {
-    const sid = student && (student.id || student.studentId || student.code);
-    let data = null;
+    var sid = studentId();
+    var data = null;
     try {
       data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid || ''));
     } catch (e) {
-      // Fallback if /api/student/olympiads missing (404) — use public active list
       try {
-        const act = await api('/api/olympiads/active');
+        var act = await api('/api/olympiads/active');
         data = { olympiads: act.olympiads || act.items || [], quizzes: act.quizzes || [] };
       } catch (e2) {
         data = { olympiads: [], quizzes: [] };
       }
     }
-    const oly = data.olympiads || data.items || [];
-    let quizzes = data.quizzes || [];
+    var oly = data.olympiads || data.items || [];
+    var quizzes = data.quizzes || [];
     if (!quizzes.length) {
       quizzes = oly.filter(function (o) {
-        const t = String(o.type || '').toLowerCase();
-        return t === 'quiz' || t === 'викторина';
+        var ty = String(o.type || '').toLowerCase();
+        return ty === 'quiz' || ty === 'викторина';
       });
     }
-    const pureOly = oly.filter(function (o) {
-      const t = String(o.type || '').toLowerCase();
-      return t !== 'quiz' && t !== 'викторина';
+    var pureOly = oly.filter(function (o) {
+      var ty = String(o.type || '').toLowerCase();
+      return ty !== 'quiz' && ty !== 'викторина';
     });
     renderEventCards($('olympiadList'), pureOly, $('emptyOly'), 'Олимпиада');
     renderEventCards($('quizList'), quizzes, $('emptyQuiz'), 'Викторина');
   }
 
   async function startExam(olympiadId) {
-    const sid = student && (student.id || student.studentId || student.code);
+    var sid = studentId();
+    if (!sid) {
+      alert('Student ID лозим аст.');
+      return;
+    }
     try {
-      const data = await api('/api/olympiads/' + encodeURIComponent(olympiadId) + '/start', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(olympiadId) + '/start', {
         method: 'POST',
-        body: JSON.stringify({ studentId: sid, id: sid }),
+        body: JSON.stringify({ studentId: sid, id: sid, code: sid })
       });
-      const durationMin = data.durationMin != null ? Number(data.durationMin) : null;
-      const noTimeLimit = durationMin === 0;
-      let remaining = data.remainingSec;
+
+      var questions = data.questions || data.items || [];
+      if (!Array.isArray(questions)) questions = [];
+
+      questions = questions.map(function (q, i) {
+        if (!q || typeof q !== 'object') {
+          return { id: 'q' + i, text: String(q), type: 'single', options: [] };
+        }
+        var opts = q.options || q.choices || [];
+        opts = opts.map(function (opt) {
+          if (typeof opt === 'string') return opt;
+          if (opt && typeof opt === 'object') return opt.text || opt.label || opt.value || '';
+          return String(opt == null ? '' : opt);
+        });
+        return {
+          id: q.id != null ? String(q.id) : ('q' + i),
+          text: q.text || q.question || q.title || '',
+          type: String(q.type || 'single').toLowerCase(),
+          options: opts,
+          pairs: q.pairs || q.matching || null
+        };
+      });
+
+      if (!questions.length) {
+        alert(t('noQuestions'));
+        return;
+      }
+
+      var durationMin = data.durationMin != null ? Number(data.durationMin)
+        : (data.durationSec != null ? Math.round(Number(data.durationSec) / 60) : null);
+      var noTimeLimit = durationMin === 0;
+      var remaining = data.remainingSec;
       if (!noTimeLimit && remaining == null && durationMin > 0) remaining = durationMin * 60;
       if (!noTimeLimit && remaining == null) remaining = 60 * 60;
       if (noTimeLimit) remaining = null;
 
       exam = {
         olympiadId: olympiadId,
-        attemptId: data.attemptId,
-        sessionToken: data.sessionToken,
-        questions: data.questions || [],
+        attemptId: data.attemptId || data.id,
+        sessionToken: data.sessionToken || data.token || '',
+        title: data.title || data.olympiadTitle || '',
+        questions: questions,
         remainingSec: remaining,
         noTimeLimit: noTimeLimit,
         idx: 0,
-        answers: {},
+        answers: data.answers && typeof data.answers === 'object' ? data.answers : {}
       };
+
+      var titleEl = $('examTitle');
+      if (titleEl) titleEl.textContent = exam.title || 'GEOGRAFIA';
+
       show($('listView'), false);
+      show($('resultView'), false);
       show($('examView'), true);
       renderQuestion();
       startTimers();
@@ -222,66 +330,119 @@
   }
 
   function renderQuestion() {
-    if (!exam || !exam.questions.length) return;
-    const q = exam.questions[exam.idx];
-    if (!q) return;
-    const box = $('examQuestion');
-    if (!box) return;
-    const qtype = String(q.type || 'single').toLowerCase();
-    let html = '<div class="q-text">' + esc(q.text || q.question || '') + '</div>';
-    if (qtype === 'single' || qtype === 'multiple' || !qtype) {
-      const opts = q.options || [];
-      html += '<div class="exam-opts">' + opts.map(function (opt, i) {
-        const letter = LETTERS[i] || String(i + 1);
-        const val = typeof opt === 'string' ? opt : (opt.text || opt.label || '');
-        const checked = exam.answers[q.id] === i || exam.answers[q.id] === String(i);
-        return '<label class="exam-opt' + (checked ? ' selected' : '') + '"><input type="radio" name="ans" value="' + i + '"' +
-          (checked ? ' checked' : '') + ' /> <span>' + letter + '. ' + esc(val) + '</span></label>';
-      }).join('') + '</div>';
-    } else if (qtype === 'short' || qtype === 'text') {
-      const cur = exam.answers[q.id] != null ? exam.answers[q.id] : '';
-      html += '<textarea class="exam-text" rows="3">' + esc(cur) + '</textarea>';
-    } else if (qtype === 'matching') {
-      const pairs = q.pairs || q.left || [];
-      html += '<div class="exam-match">' + (pairs.map(function (p, i) {
-        return '<div>' + esc(p.left || p) + '</div>';
-      }).join('')) + '</div>';
+    if (!exam) return;
+    var questions = exam.questions || [];
+    var box = $('examQuestionPane') || $('examQuestion');
+    if (!box) {
+      console.error('[student] missing #examQuestionPane');
+      return;
     }
+
+    if (!questions.length) {
+      box.innerHTML = '<p class="muted">' + esc(t('noQuestions')) + '</p>';
+      updateProgress();
+      return;
+    }
+
+    if (exam.idx < 0) exam.idx = 0;
+    if (exam.idx >= questions.length) exam.idx = questions.length - 1;
+
+    var q = questions[exam.idx];
+    if (!q) {
+      box.innerHTML = '<p class="muted">' + esc(t('noQuestions')) + '</p>';
+      updateProgress();
+      return;
+    }
+
+    var qtype = String(q.type || 'single').toLowerCase();
+    var html = '<div class="exam-q-num">' + esc(t('questionLabel')) + ' ' + (exam.idx + 1) + '</div>';
+    html += '<div class="exam-q-text exam-q">' + esc(q.text || '') + '</div>';
+
+    if (qtype === 'short' || qtype === 'text') {
+      var cur = exam.answers[q.id] != null ? exam.answers[q.id] : '';
+      html += '<textarea class="exam-text-input exam-text" rows="4" placeholder="Ҷавоби худро нависед…">' +
+        esc(cur) + '</textarea>';
+    } else if (qtype === 'matching' && q.pairs && q.pairs.length) {
+      html += '<div class="exam-match">';
+      q.pairs.forEach(function (p, i) {
+        var left = typeof p === 'string' ? p : (p.left || p.a || '');
+        var rightOpts = (typeof p === 'object' && p.rights) ? p.rights : [];
+        html += '<div class="exam-match-row"><span>' + esc(left) + '</span>';
+        if (rightOpts.length) {
+          html += '<select data-match="' + i + '"><option value="">—</option>';
+          rightOpts.forEach(function (r) {
+            html += '<option value="' + esc(r) + '">' + esc(r) + '</option>';
+          });
+          html += '</select>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      var opts = q.options || [];
+      if (!opts.length) {
+        html += '<p class="muted">Вариантҳо нестанд.</p>';
+      } else {
+        html += '<div class="exam-opts">';
+        opts.forEach(function (opt, i) {
+          var letter = LETTERS[i] || String(i + 1);
+          var val = typeof opt === 'string' ? opt : String(opt == null ? '' : opt);
+          var selected = exam.answers[q.id] === i || exam.answers[q.id] === String(i);
+          html += '<label class="exam-opt' + (selected ? ' selected' : '') + '">' +
+            '<input type="radio" name="ans" value="' + i + '"' + (selected ? ' checked' : '') + ' />' +
+            '<span class="opt-letter">' + letter + '</span>' +
+            '<span class="exam-opt-label">' + esc(val) + '</span></label>';
+        });
+        html += '</div>';
+      }
+    }
+
     box.innerHTML = html;
+
     box.querySelectorAll('input[name=ans]').forEach(function (inp) {
       inp.addEventListener('change', function () {
         exam.answers[q.id] = Number(inp.value);
         box.querySelectorAll('.exam-opt').forEach(function (lab) { lab.classList.remove('selected'); });
-        if (inp.closest) inp.closest('.exam-opt').classList.add('selected');
+        var lab = inp.closest ? inp.closest('.exam-opt') : null;
+        if (lab) lab.classList.add('selected');
+        updateDots();
       });
     });
-    const ta = box.querySelector('textarea.exam-text');
+
+    var ta = box.querySelector('textarea.exam-text, textarea.exam-text-input');
     if (ta) {
       ta.addEventListener('input', function () {
         exam.answers[q.id] = ta.value;
+        updateDots();
       });
     }
-    const dots = $('examDots');
-    if (dots) {
-      dots.innerHTML = exam.questions.map(function (qq, i) {
-        const answered = exam.answers[qq.id] != null && exam.answers[qq.id] !== '';
-        const cls = i === exam.idx ? 'dot active' : (answered ? 'dot done' : 'dot');
-        return '<span class="' + cls + '" data-i="' + i + '"></span>';
-      }).join('');
-      dots.querySelectorAll('[data-i]').forEach(function (d) {
-        d.addEventListener('click', function () {
-          exam.idx = Number(d.getAttribute('data-i'));
-          renderQuestion();
-        });
+
+    updateDots();
+    updateProgress();
+  }
+
+  function updateDots() {
+    if (!exam) return;
+    var dots = $('examDots');
+    if (!dots) return;
+    dots.innerHTML = exam.questions.map(function (qq, i) {
+      var answered = exam.answers[qq.id] != null && exam.answers[qq.id] !== '';
+      var cls = 'dot';
+      if (i === exam.idx) cls += ' active';
+      if (answered) cls += ' done answered';
+      return '<span class="' + cls + '" data-i="' + i + '" title="' + (i + 1) + '"></span>';
+    }).join('');
+    dots.querySelectorAll('[data-i]').forEach(function (d) {
+      d.addEventListener('click', function () {
+        exam.idx = Number(d.getAttribute('data-i'));
+        renderQuestion();
       });
-    }
-    const prog = $('examProgress');
-    if (prog) prog.textContent = (exam.idx + 1) + ' / ' + exam.questions.length;
+    });
   }
 
   async function autosave(silent) {
     if (!exam) return;
-    const sid = student && (student.id || student.studentId || student.code);
+    var sid = studentId();
     try {
       await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/autosave', {
         method: 'POST',
@@ -289,8 +450,8 @@
           attemptId: exam.attemptId,
           sessionToken: exam.sessionToken,
           studentId: sid,
-          answers: exam.answers,
-        }),
+          answers: exam.answers
+        })
       });
     } catch (e) {
       if (!silent) console.warn('autosave', e);
@@ -300,26 +461,41 @@
   async function submitExam(auto) {
     if (!exam) return;
     stopTimers();
-    const sid = student && (student.id || student.studentId || student.code);
+    var sid = studentId();
     try {
-      const data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
         method: 'POST',
         body: JSON.stringify({
           attemptId: exam.attemptId,
           sessionToken: exam.sessionToken,
           studentId: sid,
           answers: exam.answers,
-          timedOut: !!auto,
-        }),
+          timedOut: !!auto
+        })
       });
-      const score = data.score != null ? data.score : data.percent;
-      const msg = (auto ? (t('timeUp') + ' ') : '') +
+      var score = data.score != null ? data.score : data.percent;
+      var msg = (auto ? (t('timeUp') + ' ') : '') +
         (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
-      alert(msg);
+
+      var scoreEl = $('resultScore');
+      var detailEl = $('resultDetail');
+      var statusEl = $('resultStatus');
+      if (scoreEl) scoreEl.textContent = (score != null ? score : '—') + (score != null ? '%' : '');
+      if (detailEl) detailEl.textContent = msg;
+      if (statusEl) {
+        statusEl.textContent = data.passed ? 'Гузашт' : (data.status || (auto ? 'timeout' : 'submitted'));
+      }
+
       exam = null;
       show($('examView'), false);
-      show($('listView'), true);
-      loadList();
+      if ($('resultView')) {
+        show($('resultView'), true);
+        show($('listView'), false);
+      } else {
+        alert(msg);
+        show($('listView'), true);
+        loadList();
+      }
     } catch (e) {
       alert(e.message || String(e));
       startTimers();
@@ -327,52 +503,54 @@
   }
 
   function bindUI() {
-    const loginForm = $('studentLoginForm');
+    var loginForm = $('studentLoginForm');
     if (loginForm) {
       loginForm.addEventListener('submit', async function (ev) {
         ev.preventDefault();
-        const inp = $('studentIdInput') || $('studentLogin');
-        const id = (inp && inp.value || '').trim();
+        var inp = $('studentIdInput') || $('studentLogin');
+        var id = (inp && inp.value || '').trim();
         if (!id) return;
+        var err = $('loginError');
+        if (err) { err.textContent = ''; show(err, false); }
         try {
           await doLogin(id);
           show($('loginView'), false);
           show($('appView'), true);
-          const nameEl = $('studentName');
-          if (nameEl && student) {
-            nameEl.textContent = (student.fullName || student.name || '') +
-              (student.className ? (' · ' + student.className) : '') +
-              (student.school ? (' · ' + student.school) : '');
-          }
+          setStudentHeader();
+          show($('listView'), true);
+          show($('examView'), false);
+          show($('resultView'), false);
           loadList();
         } catch (e) {
-          const err = $('loginError');
           if (err) { err.textContent = e.message || String(e); show(err, true); }
           else alert(e.message || String(e));
         }
       });
     }
-    const lo = $('logoutBtn');
+
+    var lo = $('logoutBtn');
     if (lo) lo.addEventListener('click', logout);
-    const prev = $('examPrevBtn');
+
+    var prev = $('examPrevBtn');
     if (prev) prev.addEventListener('click', function () {
-      if (!exam) return;
+      if (!exam || !exam.questions.length) return;
       exam.idx = Math.max(0, exam.idx - 1);
       renderQuestion();
     });
-    const next = $('examNextBtn');
+
+    var next = $('examNextBtn');
     if (next) next.addEventListener('click', function () {
-      if (!exam) return;
+      if (!exam || !exam.questions.length) return;
       exam.idx = Math.min(exam.questions.length - 1, exam.idx + 1);
       renderQuestion();
     });
-    const sub = $('submitExamBtn');
+
+    var sub = $('submitExamBtn');
     if (sub) sub.addEventListener('click', function () { submitExam(false); });
-    const back = $('backToListBtn');
+
+    var back = $('backToListBtn');
     if (back) back.addEventListener('click', function () {
-      if (exam && !confirm(t('leaveExam'))) return;
-      stopTimers();
-      exam = null;
+      show($('resultView'), false);
       show($('examView'), false);
       show($('listView'), true);
       loadList();
@@ -382,17 +560,15 @@
   function init() {
     bindUI();
     applyStaticI18n();
-    const saved = loadLocalStudent();
-    if (saved && (saved.id || saved.studentId || saved.code)) {
+    var saved = loadLocalStudent();
+    if (saved && (saved.id || saved.studentId || saved.code || saved.student_code)) {
       student = saved;
       show($('loginView'), false);
       show($('appView'), true);
-      const nameEl = $('studentName');
-      if (nameEl) {
-        nameEl.textContent = (student.fullName || student.name || '') +
-          (student.className ? (' · ' + student.className) : '') +
-          (student.school ? (' · ' + student.school) : '');
-      }
+      setStudentHeader();
+      show($('listView'), true);
+      show($('examView'), false);
+      show($('resultView'), false);
       loadList();
     } else {
       show($('loginView'), true);

@@ -34,6 +34,7 @@
         s = window.t(key, params);
       }
     } catch (e) { s = null; }
+    // GeoI18n returns the key itself when missing — use local fallback
     if (s == null || s === '' || s === key) {
       s = fallback[key] != null ? fallback[key] : key;
     }
@@ -45,6 +46,19 @@
     return s;
   }
 
-  // PLACEHOLDER_REST - will be replaced
-  console.log('partial');
+  function updateProgress() {
+    var prog = document.getElementById('examProgress');
+    if (!prog) return;
+    var total = (exam && exam.questions) ? exam.questions.length : 0;
+    var cur = total ? ((exam.idx || 0) + 1) : 0;
+    var label = t('questionXofY', { n: cur, total: total });
+    if (!label || label === 'questionXofY' || label === 'questionLabel' || label.indexOf('{') >= 0 || /questionLabel/i.test(label)) {
+      label = '\u0421\u0430\u0432\u043e\u043b ' + cur + ' / ' + total;
+    }
+    prog.textContent = label;
+  }
+
+  // NOTE: full body continues in next commit if truncated — see artifacts
+  var exam = null;
+  console.warn('[student.js] partial restore — full body needed');
 })();

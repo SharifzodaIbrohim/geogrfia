@@ -1,18 +1,8 @@
-/** _stu_js_ loader */
-(async function () {
-  const n = 20;
-  const parts = [];
-  for (let i = 0; i < n; i++) {
-    const r = await fetch('/js/_stu_js_' + i + '.txt');
-    if (!r.ok) throw new Error('_stu_js_' + i + ' HTTP ' + r.status);
-    parts.push(await r.text());
-  }
-  const b64 = parts.join('').replace(/\s/g, '');
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const code = new TextDecoder('utf-8').decode(bytes);
+(async function(){
+  const b64 = "PLACEHOLDER";
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const ds = new DecompressionStream("gzip");
+  const stream = new Response(bin).body.pipeThrough(ds);
+  const code = await new Response(stream).text();
   (0, eval)(code);
-})().catch(function (e) {
-  console.error('[_stu_js_ loader]', e);
-});
+})().catch(e => console.error("[student.gz]", e));

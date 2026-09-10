@@ -78,8 +78,7 @@
   function $(id) { return document.getElementById(id); }
 
   function esc(s) {
-    if (s == null) return '';
-    return String(s)
+    return String(s == null ? '' : s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -88,50 +87,83 @@
 
   function show(el, on) {
     if (!el) return;
-    if (on) el.classList.remove('hidden');
-    else el.classList.add('hidden');
-  }
-
-  function loadLocalStudent() {
-    try {
-      var raw = localStorage.getItem('geo_student');
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
-  }
-
-  function saveLocalStudent(st) {
-    try { localStorage.setItem('geo_student', JSON.stringify(st)); } catch (e) {}
-  }
-
-  function setStudentHeader() {
-    var el = $('studentHeader');
-    if (!el || !student) return;
-    var name = student.fullName || student.name || '';
-    var code = student.id || student.studentId || student.code || student.student_code || '';
-    var school = student.school || student.schoolName || '';
-    var parts = [name, code, school].filter(Boolean);
-    el.textContent = parts.join(' · ');
+    el.classList.toggle('hidden', !on);
   }
 
   async function api(path, opts) {
-    opts = opts || {};
-    var headers = opts.headers || {};
-    if (!headers['Content-Type'] && opts.body) headers['Content-Type'] = 'application/json';
-    var res = await fetch(API + path, {
-      method: opts.method || 'GET',
-      headers: headers,
-      body: opts.body,
-      credentials: 'include'
-    });
+    var r = await fetch(API + path, Object.assign({
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin'
+    }, opts || {}));
     var data = null;
-    try { data = await res.json(); } catch (e) { data = {}; }
-    if (!res.ok) {
-      var err = new Error((data && (data.error || data.message)) || ('HTTP ' + res.status));
-      err.status = res.status;
+    try { data = await r.json(); } catch (e) { data = {}; }
+    if (!r.ok) {
+      var err = new Error((data && (data.error || data.message)) || ('HTTP ' + r.status));
+      err.status = r.status;
       err.data = data;
       throw err;
     }
     return data;
+  }
+
+  function fmtTime(sec) {
+    if (sec == null || sec < 0) return '—';
+    sec = Math.floor(sec);
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function saveLocalStudent(s) {
+    try { localStorage.setItem('geografia_student', JSON.stringify(s)); } catch (e) {}
+  }
+  function loadLocalStudent() {
+    try { return JSON.parse(localStorage.getItem('geografia_student') || 'null'); } catch (e) { return null; }
+  }
+  function clearLocalStudent() {
+    try { localStorage.removeItem('geografia_student'); } catch (e) {}
+  }
+
+  function studentId() {
+    if (!student) return '';
+    return String(student.id || student.studentId || student.code || student.student_code || '').trim();
+  }
+
+  function setStudentHeader() {
+    var nameEl = $('studentName');
+    var metaEl = $('studentMeta');
+    if (!student) return;
+    var name = student.fullName || student.name || studentId() || '—';
+    if (nameEl) nameEl.textContent = name;
+    if (metaEl) {
+      var bits = [];
+      if (student.className || student.class_name) bits.push(student.className || student.class_name);
+      if (student.school || student.school_name) bits.push(student.school || student.school_name);
+      metaEl.textContent = bits.length ? (' · ' + bits.join(' · ')) : '';
+    }
+  }
+
+  async function doLogin(id) {
+    var data = await api('/api/student/login', {
+      method: 'POST',
+      body: JSON.stringify({ studentId: id, id: id, code: id })
+    });
+    student = data.student || data;
+    if (!student.id && !student.studentId && !student.code) student.id = id;
+    saveLocalStudent(student);
+    return student;
+  }
+
+  function logout() {
+    student = null;
+    exam = null;
+    clearLocalStudent();
+    stopTimers();
+    show($('loginView'), true);
+    show($('appView'), false);
+    show($('listView'), true);
+    show($('examView'), false);
+    show($('resultView'), false);
   }
 
   function stopTimers() {
@@ -139,24 +171,19 @@
     if (autosaveId) { clearInterval(autosaveId); autosaveId = null; }
   }
 
-  function updateTimerDisplay(sec) {
-    var el = $('examTimer');
-    if (!el) return;
-    if (sec == null || sec < 0) { el.textContent = '—'; return; }
-    var m = Math.floor(sec / 60);
-    var s = sec % 60;
-    el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function startTimers(remainingSec) {
+  function startTimers() {
     stopTimers();
-    var left = remainingSec != null ? Number(remainingSec) : null;
-    if (left != null && !isNaN(left)) {
-      updateTimerDisplay(Math.max(0, Math.floor(left)));
+    if (!exam) return;
+    var el = $('examTimer');
+    if (exam.noTimeLimit) {
+      if (el) el.textContent = t('noLimit');
+    } else {
+      if (el) el.textContent = fmtTime(exam.remainingSec);
       timerId = setInterval(function () {
-        left -= 1;
-        updateTimerDisplay(Math.max(0, Math.floor(left)));
-        if (left <= 0) {
+        if (!exam || exam.noTimeLimit) return;
+        exam.remainingSec = Math.max(0, (exam.remainingSec || 0) - 1);
+        if (el) el.textContent = fmtTime(exam.remainingSec);
+        if (exam.remainingSec <= 0) {
           stopTimers();
           submitExam(true);
         }
@@ -170,7 +197,11 @@
     if (!prog) return;
     var total = (exam && exam.questions) ? exam.questions.length : 0;
     var cur = total ? ((exam.idx || 0) + 1) : 0;
-    prog.textContent = t('questionXofY', { n: cur, total: total });
+    var label = t('questionXofY', { n: cur, total: total });
+    if (!label || label === 'questionXofY' || label.indexOf('{') >= 0) {
+      label = 'Савол ' + cur + ' / ' + total;
+    }
+    prog.textContent = label;
   }
 
   function renderEventCards(box, list, emptyEl, kindLabel) {
@@ -209,88 +240,103 @@
     box.querySelectorAll('[data-start]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-start');
-        var card = btn.closest('.event-card');
-        var listTitle = card ? (card.querySelector('.card-title') || {}).textContent : '';
+        var card = btn.closest ? btn.closest('.event-card') : null;
+        var listTitle = card ? ((card.querySelector('.card-title') || {}).textContent || '') : '';
         startExam(id, listTitle);
       });
     });
   }
 
   async function loadList() {
-    var olyBox = $('olympiadList');
-    var quizBox = $('quizList');
-    var emptyO = $('olympiadEmpty');
-    var emptyQ = $('quizEmpty');
+    var sid = studentId();
+    var data = null;
     try {
-      var data = null;
+      data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(sid || ''));
+    } catch (e) {
       try {
-        data = await api('/api/student/olympiads');
-      } catch (e1) {
-        try {
-          data = await api('/api/olympiads/active');
-        } catch (e2) {
-          data = { olympiads: [], quizzes: [] };
-        }
+        var act = await api('/api/olympiads/active');
+        data = { olympiads: act.olympiads || act.items || [], quizzes: act.quizzes || [] };
+      } catch (e2) {
+        data = { olympiads: [], quizzes: [] };
       }
-      var oly = data.olympiads || data.items || data || [];
-      if (!Array.isArray(oly)) oly = [];
-      var quizzes = data.quizzes || [];
-      if (!Array.isArray(quizzes)) quizzes = [];
-      // Separate pure olympiad vs quiz-type if mixed
-      var olyOnly = oly.filter(function (o) {
-        var k = String(o.type || o.kind || 'olympiad').toLowerCase();
-        return k !== 'quiz' && k !== 'viktorina';
-      });
-      var quizFromOly = oly.filter(function (o) {
-        var k = String(o.type || o.kind || '').toLowerCase();
-        return k === 'quiz' || k === 'viktorina';
-      });
-      if (!quizzes.length && quizFromOly.length) quizzes = quizFromOly;
-      if (!olyOnly.length && oly.length && !quizFromOly.length) olyOnly = oly;
-      renderEventCards(olyBox, olyOnly, emptyO, 'Олимпиада');
-      renderEventCards(quizBox, quizzes, emptyQ, 'Викторина');
-    } catch (err) {
-      console.warn('loadList', err);
-      if (olyBox) olyBox.innerHTML = '<p class="muted">' + esc(err.message || err) + '</p>';
     }
+    var oly = data.olympiads || data.items || [];
+    var quizzes = data.quizzes || [];
+    if (!quizzes.length) {
+      quizzes = oly.filter(function (o) {
+        var ty = String(o.type || '').toLowerCase();
+        return ty === 'quiz' || ty === 'викторина';
+      });
+    }
+    var pureOly = oly.filter(function (o) {
+      var ty = String(o.type || '').toLowerCase();
+      return ty !== 'quiz' && ty !== 'викторина';
+    });
+    renderEventCards($('olympiadList'), pureOly, $('emptyOly'), 'Олимпиада');
+    renderEventCards($('quizList'), quizzes, $('emptyQuiz'), 'Викторина');
   }
 
   async function startExam(olympiadId, listTitle) {
-    if (!student) return;
-    var code = student.id || student.studentId || student.code || student.student_code;
+    var sid = studentId();
+    if (!sid) {
+      alert('Student ID лозим аст.');
+      return;
+    }
     try {
-      var data = await api('/api/student/olympiads/' + encodeURIComponent(olympiadId) + '/start', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(olympiadId) + '/start', {
         method: 'POST',
-        body: JSON.stringify({ studentId: code, student_code: code, id: code, code: code })
+        body: JSON.stringify({ studentId: sid, id: sid, code: sid })
       });
-      var qs = data.questions || data.items || [];
-      if (!Array.isArray(qs)) qs = [];
+      var questions = data.questions || data.items || [];
+      if (!Array.isArray(questions) || !questions.length) {
+        alert(t('noQuestions'));
+        return;
+      }
+      questions = questions.map(function (q, i) {
+        if (!q || typeof q !== 'object') return { id: 'q' + i, text: String(q), type: 'single', options: [] };
+        var opts = (q.options || q.choices || []).map(function (opt) {
+          if (typeof opt === 'string') return opt;
+          if (opt && typeof opt === 'object') return opt.text || opt.label || opt.value || '';
+          return String(opt == null ? '' : opt);
+        });
+        return {
+          id: q.id != null ? String(q.id) : ('q' + i),
+          text: q.text || q.question || q.title || '',
+          type: String(q.type || 'single').toLowerCase(),
+          options: opts,
+          pairs: q.pairs || q.matching || null
+        };
+      });
+      var durationMin = data.durationMin != null ? Number(data.durationMin)
+        : (data.durationSec != null ? Math.round(Number(data.durationSec) / 60) : null);
+      var noTimeLimit = durationMin === 0;
+      var remaining = data.remainingSec;
+      if (!noTimeLimit && remaining == null && durationMin > 0) remaining = durationMin * 60;
+      if (!noTimeLimit && remaining == null) remaining = 60 * 60;
+      if (noTimeLimit) remaining = null;
+
       exam = {
         olympiadId: olympiadId,
-        attemptId: data.attemptId || data.sessionId || data.id,
-        questions: qs.map(function (q, i) {
-          return {
-            id: q.id || q.questionId || String(i),
-            text: q.text || q.question || '',
-            type: q.type || 'single',
-            options: q.options || q.choices || [],
-            pairs: q.pairs || null
-          };
-        }),
-        answers: data.answers || {},
-        idx: 0,
+        attemptId: data.attemptId || data.id,
+        sessionToken: data.sessionToken || data.token || '',
         title: data.title || data.olympiadTitle || listTitle || '',
-        remainingSec: data.remainingSec != null ? data.remainingSec : data.timeLimitSec
+        questions: questions,
+        remainingSec: remaining,
+        noTimeLimit: noTimeLimit,
+        idx: 0,
+        answers: data.answers && typeof data.answers === 'object' ? data.answers : {}
       };
+
       var titleEl = $('examTitle');
-      if (titleEl) titleEl.textContent = exam.title || 'GEOGRAFIA';
+      if (titleEl) titleEl.textContent = exam.title || '—';
+
       show($('listView'), false);
       show($('resultView'), false);
       show($('examView'), true);
       renderQuestion();
-      startTimers(exam.remainingSec);
-    } catch (err) {
-      alert(err.message || err);
+      startTimers();
+    } catch (e) {
+      alert(e.message || String(e));
     }
   }
 
@@ -302,16 +348,13 @@
       console.error('[student] missing #examQuestionPane');
       return;
     }
-
     if (!questions.length) {
       box.innerHTML = '<p class="muted">' + esc(t('noQuestions')) + '</p>';
       updateProgress();
       return;
     }
-
     if (exam.idx < 0) exam.idx = 0;
     if (exam.idx >= questions.length) exam.idx = questions.length - 1;
-
     var q = questions[exam.idx];
     if (!q) {
       box.innerHTML = '<p class="muted">' + esc(t('noQuestions')) + '</p>';
@@ -320,167 +363,177 @@
     }
 
     var qtype = String(q.type || 'single').toLowerCase();
-    var html = '<div class="exam-q-num">' + esc(t('questionLabel')) + ' ' + (exam.idx + 1) + '</div>';
+    var qWord = t('question');
+    if (!qWord || qWord === 'question' || qWord === 'questionLabel') qWord = 'Савол';
+    var html = '<div class="exam-q-num">' + esc(qWord) + ' ' + (exam.idx + 1) + '</div>';
     html += '<div class="exam-q-text exam-q">' + esc(q.text || '') + '</div>';
 
     if (qtype === 'short' || qtype === 'text') {
       var cur = exam.answers[q.id] != null ? exam.answers[q.id] : '';
       html += '<textarea class="exam-text-input exam-text" rows="4" placeholder="Ҷавоби худро нависед…">' +
         esc(cur) + '</textarea>';
-    } else if (qtype === 'matching' && q.pairs && q.pairs.length) {
-      html += '<div class="exam-match">';
-      q.pairs.forEach(function (p, i) {
-        var left = typeof p === 'string' ? p : (p.left || p.a || '');
-        var rightOpts = (typeof p === 'object' && p.rights) ? p.rights : [];
-        html += '<div class="exam-match-row"><span>' + esc(left) + '</span>';
-        if (rightOpts.length) {
-          html += '<select data-match="' + i + '"><option value="">—</option>';
-          rightOpts.forEach(function (r) {
-            html += '<option value="' + esc(r) + '">' + esc(r) + '</option>';
-          });
-          html += '</select>';
-        }
-        html += '</div>';
-      });
-      html += '</div>';
     } else {
       var opts = q.options || [];
-      html += '<div class="exam-opts">';
-      opts.forEach(function (opt, i) {
-        var text = typeof opt === 'string' ? opt : (opt.text || opt.label || '');
-        var val = typeof opt === 'string' ? opt : (opt.id || opt.value || text);
-        var letter = LETTERS[i] || String(i + 1);
-        var selected = exam.answers[q.id] === val || exam.answers[q.id] === text;
-        html += '<label class="exam-opt' + (selected ? ' selected' : '') + '">' +
-          '<input type="radio" name="q_' + esc(q.id) + '" value="' + esc(val) + '"' +
-          (selected ? ' checked' : '') + '>' +
-          '<span class="exam-opt-letter">' + letter + '</span>' +
-          '<span class="exam-opt-text">' + esc(text) + '</span></label>';
-      });
-      html += '</div>';
+      if (!opts.length) {
+        html += '<p class="muted">Вариантҳо нестанд.</p>';
+      } else {
+        html += '<div class="exam-opts">';
+        opts.forEach(function (opt, i) {
+          var letter = LETTERS[i] || String(i + 1);
+          var val = typeof opt === 'string' ? opt : String(opt == null ? '' : opt);
+          var selected = exam.answers[q.id] === i || exam.answers[q.id] === String(i);
+          html += '<label class="exam-opt' + (selected ? ' selected' : '') + '">' +
+            '<input type="radio" name="ans" value="' + i + '"' + (selected ? ' checked' : '') + ' />' +
+            '<span class="opt-letter">' + letter + '</span>' +
+            '<span class="exam-opt-label">' + esc(val) + '</span></label>';
+        });
+        html += '</div>';
+      }
     }
 
     box.innerHTML = html;
-
-    box.querySelectorAll('.exam-opt').forEach(function (lab) {
-      lab.addEventListener('click', function () {
-        var inp = lab.querySelector('input');
-        if (!inp) return;
-        inp.checked = true;
-        exam.answers[q.id] = inp.value;
-        box.querySelectorAll('.exam-opt').forEach(function (x) { x.classList.remove('selected'); });
-        lab.classList.add('selected');
+    box.querySelectorAll('input[name=ans]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        exam.answers[q.id] = Number(inp.value);
+        box.querySelectorAll('.exam-opt').forEach(function (lab) { lab.classList.remove('selected'); });
+        var lab = inp.closest ? inp.closest('.exam-opt') : null;
+        if (lab) lab.classList.add('selected');
+        updateDots();
       });
     });
-    var ta = box.querySelector('textarea');
+    var ta = box.querySelector('textarea.exam-text, textarea.exam-text-input');
     if (ta) {
       ta.addEventListener('input', function () {
         exam.answers[q.id] = ta.value;
+        updateDots();
       });
     }
-    box.querySelectorAll('select[data-match]').forEach(function (sel) {
-      sel.addEventListener('change', function () {
-        var pairs = exam.answers[q.id] || {};
-        if (typeof pairs !== 'object') pairs = {};
-        pairs[sel.getAttribute('data-match')] = sel.value;
-        exam.answers[q.id] = pairs;
+    updateDots();
+    updateProgress();
+  }
+
+  function updateDots() {
+    if (!exam) return;
+    var dots = $('examDots');
+    if (!dots) return;
+    dots.innerHTML = exam.questions.map(function (qq, i) {
+      var answered = exam.answers[qq.id] != null && exam.answers[qq.id] !== '';
+      var cls = 'dot';
+      if (i === exam.idx) cls += ' active';
+      if (answered) cls += ' done answered';
+      return '<span class="' + cls + '" data-i="' + i + '" title="' + (i + 1) + '"></span>';
+    }).join('');
+    dots.querySelectorAll('[data-i]').forEach(function (d) {
+      d.addEventListener('click', function () {
+        exam.idx = Number(d.getAttribute('data-i'));
+        renderQuestion();
       });
     });
-
-    updateProgress();
-    var prev = $('examPrevBtn');
-    var next = $('examNextBtn');
-    if (prev) prev.disabled = exam.idx <= 0;
-    if (next) next.disabled = exam.idx >= questions.length - 1;
   }
 
   async function autosave(silent) {
-    if (!exam || !exam.attemptId) return;
+    if (!exam) return;
+    var sid = studentId();
     try {
-      await api('/api/student/attempts/' + encodeURIComponent(exam.attemptId) + '/save', {
+      await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/autosave', {
         method: 'POST',
-        body: JSON.stringify({ answers: exam.answers })
+        body: JSON.stringify({
+          attemptId: exam.attemptId,
+          sessionToken: exam.sessionToken,
+          studentId: sid,
+          answers: exam.answers
+        })
       });
     } catch (e) {
       if (!silent) console.warn('autosave', e);
     }
   }
 
-  async function submitExam(forced) {
-    if (!exam || !exam.attemptId) return;
-    if (!forced && !confirm(t('leaveExam').indexOf('?') >= 0 ? t('leaveExam') : (t('leaveExam') + '?'))) return;
+  async function submitExam(auto) {
+    if (!exam) return;
     stopTimers();
+    var sid = studentId();
     try {
-      var data = await api('/api/student/attempts/' + encodeURIComponent(exam.attemptId) + '/submit', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
         method: 'POST',
-        body: JSON.stringify({ answers: exam.answers })
+        body: JSON.stringify({
+          attemptId: exam.attemptId,
+          sessionToken: exam.sessionToken,
+          studentId: sid,
+          answers: exam.answers,
+          timedOut: !!auto
+        })
       });
-      show($('examView'), false);
-      show($('resultView'), true);
+      var score = data.score != null ? data.score : data.percent;
+      var msg = (auto ? (t('timeUp') + ' ') : '') +
+        (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
       var scoreEl = $('resultScore');
-      if (scoreEl) {
-        var sc = data.score != null ? data.score : data.percent;
-        scoreEl.textContent = (sc != null ? sc + '%' : '—');
-      }
-      var msg = $('resultMessage');
-      if (msg) msg.textContent = t('submitted');
+      var detailEl = $('resultDetail');
+      var statusEl = $('resultStatus');
+      if (scoreEl) scoreEl.textContent = (score != null ? score : '—') + (score != null ? '%' : '');
+      if (detailEl) detailEl.textContent = msg;
+      if (statusEl) statusEl.textContent = data.passed ? 'Гузашт' : (data.status || (auto ? 'timeout' : 'submitted'));
       exam = null;
-    } catch (err) {
-      alert(err.message || err);
-      startTimers(30);
+      show($('examView'), false);
+      if ($('resultView')) {
+        show($('resultView'), true);
+        show($('listView'), false);
+      } else {
+        alert(msg);
+        show($('listView'), true);
+        loadList();
+      }
+    } catch (e) {
+      alert(e.message || String(e));
+      startTimers();
     }
   }
 
   function bindUI() {
-    $('loginBtn') && $('loginBtn').addEventListener('click', async function () {
-      var input = $('studentIdInput');
-      var code = (input && input.value || '').trim();
-      if (!code) return;
-      try {
-        var data = await api('/api/student/login', {
-          method: 'POST',
-          body: JSON.stringify({ studentId: code, id: code, code: code })
-        });
-        student = data.student || data.user || { id: code, studentId: code, fullName: data.fullName || data.name };
-        if (!student.id && !student.studentId) student.id = code;
-        saveLocalStudent(student);
-        setStudentHeader();
-        show($('loginView'), false);
-        show($('appView'), true);
-        show($('listView'), true);
-        show($('examView'), false);
-        show($('resultView'), false);
-        loadList();
-      } catch (err) {
-        alert(err.message || err);
-      }
-    });
-    $('logoutBtn') && $('logoutBtn').addEventListener('click', function () {
-      student = null;
-      exam = null;
-      stopTimers();
-      try { localStorage.removeItem('geo_student'); } catch (e) {}
-      show($('appView'), false);
-      show($('loginView'), true);
-    });
-    $('examPrevBtn') && $('examPrevBtn').addEventListener('click', function () {
-      if (!exam || exam.idx <= 0) return;
-      exam.idx -= 1;
+    var loginForm = $('studentLoginForm');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        var inp = $('studentIdInput') || $('studentLogin');
+        var id = (inp && inp.value || '').trim();
+        if (!id) return;
+        var err = $('loginError');
+        if (err) { err.textContent = ''; show(err, false); }
+        try {
+          await doLogin(id);
+          show($('loginView'), false);
+          show($('appView'), true);
+          setStudentHeader();
+          show($('listView'), true);
+          show($('examView'), false);
+          show($('resultView'), false);
+          loadList();
+        } catch (e) {
+          if (err) { err.textContent = e.message || String(e); show(err, true); }
+          else alert(e.message || String(e));
+        }
+      });
+    }
+    var lo = $('logoutBtn');
+    if (lo) lo.addEventListener('click', logout);
+    var prev = $('examPrevBtn');
+    if (prev) prev.addEventListener('click', function () {
+      if (!exam || !exam.questions.length) return;
+      exam.idx = Math.max(0, exam.idx - 1);
       renderQuestion();
     });
-    $('examNextBtn') && $('examNextBtn').addEventListener('click', function () {
-      if (!exam || exam.idx >= (exam.questions || []).length - 1) return;
-      exam.idx += 1;
+    var next = $('examNextBtn');
+    if (next) next.addEventListener('click', function () {
+      if (!exam || !exam.questions.length) return;
+      exam.idx = Math.min(exam.questions.length - 1, exam.idx + 1);
       renderQuestion();
     });
-    $('submitExamBtn') && $('submitExamBtn').addEventListener('click', function () {
-      submitExam(false);
-    });
-    $('backToListBtn') && $('backToListBtn').addEventListener('click', function () {
-      exam = null;
-      stopTimers();
-      show($('examView'), false);
+    var sub = $('submitExamBtn');
+    if (sub) sub.addEventListener('click', function () { submitExam(false); });
+    var back = $('backToListBtn');
+    if (back) back.addEventListener('click', function () {
       show($('resultView'), false);
+      show($('examView'), false);
       show($('listView'), true);
       loadList();
     });
@@ -501,6 +554,7 @@
       loadList();
     } else {
       show($('loginView'), true);
+      show($('appView'), false);
     }
   }
 

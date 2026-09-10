@@ -40,11 +40,27 @@
     return data;
   }
 
+  function fmtWhen(v) {
+    if (!v) return '—';
+    try {
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return String(v).replace('T', ' ').slice(0, 19);
+      var p = function (n) { return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' +
+        p(d.getHours()) + ':' + p(d.getMinutes());
+    } catch (e) {
+      return String(v);
+    }
+  }
+
   function rowHtml(r) {
     var aid = r.id || r.attemptId || '';
-    var name = r.studentName || r.name || r.fullName || r.studentId || '—';
-    var school = r.school || r.studentSchool || '';
-    var cls = r.className || r.studentClass || '';
+    var name = r.studentName || r.name || r.fullName || '—';
+    if (/^\d{10,}$/.test(String(name).trim())) name = '—';
+    var sid = r.studentCode || r.studentId || r.student_code || '';
+    if (sid && String(sid).indexOf('-') >= 0 && sid.length > 20) sid = '';
+    var school = r.school || r.studentSchool || r.student_school || '';
+    var cls = r.className || r.studentClass || r.student_class || '';
     var earned = r.earned != null ? r.earned : (r.pointsEarned != null ? r.pointsEarned : r.points);
     var totalMax = r.totalMax != null ? r.totalMax : (r.maxScore != null ? r.maxScore : r.totalPoints);
     var pct = r.score != null && r.score !== '' ? (String(r.score).indexOf('%') >= 0 ? String(r.score) : r.score + '%') : null;
@@ -53,7 +69,7 @@
     else if (r.correct != null && r.total != null) points = r.correct + '/' + r.total;
     var score = points && pct ? points + ' · ' + pct : (points || pct || '—');
     var st = statusLabel(r.status);
-    var fin = r.finishedAt || '';
+    var fin = fmtWhen(r.finishedAt || r.finished_at || r.submittedAt);
     return (
       '<tr class="result-row-clickable" data-attempt-id="' +
       esc(aid) +
@@ -63,17 +79,12 @@
       '<td class="result-name-cell"><span class="result-name-link">' +
       esc(name) +
       '</span></td>' +
-      '<td>' +
-      esc(school) +
-      '</td><td>' +
-      esc(cls) +
-      '</td><td>' +
-      esc(score) +
-      '</td><td>' +
-      esc(st) +
-      '</td><td>' +
-      esc(fin) +
-      '</td></tr>'
+      '<td>' + esc(sid || '—') + '</td>' +
+      '<td>' + esc(school || '—') + '</td>' +
+      '<td>' + esc(cls || '—') + '</td>' +
+      '<td>' + esc(score) + '</td>' +
+      '<td>' + esc(st) + '</td>' +
+      '<td>' + esc(fin) + '</td></tr>'
     );
   }
 
@@ -90,30 +101,29 @@
       return;
     }
     loading = true;
-    body.innerHTML = '<tr><td colspan="6" class="muted">Боркунӣ…</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="muted">Боркунӣ…</td></tr>';
     try {
       var data = await api('/api/admin/olympiads/' + encodeURIComponent(olympiadId) + '/results');
       var rows = data.results || data.items || [];
       body.innerHTML = rows.length
         ? rows.map(rowHtml).join('')
-        : '<tr><td colspan="6" class="muted">Холӣ</td></tr>';
+        : '<tr><td colspan="7" class="muted">Холӣ</td></tr>';
       body.dataset.olympiadTitle = title || '';
       lastLoadedId = String(olympiadId);
     } catch (err) {
       body.innerHTML =
-        '<tr><td colspan="6" class="muted">' + esc(err.message || err) + '</td></tr>';
-      lastLoadedId = '';
+        '<tr><td colspan="7" class="muted">' + esc(err.message || err) + '</td></tr>';
     } finally {
       loading = false;
     }
   }
 
-  function openReview(attemptId, name, title) {
+  function openReview(id, name, title) {
     if (typeof window.__openAttemptReview === 'function') {
-      window.__openAttemptReview(attemptId, name, title);
+      window.__openAttemptReview(id, name, title);
       return;
     }
-    alert('Модули тафсилот ҳанӯз бор нашудааст. Саҳифаро навсозӣ кунед.');
+    alert('Тафсилот бор нашудааст. Саҳифаро навсозӣ кунед.');
   }
 
   function installClick() {

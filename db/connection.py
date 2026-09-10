@@ -82,6 +82,11 @@ def is_postgres_enabled() -> bool:
     return bool(DATABASE_URL and engine is not None)
 
 
+def get_engine():
+    """SQLAlchemy engine or None if PostgreSQL is not configured."""
+    return engine
+
+
 def json_backend_allowed() -> bool:
     """JSON file backend only outside prod, or emergency flag."""
     if is_postgres_enabled():

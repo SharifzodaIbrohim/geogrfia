@@ -8,8 +8,21 @@ log = logging.getLogger("geografia.review")
 
 
 def _eng():
-    from db.connection import get_engine
-    return get_engine()
+    try:
+        from db.connection import get_engine
+        e = get_engine()
+        if e is not None:
+            return e
+    except Exception:
+        pass
+    try:
+        from db import connection as c
+        e = getattr(c, "engine", None)
+        if e is not None:
+            return e
+    except Exception:
+        pass
+    raise RuntimeError("PostgreSQL engine дастнорас")
 
 
 def _parse(v):

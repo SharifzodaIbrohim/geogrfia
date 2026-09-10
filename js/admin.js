@@ -1,18 +1,17 @@
-/** admin raw-deflate+b64 loader /js/_aj0..8.txt */
+/** admin hex+raw-deflate loader /js/_aj0..8.txt */
 (async function () {
   const n = 9;
   const parts = [];
   for (let i = 0; i < n; i++) {
     const r = await fetch('/js/_aj' + i + '.txt');
     if (!r.ok) throw new Error('_aj' + i + ' HTTP ' + r.status);
-    parts.push(await r.text());
+    parts.push((await r.text()).trim());
   }
-  let b64 = parts.join('').replace(/\s/g, '');
-  const pad = (4 - (b64.length % 4)) % 4;
-  if (pad) b64 += '='.repeat(pad);
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const hex = parts.join('');
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
   const ds = new DecompressionStream('deflate');
   const stream = new Blob([bytes]).stream().pipeThrough(ds);
   const ab = await new Response(stream).arrayBuffer();

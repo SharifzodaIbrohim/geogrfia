@@ -1,1 +1,100 @@
-"""clear-recent: delete last N finished attempts (+ attempt_answers) from Neon.\n\nRequires confirm in body: {\"confirm\":\"DELETE\"} or {\"confirm\":\"yes\"}.\nNever does uncontrolled clear-all of entire table without explicit DELETE_ALL.\n"""\nfrom __future__ import annotations\n\nimport logging\n\nlog = logging.getLogger(\"geografia.patch_clear_recent\")\n\nRECENT_LIMIT = 30\n\n\ndef install(app=None):\n    if app is None:\n        return\n\n    from flask import jsonify, request\n\n    def _require_admin():\n        for modname in (\"db.phase23_hooks\", \"db.session_cookies\", \"db.admin_guards\"):\n            try:\n                mod = __import__(modname, fromlist=[\"require_admin\"])\n                fn = getattr(mod, \"require_admin\", None)\n                if fn:\n                    admin = fn()\n                    if admin:\n                        return admin\n            except Exception:\n                continue\n        try:\n            tok = (\n                request.headers.get(\"X-Admin-Token\")\n                or request.headers.get(\"Authorization\")\n                or \"\"\n            ).strip()\n            if tok:\n                return {\"ok\": True}\n            if request.cookies.get(\"__Host-geografia_admin\") or request.cookies.get(\n                \"geografia_admin\"\n            ):\n                return {\"ok\": True}\n        except Exception:\n            pass\n        return None\n\n    def _pg_engine():\n        try:\n            from db.connection import get_engine, is_postgres_enabled\n            if is_postgres_enabled():\n                eng = get_engine()\n                if eng is not None:\n                    return eng\n        except Exception as e:\n            log.warning(\"engine: %s\", e)\n        try:\n            from db.connection import engine\n            return engine\n        except Exception:\n            return None\n\n    def _clear_recent():\n        if not _require_admin():\n            return jsonify({\"error\": \"Дастрасӣ рад шуд.\"}), 401\n\n        body = {}\n        try:\n            body = request.get_json(silent=True) or {}\n        except Exception:\n            body = {}\n\n        confirm = str(body.get(\"confirm\") or body.get(\"action\") or \"\").strip().upper()\n        allowed = {\n            \"DELETE\", \"YES\", \"ОК\", \"OK\", \"ПОК\", \"CLEAR\", \"1\", \"TRUE\",\n            \"DELETE_RECENT\", \"CONFIRM\",\n        }\n        raw = str(body.get(\"confirm\") or body.get(\"action\") or \"\").strip().lower()\n        if raw in (\"yes\", \"ok\", \"пок\", \"ҳа\", \"ha\", \"true\", \"1\", \"delete\"):\n            confirm = \"DELETE\"\n\n        if confirm not in allowed and confirm not in (\"DELETE\", \"YES\", \"OK\"):\n            if not body:\n                confirm = \"DELETE\"\n            else:\n                return jsonify({\n                    \"ok\": False,\n                    \"cleared\": 0,\n                    \"message\": \"Тасдиқ лозим аст. confirm=DELETE фиристед.\",\n                }), 400\n\n        eng = _pg_engine()\n        if eng is None:\n            return jsonify({\n                \"ok\": False,\n                \"cleared\": 0,\n                \"message\": \"PostgreSQL дастнорас — пок карда нашуд.\",\n            }), 500\n\n        from sqlalchemy import text\n\n        cleared = 0\n        details = []\n        try:\n            with eng.begin() as conn:\n                ids = []\n                for label, sql in (\n                    (\n                        \"finished\",\n                        \"SELECT id::text FROM attempts \"\n                        \"WHERE finished_at IS NOT NULL \"\n                        \"ORDER BY finished_at DESC NULLS LAST LIMIT :lim\",\n                    ),\n                    (\n                        \"status\",\n                        \"SELECT id::text FROM attempts \"\n                        \"WHERE CAST(status AS text) IN \"\n                        \"('passed','failed','timeout','submitted','finished') \"\n                        \"ORDER BY COALESCE(finished_at, started_at) DESC \"\n                        \"NULLS LAST LIMIT :lim\",\n                    ),\n                    (\n                        \"any\",\n                        \"SELECT id::text FROM attempts \"\n                        \"ORDER BY COALESCE(finished_at, started_at) DESC \"\n                        \"NULLS LAST LIMIT :lim\",\n                    ),\n                ):\n                    try:\n                        ids = [\n                            r[0]\n                            for r in conn.execute(text(sql), {\"lim\": RECENT_LIMIT}).fetchall()\n                        ]\n                        if ids:\n                            details.append(f\"{label}:{len(ids)}\")\n                            break\n                    except Exception as e:\n                        details.append(f\"{label}_err:{type(e).__name__}\")\n                        try:\n                            conn.rollback()\n                        except Exception:\n                            pass\n\n                if not ids:\n                    return jsonify({\n                        \"ok\": True,\n                        \"cleared\": 0,\n                        \"message\": \"Пок шуд: 0 сабт (натиҷаи охирин нест)\",\n                        \"details\": details,\n                    })\n\n                for aid in ids:\n                    for q in (\n                        \"DELETE FROM attempt_answers WHERE attempt_id::text = :id\",\n                        \"DELETE FROM attempt_answers WHERE attempt_id = CAST(:id AS uuid)\",\n                    ):\n                        try:\n                            conn.execute(text(q), {\"id\": aid})\n                            break\n                        except Exception:\n                            continue\n\n                for aid in ids:\n                    for q in (\n                        \"DELETE FROM attempts WHERE id::text = :id\",\n                        \"DELETE FROM attempts WHERE id = CAST(:id AS uuid)\",\n                    ):\n                        try:\n                            res = conn.execute(text(q), {\"id\": aid})\n                            n = int(res.rowcount or 0)\n                            if n:\n                                cleared += n\n                                break\n                        except Exception as e:\n                            details.append(f\"del:{aid}:{type(e).__name__}\")\n        except Exception as e:\n            log.exception(\"clear-recent failed\")\n            return jsonify({\n                \"ok\": False,\n                \"cleared\": 0,\n                \"message\": f\"Хато: {type(e).__name__}: {e}\",\n            }), 500\n\n        msg = f\"Пок шуд: {cleared} сабт\"\n        log.info(\"clear-recent cleared=%s details=%s\", cleared, details)\n        return jsonify({\n            \"ok\": True,\n            \"cleared\": cleared,\n            \"message\": msg,\n            \"details\": details,\n        })\n\n    def _clear_all():\n        if not _require_admin():\n            return jsonify({\"error\": \"Дастрасӣ рад шуд.\"}), 401\n        body = {}\n        try:\n            body = request.get_json(silent=True) or {}\n        except Exception:\n            body = {}\n        confirm = str(body.get(\"confirm\") or \"\").strip().upper()\n        if confirm != \"DELETE_ALL\":\n            return jsonify({\n                \"ok\": False,\n                \"blocked\": True,\n                \"cleared\": 0,\n                \"message\": \"Барои пок кардани ҳама confirm=DELETE_ALL лозим аст.\",\n            }), 403\n\n        eng = _pg_engine()\n        if eng is None:\n            return jsonify({\"ok\": False, \"message\": \"PostgreSQL дастнорас\"}), 500\n        from sqlalchemy import text\n        cleared = 0\n        try:\n            with eng.begin() as conn:\n                try:\n                    conn.execute(text(\"DELETE FROM attempt_answers\"))\n                except Exception:\n                    pass\n                res = conn.execute(text(\"DELETE FROM attempts\"))\n                cleared = int(res.rowcount or 0)\n        except Exception as e:\n            return jsonify({\"ok\": False, \"message\": str(e)}), 500\n        return jsonify({\n            \"ok\": True,\n            \"cleared\": cleared,\n            \"message\": f\"Пок шуд: {cleared} сабт (ҳама)\",\n        })\n\n    for name in list(app.view_functions.keys()):\n        low = name.lower()\n        if \"clear_recent\" in low or \"clear-recent\" in low:\n            app.view_functions[name] = _clear_recent\n        if \"clear_all\" in low or low.endswith(\"clearall\"):\n            app.view_functions[name] = _clear_all\n\n    for r in list(app.url_map.iter_rules()):\n        rule = r.rule\n        if rule in (\n            \"/api/admin/results/clear-recent\",\n            \"/api/admin/monitor/clear-recent\",\n            \"/api/admin/clear-recent\",\n        ):\n            app.view_functions[r.endpoint] = _clear_recent\n        if rule in (\"/api/admin/results/clear-all\", \"/api/admin/clear-all\"):\n            app.view_functions[r.endpoint] = _clear_all\n\n    existing = {r.rule for r in app.url_map.iter_rules()}\n    if \"/api/admin/results/clear-recent\" not in existing:\n        app.add_url_rule(\n            \"/api/admin/results/clear-recent\",\n            \"clear_recent_results_v2\",\n            _clear_recent,\n            methods=[\"POST\"],\n        )\n    if \"/api/admin/monitor/clear-recent\" not in existing:\n        app.add_url_rule(\n            \"/api/admin/monitor/clear-recent\",\n            \"clear_recent_monitor_v2\",\n            _clear_recent,\n            methods=[\"POST\"],\n        )\n    if \"/api/admin/results/clear-all\" not in existing:\n        app.add_url_rule(\n            \"/api/admin/results/clear-all\",\n            \"clear_all_results_v2\",\n            _clear_all,\n            methods=[\"POST\"],\n        )\n\n    print(\"[boot] patch_clear_recent: HARD DELETE of recent finished attempts ENABLED\")\n    log.info(\"patch_clear_recent installed (recent limit=%s)\", RECENT_LIMIT)\n
+"""clear-recent: delete last 30 finished attempts from Neon."""
+from __future__ import annotations
+import logging
+log = logging.getLogger("geografia.patch_clear_recent")
+RECENT_LIMIT = 30
+
+def install(app=None):
+    if app is None:
+        return
+    from flask import jsonify, request
+
+    def _require_admin():
+        try:
+            tok = (request.headers.get("X-Admin-Token") or request.headers.get("Authorization") or "").strip()
+            if tok:
+                return True
+            if request.cookies.get("__Host-geografia_admin") or request.cookies.get("geografia_admin"):
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _engine():
+        try:
+            from db.connection import get_engine, is_postgres_enabled
+            if is_postgres_enabled():
+                return get_engine()
+        except Exception:
+            pass
+        return None
+
+    def _clear_recent():
+        if not _require_admin():
+            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+        eng = _engine()
+        if eng is None:
+            return jsonify({"ok": False, "cleared": 0, "message": "PostgreSQL дастнорас"}), 500
+        from sqlalchemy import text
+        cleared = 0
+        try:
+            with eng.begin() as conn:
+                ids = [r[0] for r in conn.execute(text(
+                    "SELECT id::text FROM attempts WHERE finished_at IS NOT NULL "
+                    "ORDER BY finished_at DESC NULLS LAST LIMIT :lim"
+                ), {"lim": RECENT_LIMIT}).fetchall()]
+                if not ids:
+                    ids = [r[0] for r in conn.execute(text(
+                        "SELECT id::text FROM attempts ORDER BY COALESCE(finished_at, started_at) DESC NULLS LAST LIMIT :lim"
+                    ), {"lim": RECENT_LIMIT}).fetchall()]
+                for aid in ids:
+                    try:
+                        conn.execute(text("DELETE FROM attempt_answers WHERE attempt_id::text = :id"), {"id": aid})
+                    except Exception:
+                        pass
+                    try:
+                        res = conn.execute(text("DELETE FROM attempts WHERE id::text = :id"), {"id": aid})
+                        cleared += int(res.rowcount or 0)
+                    except Exception:
+                        pass
+        except Exception as e:
+            log.exception("clear-recent")
+            return jsonify({"ok": False, "cleared": 0, "message": str(e)}), 500
+        return jsonify({"ok": True, "cleared": cleared, "message": f"Пок шуд: {cleared} сабт"})
+
+    def _clear_all():
+        if not _require_admin():
+            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+        body = request.get_json(silent=True) or {}
+        if str(body.get("confirm") or "").upper() != "DELETE_ALL":
+            return jsonify({"ok": False, "message": "confirm=DELETE_ALL лозим аст"}), 403
+        eng = _engine()
+        if eng is None:
+            return jsonify({"ok": False, "message": "PostgreSQL дастнорас"}), 500
+        from sqlalchemy import text
+        with eng.begin() as conn:
+            try:
+                conn.execute(text("DELETE FROM attempt_answers"))
+            except Exception:
+                pass
+            n = int(conn.execute(text("DELETE FROM attempts")).rowcount or 0)
+        return jsonify({"ok": True, "cleared": n, "message": f"Пок шуд: {n} сабт (ҳама)"})
+
+    for name in list(app.view_functions.keys()):
+        low = name.lower()
+        if "clear_recent" in low or "clear-recent" in low:
+            app.view_functions[name] = _clear_recent
+        if "clear_all" in low:
+            app.view_functions[name] = _clear_all
+    existing = {r.rule for r in app.url_map.iter_rules()}
+    if "/api/admin/results/clear-recent" not in existing:
+        app.add_url_rule("/api/admin/results/clear-recent", "clear_recent_v3", _clear_recent, methods=["POST"])
+    else:
+        for r in app.url_map.iter_rules():
+            if r.rule == "/api/admin/results/clear-recent":
+                app.view_functions[r.endpoint] = _clear_recent
+    if "/api/admin/monitor/clear-recent" not in existing:
+        app.add_url_rule("/api/admin/monitor/clear-recent", "clear_recent_mon_v3", _clear_recent, methods=["POST"])
+    if "/api/admin/results/clear-all" not in existing:
+        app.add_url_rule("/api/admin/results/clear-all", "clear_all_v3", _clear_all, methods=["POST"])
+    print("[boot] patch_clear_recent: hard delete recent ENABLED")

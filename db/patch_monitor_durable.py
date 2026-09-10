@@ -17,15 +17,17 @@ def _rows_from_pg(limit=500):
         """
         SELECT a.id::text AS id,
                a.olympiad_id::text AS olympiad_id,
-               COALESCE(NULLIF(TRIM(a.student_name), ''), st.full_name, '') AS student_name,
+               COALESCE(NULLIF(TRIM(st.full_name), ''), NULLIF(TRIM(a.student_name), ''), '') AS student_name,
                COALESCE(a.student_class, st.class_name, '') AS student_class,
                COALESCE(a.student_school, st.school_name, '') AS student_school,
                a.score, a.correct, a.total, a.pass_score,
                CAST(a.status AS text) AS status,
                a.finished_at, a.started_at,
-               st.student_code AS student_code
+               st.student_code AS student_code,
+               o.title AS olympiad_title
         FROM attempts a
-        LEFT JOIN students st ON st.id = a.student_id
+        LEFT JOIN olympiads o ON o.id = a.olympiad_id
+        LEFT JOIN students st ON (st.id = a.student_id OR (a.student_name IS NOT NULL AND st.student_code = TRIM(a.student_name)) OR (a.student_id IS NULL AND st.student_code = COALESCE(NULLIF(TRIM(a.student_name), ''), '')))
         WHERE a.finished_at IS NOT NULL
            OR CAST(a.status AS text) IN ('passed','failed','timeout','submitted','finished')
         ORDER BY COALESCE(a.finished_at, a.started_at) DESC NULLS LAST
@@ -64,11 +66,16 @@ def _fmt(rows):
             "id": r.get("id"),
             "attemptId": r.get("id"),
             "olympiadId": r.get("olympiad_id"),
+            "olympiadTitle": r.get("olympiad_title") or "",
+            "title": r.get("olympiad_title") or "",
             "studentId": r.get("student_code") or "",
+            "studentCode": r.get("student_code") or "",
             "studentName": r.get("student_name") or "",
             "fullName": r.get("student_name") or "",
             "className": r.get("student_class") or "",
+            "studentClass": r.get("student_class") or "",
             "school": r.get("student_school") or "",
+            "studentSchool": r.get("student_school") or "",
             "score": r.get("score"),
             "correct": r.get("correct"),
             "total": r.get("total"),
@@ -101,6 +108,7 @@ def install(app=None):
                     live.append({
                         "attemptId": sid,
                         "studentId": sess.get("studentId") or sess.get("studentCode"),
+                        "studentName": sess.get("studentName") or sess.get("fullName") or "",
                         "olympiadId": sess.get("olympiadId"),
                         "startedAt": sess.get("startedAt"),
                         "status": "in_progress",
@@ -159,9 +167,8 @@ def install(app=None):
                 out = [r for r in out if str(r.get("olympiadId")) == str(olympiad_id)]
             return out
         repo.list_results = list_results
-        log.info("list_results overridden to durable attempts query")
     except Exception as e:
         log.warning("list_results override: %s", e)
 
-    print("[boot] patch_monitor_durable: attempts-based monitor + list_results")
     log.info("patch_monitor_durable installed")
+    print("[boot] patch_monitor_durable OK")

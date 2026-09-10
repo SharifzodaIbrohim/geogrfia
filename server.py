@@ -210,6 +210,12 @@ try:
 except Exception as e:
     print("[boot] patch_admin_create_role failed:", e)
 
+try:
+    from db.patch_admin_auth_bearer import install as _install_admin_auth_bearer
+    _install_admin_auth_bearer(app)
+except Exception as e:
+    print("[boot] patch_admin_auth_bearer failed:", e)
+
 # --- Names on results + durable monitor ---
 try:
     from db.patch_names import install as _install_patch_names

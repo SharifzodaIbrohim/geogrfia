@@ -1,156 +1,71 @@
-/** Geografia i18n: tg/ru/en — data-pf-i18n immune to app.js wipe */
-(() => {
+/** Geografia site i18n — tg / ru / en */
+(function (global) {
+  'use strict';
+
   const DICT = {
     tg: {
-      navHome: 'Хона', navCountries: 'Кишварҳо', navCourses: 'Курсҳо', navQuizzes: 'Викторинаҳо',
-      navOlympiads: 'Олимпиадаҳо', navLeaderboard: 'Рейтинг', navProfile: 'Профил', navSettings: 'Танзимот',
-      language: 'Забон', theme: 'Тема', notif: 'Огоҳӣ',
-      platformActivity: 'Фаъолияти платформа', liveDashboard: 'Дашборди зинда',
-      countries: 'Кишварҳо', quizzes: 'Викторинаҳо', students: 'Хонандагон', olympiads: 'Олимпиадаҳо',
-      featuredQuizzes: 'Викторинаҳои пешниҳодшуда', viewAll: 'Ҳама →', viewLeaderboard: 'Дидан →',
-      leaderboard: 'Рейтинг · Беҳтаринҳо', leaderboardTitle: 'Рейтинг · Беҳтаринҳо',
-      activityEmpty: 'Фаъолият ҳоло нест', olympEmpty: 'Фаъол нест', lbEmpty: 'Натиҷаҳо баъд аз супориш',
-      resultsLog: 'results.log', live: 'live', olympiadActive: 'Олимпиада фаъол',
-      quizAvailable: 'Викторина дастрас', now: 'ҳоло', noActivity: 'Фаъолият ҳоло нест',
-      loading: 'Бор шуда истодааст...', error: 'Хато рух дод', notFound: 'Маълумот ёфт нашуд', success: 'Муваффақ шуд',
-      save: 'Захира', cancel: 'Бекор', close: 'Пӯшидан', back: 'Бозгашт', backToSite: 'Бозгашт ба сайт',
-      site: 'Сайт', logout: 'Баромадан', login: 'Воридшавӣ', loginGoogle: 'Воридшавӣ бо Google',
-      quizTitle: 'Викторинаҳо',
-      guestTitle: 'Корбари оддӣ?',
-      guestText: 'Бо Google ворид шавед ва дар викторинаҳо иштирок кунед.',
-      quizLead: 'Викторинаҳои ҷуғрофӣ — балл server-side, таймер, таърих дар профил.',
-      history: 'Таърих',
-      listEmpty: 'Ҳанӯз викторина нест. Админ метавонад аз API созад.',
-      backToList: '← Рӯйхат',
-      resultTitle: 'Натиҷа',
-      historyHint: 'Барои нигоҳ доштани таърих бо Google ворид шавед.',
-      authHint: 'Google — барои викторина ва таърих. Ё Student ID.',
-      studentIdLabel: 'Student ID (хонанда)',
-      saveStudentId: 'Сабти ID',
-
-      all: 'Ҳама', search: 'Ҷустуҷӯ', searchPlaceholder: 'Ҷустуҷӯи кишвар...', empty: 'Холӣ',
-      yes: 'Ҳа', no: 'Не', of: 'аз', questions: 'савол', question: 'Савол', passScore: 'Ҳад',
-      minutes: 'дақ', seconds: 'сон', noLimit: 'Бе маҳдуд',
-      heroTitle: 'Ҷуғрофияи Ҷаҳон',
-      heroText: 'Сайти интерактивӣ бо ҳамаи кишварҳо, маълумоти муфассал ва харита.',
-      regions: 'Минтақаҳо', population: 'Аҳолӣ', area: 'Масоҳат', capital: 'Пойтахт', countryCount: 'кишвар',
-      coursesTitle: 'Курсҳо · Китобҳо ва маводҳо', coursesSub: 'Китобҳои ҷуғрофия, мақолаҳо ва маҷаллаҳо барои омӯзиш.',
-      books: 'Китобҳо', articles: 'Мақолаҳо', magazines: 'Маҷаллаҳо', links: 'Пайвандҳо', emptyContent: 'Ҳоло мавод нест.',
-      profile: 'Профил', rating: 'Рейтинг', contests: 'Мусобиқаҳо', solved: 'Ҳалшуда', participant: 'Иштирокчӣ',
-      previous: '← Пештар', next: 'Баъдӣ →', submit: 'Супоридан', submitExam: 'Супоридан',
-      questionXofY: 'Савол {n} / {total}', writeAnswerPlaceholder: 'Ҷавобро нависед...', noQuestion: 'Савол нест',
-      startExam: 'Оғоз кардан', statusParticipated: 'Шумо иштирок кардаед', questionsCount: 'Саволҳо',
-      submitConfirm: 'Оё мехоҳед супоред?', errGeneric: 'Хато рух дод', errLogin: 'ID нодуруст',
-      studentLoginTitle: 'Воридшавии хонанда', studentLoginBtn: 'Ворид шудан', studentIdLabel: 'ID-и шумо',
-      studentIdPlaceholder: 'Рақами донишҷӯ', studentLoginHint: 'Танҳо бо ID-е, ки админ додааст',
-      activeOlympiads: 'Олимпиадаҳои фаъол', quizzesSection: 'Викторинаҳо',
-      noActiveOlympiad: 'Ҳоло олимпиадаи фаъол нест.', noQuizzesStudent: 'Ҳоло викторина нест.',
-      selectAnswer: 'Ҷавобро интихоб кунед', correct: 'Дуруст', waiting: 'Интизор',
-      result: 'Натиҷа',
-      lbParticipants: 'иштирокчӣ', lbAutoRefresh: 'навсозӣ автоматӣ', lbClosed: 'Рейтинг пӯшида аст.',
-      lbColRank: 'Ҷой', lbColName: 'Иштирокчӣ', lbColRating: 'Рейтинг', lbColSolved: 'Ҳал', lbColContests: 'Мусобиқа',
-      lbBackHome: '← Хона', lbSubtitle: 'Рейтинги ҳамаи иштирокчиён',
-      create: 'Сохтан', edit: 'Таҳрир', delete: 'Нест кардан', export: 'Содирот', refresh: 'Навсозӣ',
+      home: 'Асосӣ', countries: 'Кишварҳо', quiz: 'Викторина', courses: 'Курсҳо',
+      leaderboard: 'Рейтинг', profile: 'Профил', student: 'Хонанда', login: 'Ворид',
+      logout: 'Баромадан', settings: 'Танзимот', language: 'Забон', theme: 'Мавзӯъ',
+      dark: 'Торик', light: 'Равшан', search: 'Ҷустуҷӯ', loading: 'Боркунӣ…',
+      error: 'Хато', save: 'Сабт', cancel: 'Бекор', delete: 'Нест', edit: 'Таҳрир',
+      create: 'Сохтан', back: 'Бозгашт', next: 'Баъдӣ', previous: 'Пештар',
+      submit: 'Супоридан', yes: 'Ҳа', no: 'Не', of: 'аз', questions: 'савол',
+      question: 'Савол', questionLabel: 'Савол', passScore: 'Ҳад',
+      minutes: 'дақиқа', noLimit: 'Бе маҳдудият', timeUp: 'Вақт тамом шуд.',
+      yourScore: 'Холи шумо', submitted: 'Супорида шуд', leaveExam: 'Аз имтиҳон баромадан?',
+      noQuestions: 'Саволҳо ёфт нашуданд.', startExam: 'Оғоз кардан',
+      statusParticipated: 'Шумо иштирок кардаед', questionsCount: 'Саволҳо',
+      questionXofY: 'Савол {n} / {total}', writeAnswerPlaceholder: 'Ҷавобро нависед...',
+      noQuestion: 'Савол нест', activeOlympiads: 'Олимпиадаҳои фаъол',
+      quizzesSection: 'Викторинаҳо', noActiveOlympiad: 'Ҳоло олимпиадаи фаъол нест.',
+      noQuizzesStudent: 'Ҳоло викторина нест.', studentLoginTitle: 'Воридшавии хонанда',
+      studentLoginHint: 'Танҳо бо ID-е, ки админ додааст', studentIdLabel: 'ID-и шумо',
+      studentIdPlaceholder: 'Рақами донишҷӯ', studentLoginBtn: 'Ворид шудан',
+      backToSite: 'Бозгашт ба сайт', site: 'Сайт', result: 'Натиҷа',
+      submitExam: 'Супоридан',
     },
     ru: {
-      navHome: 'Главная', navCountries: 'Страны', navCourses: 'Курсы', navQuizzes: 'Викторины',
-      navOlympiads: 'Олимпиады', navLeaderboard: 'Рейтинг', navProfile: 'Профиль', navSettings: 'Настройки',
-      language: 'Язык', theme: 'Тема', notif: 'Уведомления',
-      platformActivity: 'Активность платформы', liveDashboard: 'Живая панель',
-      countries: 'Страны', quizzes: 'Викторины', students: 'Ученики', olympiads: 'Олимпиады',
-      featuredQuizzes: 'Рекомендуемые викторины', viewAll: 'Все →', viewLeaderboard: 'Смотреть →',
-      leaderboard: 'Рейтинг · Топ', leaderboardTitle: 'Рейтинг · Лучшие',
-      activityEmpty: 'Пока нет активности', olympEmpty: 'Нет активных', lbEmpty: 'Результаты появятся после сдачи',
-      resultsLog: 'results.log', live: 'live', olympiadActive: 'Олимпиада активна',
-      quizAvailable: 'Викторина доступна', now: 'сейчас', noActivity: 'Пока нет активности',
-      loading: 'Загрузка...', error: 'Произошла ошибка', notFound: 'Данные не найдены', success: 'Успешно',
-      save: 'Сохранить', cancel: 'Отмена', close: 'Закрыть', back: 'Назад', backToSite: 'Вернуться на сайт',
-      site: 'Сайт', logout: 'Выйти', login: 'Вход', loginGoogle: 'Войти через Google',
-      quizTitle: 'Викторины',
-      guestTitle: 'Гость?',
-      guestText: 'Войдите через Google и участвуйте в викторинах.',
-      quizLead: 'Географические викторины — оценка на сервере, таймер, история в профиле.',
-      history: 'История',
-      listEmpty: 'Пока нет викторин. Админ может создать через API.',
-      backToList: '← Список',
-      resultTitle: 'Результат',
-      historyHint: 'Чтобы сохранить историю, войдите через Google.',
-      authHint: 'Google — для викторин и истории. Или Student ID.',
-      studentIdLabel: 'Student ID (ученик)',
-      saveStudentId: 'Сохранить ID',
-
-      all: 'Все', search: 'Поиск', searchPlaceholder: 'Поиск страны...', empty: 'Пусто',
-      yes: 'Да', no: 'Нет', of: 'из', questions: 'вопросов', question: 'Вопрос', passScore: 'Порог',
-      minutes: 'мин', seconds: 'сек', noLimit: 'Без ограничения',
-      heroTitle: 'География мира',
-      heroText: 'Интерактивный сайт со всеми странами, подробными данными и картой.',
-      regions: 'Регионы', population: 'Население', area: 'Площадь', capital: 'Столица', countryCount: 'стран',
-      coursesTitle: 'Курсы · Книги и материалы', coursesSub: 'Учебники географии, статьи и журналы для обучения.',
-      books: 'Книги', articles: 'Статьи', magazines: 'Журналы', links: 'Ссылки', emptyContent: 'Пока нет материалов.',
-      profile: 'Профиль', rating: 'Рейтинг', contests: 'Соревнования', solved: 'Решено', participant: 'Участник',
-      previous: '← Назад', next: 'Далее →', submit: 'Сдать', submitExam: 'Сдать работу',
-      questionXofY: 'Вопрос {n} / {total}', writeAnswerPlaceholder: 'Напишите ответ...', noQuestion: 'Нет вопроса',
-      startExam: 'Начать', statusParticipated: 'Вы уже участвовали', questionsCount: 'Вопросов',
-      submitConfirm: 'Сдать работу?', errGeneric: 'Произошла ошибка', errLogin: 'Неверный ID',
-      studentLoginTitle: 'Вход ученика', studentLoginBtn: 'Войти', studentIdLabel: 'Ваш ID',
-      studentIdPlaceholder: 'Номер ученика', studentLoginHint: 'Только по ID администратора',
-      activeOlympiads: 'Активные олимпиады', quizzesSection: 'Викторины',
-      noActiveOlympiad: 'Сейчас нет активных олимпиад.', noQuizzesStudent: 'Сейчас нет викторин.',
-      selectAnswer: 'Выберите ответ', correct: 'Верно', waiting: 'Ожидание', result: 'Результат',
-      lbParticipants: 'участников', lbAutoRefresh: 'автообновление', lbClosed: 'Рейтинг закрыт.',
-      lbColRank: 'Место', lbColName: 'Участник', lbColRating: 'Рейтинг', lbColSolved: 'Решено', lbColContests: 'Турниры',
-      lbBackHome: '← Главная', lbSubtitle: 'Рейтинг всех участников',
-      create: 'Создать', edit: 'Изменить', delete: 'Удалить', export: 'Экспорт', refresh: 'Обновить',
+      home: 'Главная', countries: 'Страны', quiz: 'Викторина', courses: 'Курсы',
+      leaderboard: 'Рейтинг', profile: 'Профиль', student: 'Ученик', login: 'Вход',
+      logout: 'Выйти', settings: 'Настройки', language: 'Язык', theme: 'Тема',
+      dark: 'Тёмная', light: 'Светлая', search: 'Поиск', loading: 'Загрузка…',
+      error: 'Ошибка', save: 'Сохранить', cancel: 'Отмена', delete: 'Удалить',
+      edit: 'Изменить', create: 'Создать', back: 'Назад', next: 'Далее',
+      previous: 'Назад', submit: 'Отправить', yes: 'Да', no: 'Нет', of: 'из',
+      questions: 'вопросов', question: 'Вопрос', questionLabel: 'Вопрос', passScore: 'Порог',
+      minutes: 'мин', noLimit: 'Без лимита', timeUp: 'Время вышло.',
+      yourScore: 'Ваш балл', submitted: 'Отправлено', leaveExam: 'Покинуть экзамен?',
+      noQuestions: 'Вопросы не найдены.', startExam: 'Начать',
+      statusParticipated: 'Вы уже участвовали', questionsCount: 'Вопросов',
+      questionXofY: 'Вопрос {n} / {total}', writeAnswerPlaceholder: 'Напишите ответ...',
+      noQuestion: 'Нет вопроса', activeOlympiads: 'Активные олимпиады',
+      quizzesSection: 'Викторины', noActiveOlympiad: 'Нет активных олимпиад.',
+      noQuizzesStudent: 'Нет викторин.', studentLoginTitle: 'Вход ученика',
+      studentLoginHint: 'Только ID, выданный админом', studentIdLabel: 'Ваш ID',
+      studentIdPlaceholder: 'Номер ученика', studentLoginBtn: 'Войти',
+      backToSite: 'На сайт', site: 'Сайт', result: 'Результат', submitExam: 'Сдать',
     },
     en: {
-      navHome: 'Home', navCountries: 'Countries', navCourses: 'Courses', navQuizzes: 'Quizzes',
-      navOlympiads: 'Olympiads', navLeaderboard: 'Leaderboard', navProfile: 'Profile', navSettings: 'Settings',
-      language: 'Language', theme: 'Theme', notif: 'Notifications',
-      platformActivity: 'Platform activity', liveDashboard: 'Live Dashboard',
-      countries: 'Countries', quizzes: 'Quizzes', students: 'Students', olympiads: 'Olympiads',
-      featuredQuizzes: 'Featured quizzes', viewAll: 'View all →', viewLeaderboard: 'View →',
-      leaderboard: 'Leaderboard · Top Rated', leaderboardTitle: 'Leaderboard · Top',
-      activityEmpty: 'No activity yet', olympEmpty: 'None active', lbEmpty: 'Results after submissions',
-      resultsLog: 'results.log', live: 'live', olympiadActive: 'Olympiad active',
-      quizAvailable: 'Quiz available', now: 'now', noActivity: 'No activity yet',
-      loading: 'Loading...', error: 'An error occurred', notFound: 'Data not found', success: 'Success',
-      save: 'Save', cancel: 'Cancel', close: 'Close', back: 'Back', backToSite: 'Back to site',
-      site: 'Site', logout: 'Log out', login: 'Sign in', loginGoogle: 'Sign in with Google',
-      quizTitle: 'Quizzes',
-      guestTitle: 'Guest?',
-      guestText: 'Sign in with Google to take quizzes.',
-      quizLead: 'Geography quizzes — server-side scoring, timer, history in profile.',
-      history: 'History',
-      listEmpty: 'No quizzes yet. Admin can create via API.',
-      backToList: '← List',
-      resultTitle: 'Result',
-      historyHint: 'Sign in with Google to keep history.',
-      authHint: 'Google — for quizzes and history. Or Student ID.',
-      studentIdLabel: 'Student ID',
-      saveStudentId: 'Save ID',
-
-      all: 'All', search: 'Search', searchPlaceholder: 'Search country...', empty: 'Empty',
-      yes: 'Yes', no: 'No', of: 'of', questions: 'questions', question: 'Question', passScore: 'Pass',
-      minutes: 'min', seconds: 'sec', noLimit: 'No limit',
-      heroTitle: 'World Geography',
-      heroText: 'Interactive site with all countries, detailed data and map.',
-      regions: 'Regions', population: 'Population', area: 'Area', capital: 'Capital', countryCount: 'countries',
-      coursesTitle: 'Courses · Books & materials', coursesSub: 'Geography textbooks, articles and magazines for learning.',
-      books: 'Books', articles: 'Articles', magazines: 'Magazines', links: 'Links', emptyContent: 'No materials yet.',
-      profile: 'Profile', rating: 'Rating', contests: 'Contests', solved: 'Solved', participant: 'Participant',
-      previous: '← Previous', next: 'Next →', submit: 'Submit', submitExam: 'Submit',
-      questionXofY: 'Question {n} / {total}', writeAnswerPlaceholder: 'Write your answer...', noQuestion: 'No question',
-      startExam: 'Start', statusParticipated: 'You have already participated', questionsCount: 'Questions',
-      submitConfirm: 'Submit your answers?', errGeneric: 'An error occurred', errLogin: 'Invalid ID',
-      studentLoginTitle: 'Student login', studentLoginBtn: 'Sign in', studentIdLabel: 'Your ID',
-      studentIdPlaceholder: 'Student number', studentLoginHint: 'Only with an admin-issued ID',
-      activeOlympiads: 'Active olympiads', quizzesSection: 'Quizzes',
-      noActiveOlympiad: 'No active olympiads right now.', noQuizzesStudent: 'No quizzes right now.',
-      selectAnswer: 'Select an answer', correct: 'Correct', waiting: 'Waiting', result: 'Result',
-      lbParticipants: 'participants', lbAutoRefresh: 'auto-refresh', lbClosed: 'Leaderboard is closed.',
-      lbColRank: 'Rank', lbColName: 'Participant', lbColRating: 'Rating', lbColSolved: 'Solved', lbColContests: 'Contests',
-      lbBackHome: '← Home', lbSubtitle: 'Ratings of all participants',
-      create: 'Create', edit: 'Edit', delete: 'Delete', export: 'Export', refresh: 'Refresh',
+      home: 'Home', countries: 'Countries', quiz: 'Quiz', courses: 'Courses',
+      leaderboard: 'Leaderboard', profile: 'Profile', student: 'Student', login: 'Login',
+      logout: 'Log out', settings: 'Settings', language: 'Language', theme: 'Theme',
+      dark: 'Dark', light: 'Light', search: 'Search', loading: 'Loading…',
+      error: 'Error', save: 'Save', cancel: 'Cancel', delete: 'Delete', edit: 'Edit',
+      create: 'Create', back: 'Back', next: 'Next', previous: 'Previous',
+      submit: 'Submit', yes: 'Yes', no: 'No', of: 'of', questions: 'questions',
+      question: 'Question', questionLabel: 'Question', passScore: 'Pass',
+      minutes: 'min', noLimit: 'No limit', timeUp: 'Time is up.',
+      yourScore: 'Your score', submitted: 'Submitted', leaveExam: 'Leave exam?',
+      noQuestions: 'No questions found.', startExam: 'Start',
+      statusParticipated: 'You have already participated', questionsCount: 'Questions',
+      questionXofY: 'Question {n} / {total}', writeAnswerPlaceholder: 'Write your answer...',
+      noQuestion: 'No question', activeOlympiads: 'Active olympiads',
+      quizzesSection: 'Quizzes', noActiveOlympiad: 'No active olympiads.',
+      noQuizzesStudent: 'No quizzes.', studentLoginTitle: 'Student login',
+      studentLoginHint: 'Only the ID issued by admin', studentIdLabel: 'Your ID',
+      studentIdPlaceholder: 'Student number', studentLoginBtn: 'Sign in',
+      backToSite: 'Back to site', site: 'Site', result: 'Result', submitExam: 'Submit',
     },
   };
 
@@ -208,7 +123,6 @@
     document.querySelectorAll('[data-i18n], [data-pf-i18n]').forEach((el) => {
       const key = el.getAttribute('data-i18n') || el.getAttribute('data-pf-i18n');
       const val = t(key);
-      // If key missing from dict, t() returns the key — keep existing HTML fallback text
       if (val === key && el.textContent && el.textContent.trim() && el.textContent.trim() !== key) {
         return;
       }
@@ -218,49 +132,19 @@
       } else el.textContent = val;
     });
     document.querySelectorAll('[data-i18n-placeholder], [data-pf-placeholder]').forEach((el) => {
-      el.placeholder = t(el.getAttribute('data-i18n-placeholder') || el.getAttribute('data-pf-placeholder'));
-    });
-    document.querySelectorAll('[data-i18n-title]').forEach((el) => {
-      el.title = t(el.getAttribute('data-i18n-title'));
+      const key = el.getAttribute('data-i18n-placeholder') || el.getAttribute('data-pf-placeholder');
+      el.placeholder = t(key);
     });
   }
 
-  function bind() {
-    document.querySelectorAll('#pfLang, #languageSelect, [data-lang-select]').forEach((sel) => {
-      if (!sel || sel._i18nBound) return;
-      sel._i18nBound = true;
-      const cur = lang();
-      if (sel.querySelector('option[value="tg"]')) sel.value = cur;
-      else if (sel.querySelector('option[value="tj"]')) sel.value = cur === 'tg' ? 'tj' : cur;
-      else sel.value = cur;
-      sel.addEventListener('change', () => setLang(sel.value));
+  global.GeoI18n = { t: t, setLang: setLang, lang: lang, apply: apply, DICT: DICT };
+  global.t = t;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setLang(lang());
     });
-    apply();
+  } else {
+    setLang(lang());
   }
-
-  function onLang(fn) {
-    if (typeof fn !== 'function') return;
-    window.addEventListener('geo:lang', (e) => fn(e.detail));
-  }
-
-  function syncAppLang() {
-    const code = lang();
-    localStorage.setItem('siteLanguage', code);
-    try {
-      if (typeof window.applyLanguage === 'function') window.applyLanguage(code);
-    } catch (e) {}
-    apply();
-  }
-
-  function bootI18n() {
-    bind();
-    syncAppLang();
-    [200, 600, 1200, 2500, 5000].forEach(function (ms) { setTimeout(syncAppLang, ms); });
-  }
-
-  window.GeoI18n = { t, setLang, lang, apply, onLang, DICT, normalize };
-  window.t = t;
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootI18n);
-  else bootI18n();
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

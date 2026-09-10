@@ -13,7 +13,7 @@
       <h1 data-i18n="studentLoginTitle">Воридшавии хонанда</h1>
       <p class="muted" data-i18n="studentLoginHint">Танҳо бо ID-е, ки админ додааст</p>
       <label data-i18n="studentIdLabel">ID-и шумо</label>
-      <input id="studentIdInput" type="text" inputmode="numeric" data-i18n-placeholder="studentIdPlaceholder" placeholder="Рақами донишҷӯ" required />
+      <input id="studentIdInput" name="studentId" type="text" inputmode="numeric" data-i18n-placeholder="studentIdPlaceholder" placeholder="Рақами донишҷӯ" required />
       <button type="submit" class="btn primary" data-i18n="studentLoginBtn">Ворид шудан</button>
       <p id="loginError" class="error hidden"></p>
       <p class="muted center"><a href="/" data-i18n="backToSite">Бозгашт ба сайт</a></p>
@@ -87,6 +87,20 @@
     </main>
   </div>
 
+
+  <noscript><p class="error" style="text-align:center;padding:1rem">Саҳифаро навсозӣ кунед. JavaScript лозим аст.</p></noscript>
+  <p id="jsLoadHint" class="error hidden" style="text-align:center;padding:.75rem">Саҳифаро навсозӣ кунед</p>
+  <script>
+  (function () {
+    setTimeout(function () {
+      if (window.__geoPortalReady) return;
+      var h = document.getElementById('jsLoadHint');
+      if (h) h.classList.remove('hidden');
+      var err = document.getElementById('loginError');
+      if (err) { err.textContent = 'Саҳифаро навсозӣ кунед'; err.classList.remove('hidden'); }
+    }, 2500);
+  })();
+  </script>
   <script src="js/i18n.js"></script>
   <script src="js/student.js"></script>
 </body>

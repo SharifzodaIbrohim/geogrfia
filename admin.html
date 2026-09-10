@@ -17,9 +17,9 @@
     <form id="adminLoginForm" class="auth-card">
       <h1>Admin · Geografia</h1>
       <label>Login</label>
-      <input id="adminLogin" required autocomplete="username" />
+      <input id="adminLogin" name="login" required autocomplete="username" />
       <label>Password</label>
-      <input id="adminPassword" type="password" required autocomplete="current-password" />
+      <input id="adminPassword" name="password" type="password" required autocomplete="current-password" />
       <button type="submit" class="btn primary">Ворид</button>
       <p id="loginError" class="msg error hidden"></p><p id="loginMsg" class="msg hidden"></p>
     </form>
@@ -314,6 +314,20 @@
     </main>
   </div>
 
+
+  <noscript><p class="error" style="text-align:center;padding:1rem">Саҳифаро навсозӣ кунед. JavaScript лозим аст.</p></noscript>
+  <p id="jsLoadHint" class="error hidden" style="text-align:center;padding:.75rem">Саҳифаро навсозӣ кунед</p>
+  <script>
+  (function () {
+    setTimeout(function () {
+      if (window.__geoPortalReady) return;
+      var h = document.getElementById('jsLoadHint');
+      if (h) h.classList.remove('hidden');
+      var err = document.getElementById('loginError');
+      if (err) { err.textContent = 'Саҳифаро навсозӣ кунед'; err.classList.remove('hidden'); }
+    }, 2500);
+  })();
+  </script>
   <script src="js/admin-session.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/admin-students-reg.js"></script>

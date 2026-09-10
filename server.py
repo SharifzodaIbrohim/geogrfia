@@ -1,4 +1,4 @@
-"""Geografia entry — Phase A: plain server_core.py preferred (no network at boot)."""
+"""Geografia entry - Phase A: plain server_core.py preferred (no network at boot)."""
 from __future__ import annotations
 
 import base64
@@ -82,6 +82,15 @@ _EXTRA_PUBLIC = {
 
 for _i in range(24):
     _EXTRA_PUBLIC.add(f"_asr_x{_i}.txt")
+for _i in range(10):
+    _EXTRA_PUBLIC.add(f"js/_sh{_i}.txt")
+    _EXTRA_PUBLIC.add(f"_sh{_i}.txt")
+for _i in range(10):
+    _EXTRA_PUBLIC.add(f"js/_i18{_i}.txt")
+    _EXTRA_PUBLIC.add(f"_i18{_i}.txt")
+for _i in range(9):
+    _EXTRA_PUBLIC.add(f"js/_aj{_i}.txt")
+    _EXTRA_PUBLIC.add(f"_aj{_i}.txt")
 
 try:
     from server_public_paths_note import EXTRA as _NOTE_EXTRA

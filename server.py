@@ -80,17 +80,15 @@ _EXTRA_PUBLIC = {
     "js/_asr_body_a.txt", "js/_asr_body_b.txt",
 }
 
-# root-level ASR chunks (students-reg / davotnoma)
 for _i in range(24):
     _EXTRA_PUBLIC.add(f"_asr_x{_i}.txt")
 
 try:
-    from server_public_paths_note import EXTRA as _NOTE_EXTRA  # optional
+    from server_public_paths_note import EXTRA as _NOTE_EXTRA
     _EXTRA_PUBLIC |= set(_NOTE_EXTRA)
 except Exception:
     pass
 
-# Merge into PUBLIC_PATHS if core defined it
 try:
     if isinstance(globals().get("PUBLIC_PATHS"), set):
         PUBLIC_PATHS |= _EXTRA_PUBLIC
@@ -101,7 +99,6 @@ except Exception as e:
 
 
 def _install_safety_net():
-    """Late routes / google login resilience."""
     from flask import jsonify, request
 
     def _google_login_safe():
@@ -186,7 +183,6 @@ try:
 except Exception as e:
     print("[boot] safety-net failed:", e)
 
-# --- Student portal: /api/student/login + /api/student/olympiads ---
 try:
     from db.patch_student_portal import install as _install_student_portal
     _install_student_portal(app)
@@ -199,14 +195,25 @@ except Exception as e:
     except Exception as e2:
         print("[boot] install_student_portal also failed:", e2)
 
-# --- Fix admin create role (pass actor so super_admin sticks) ---
 try:
     from db.patch_admin_create_role import install as _install_admin_create_role
     _install_admin_create_role(app)
 except Exception as e:
     print("[boot] patch_admin_create_role failed:", e)
 
-# --- Neon / empty-DB bootstrap: migrations + first super_admin ---
+# --- Names on results + durable monitor ---
+try:
+    from db.patch_names import install as _install_patch_names
+    _install_patch_names(app)
+except Exception as e:
+    print("[boot] patch_names failed:", e)
+
+try:
+    from db.patch_monitor_durable import install as _install_monitor_durable
+    _install_monitor_durable(app)
+except Exception as e:
+    print("[boot] patch_monitor_durable failed:", e)
+
 try:
     from db.bootstrap_admin import install_bootstrap
     install_bootstrap()

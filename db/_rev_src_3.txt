@@ -1,0 +1,31 @@
+            if not rr.get("studentName"):
+                rr["studentName"] = rr.get("name") or rr.get("fullName") or ""
+            out.append(rr)
+        payload = dict(payload)
+        payload["results"] = out
+        return payload
+
+    try:
+        for rule in list(app.url_map.iter_rules()):
+            if rule.rule == "/api/admin/olympiads/<olympiad_id>/results" and rule.endpoint in app.view_functions:
+                orig = app.view_functions[rule.endpoint]
+
+                def _wrapped_results(*args, _orig=orig, **kwargs):
+                    resp = _orig(*args, **kwargs)
+                    try:
+                        if hasattr(resp, "get_json"):
+                            data = resp.get_json(silent=True)
+                            if isinstance(data, dict):
+                                return jsonify(_normalize_results_payload(data))
+                    except Exception:
+                        pass
+                    return resp
+
+                app.view_functions[rule.endpoint] = _wrapped_results
+                break
+    except Exception as e:
+        log.debug("results wrap: %s", e)
+
+    print("[boot] patch_attempt_review: /api/admin/attempts/<id>/review OK")
+    return True
+

@@ -1,7 +1,9 @@
-"""Admin attempt review — load plain full from _rev_b64_*.txt (zlib+b64)."""
+"""Admin attempt review — load from _rev_b64_*.txt (zlib+b64)."""
 from __future__ import annotations
-import base64, zlib
+import base64
+import zlib
 from pathlib import Path
+
 _dir = Path(__file__).resolve().parent
 _parts = sorted(_dir.glob("_rev_b64_*.txt"))
 if not _parts:

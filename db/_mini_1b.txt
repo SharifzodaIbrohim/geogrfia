@@ -1,0 +1,47 @@
+            for sqlq in (
+                "SELECT questions_json AS q FROM olympiads WHERE id::text=:oid LIMIT 1",
+                "SELECT questions AS q FROM olympiads WHERE id::text=:oid LIMIT 1",
+            ):
+                try:
+                    row = conn.execute(text(sqlq), {"oid": str(att["olympiad_id"])}).mappings().first()
+                    if not row: continue
+                    p = _parse(row.get("q"))
+                    if isinstance(p, dict): qs = p.get("questions") or p.get("items") or []
+                    elif isinstance(p, list): qs = p
+                    if qs: break
+                except Exception as e:
+                    log.warning("review qs: %s", e)
+                    try: conn.rollback()
+                    except Exception: pass
+
+    items = []
+    ok_n = bad_n = blank_n = 0
+    LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    for i, q in enumerate(qs or []):
+        if not isinstance(q, dict): q = {"text": str(q)}
+        qid = str(q.get("id") or q.get("questionId") or i)
+        text_q = q.get("text") or q.get("question") or ""
+        opts = _opts(q)
+        correct = _correct(q, opts)
+        student = None
+        if isinstance(answers_json, dict):
+            student = _map_ans(answers_json.get(qid) or answers_json.get(str(i)), opts)
+        is_blank = student is None or str(student).strip() in ("", "None")
+        is_ok = (not is_blank) and correct is not None and str(student).strip().lower() == str(correct).strip().lower()
+        if is_blank: blank_n += 1; label = "Беҷавоб"
+        elif is_ok: ok_n += 1; label = "Дуруст"
+        else: bad_n += 1; label = "Нодуруст"
+        stu_s = "" if is_blank else str(student).strip().lower()
+        cor_s = "" if correct is None else str(correct).strip().lower()
+        rich = [{"letter": LETTERS[oi] if oi < 26 else str(oi+1), "text": ot,
+                 "isCorrect": bool(cor_s and ot.strip().lower()==cor_s),
+                 "studentSelected": bool(stu_s and ot.strip().lower()==stu_s)} for oi, ot in enumerate(opts)]
+        items.append({
+            "index": i+1, "number": i+1, "questionId": qid, "type": q.get("type") or "single",
+            "question": text_q, "text": text_q, "options": rich or opts,
+            "studentAnswer": "" if is_blank else str(student),
+            "correctAnswer": "" if correct is None else str(correct),
+            "isCorrect": is_ok, "isBlank": is_blank, "resultLabel": label,
+            "points": 1 if is_ok else 0, "maxScore": q.get("maxScore") or 1,
+        })
+

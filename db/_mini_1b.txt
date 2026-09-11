@@ -1,18 +1,54 @@
-            for sqlq in (
-                "SELECT questions_json AS q FROM olympiads WHERE id::text=:oid LIMIT 1",
-                "SELECT questions AS q FROM olympiads WHERE id::text=:oid LIMIT 1",
-            ):
-                try:
-                    row = conn.execute(text(sqlq), {"oid": str(att["olympiad_id"])}).mappings().first()
-                    if not row: continue
-                    p = _parse(row.get("q"))
-                    if isinstance(p, dict): qs = p.get("questions") or p.get("items") or []
-                    elif isinstance(p, list): qs = p
-                    if qs: break
-                except Exception as e:
-                    log.warning("review qs: %s", e)
-                    try: conn.rollback()
-                    except Exception: pass
+
+            # Load from olympiad_questions + olympiad_options (Neon schema)
+            try:
+                rows = conn.execute(text("""
+                    SELECT q.id::text AS qid, q.text AS qtext,
+                           COALESCE(q.qtype, 'single') AS qtype,
+                           q.payload, q.sort_order AS qord,
+                           o.id::text AS oid, o.text AS otext, o.is_correct, o.sort_order AS oord
+                    FROM olympiad_questions q
+                    LEFT JOIN olympiad_options o ON o.question_id = q.id
+                    WHERE q.olympiad_id::text = :oid
+                    ORDER BY q.sort_order, o.sort_order
+                """), {"oid": str(att["olympiad_id"])}).mappings().all()
+                by_q = {}
+                for r in rows:
+                    qid = r["qid"]
+                    if qid not in by_q:
+                        by_q[qid] = {
+                            "id": qid,
+                            "text": r["qtext"] or "",
+                            "type": r["qtype"] or "single",
+                            "options": [],
+                            "answer": None,
+                            "_correct_idx": None,
+                        }
+                        pl = r.get("payload")
+                        if isinstance(pl, str):
+                            try:
+                                import json as _j
+                                pl = _j.loads(pl)
+                            except Exception:
+                                pl = None
+                        if isinstance(pl, dict):
+                            by_q[qid].update({k: pl[k] for k in pl if k not in ("options",)})
+                    if r.get("oid"):
+                        by_q[qid]["options"].append({
+                            "id": r["oid"],
+                            "text": r["otext"] or "",
+                            "isCorrect": bool(r["is_correct"]),
+                        })
+                        if r["is_correct"] and by_q[qid]["_correct_idx"] is None:
+                            by_q[qid]["_correct_idx"] = len(by_q[qid]["options"]) - 1
+                qs = list(by_q.values())
+                for q in qs:
+                    if q.get("_correct_idx") is not None:
+                        q["answer"] = q["_correct_idx"]
+                    q["options"] = [o["text"] if isinstance(o, dict) else str(o) for o in q.get("options") or []]
+            except Exception as e:
+                log.warning("review qs table: %s", e)
+                try: conn.rollback()
+                except Exception: pass
 
     items = []
     ok_n = bad_n = blank_n = 0

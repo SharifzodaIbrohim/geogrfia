@@ -1,4 +1,4 @@
-"""Enrich admin results/monitor rows using review score + student code."""
+"""Enrich admin results/monitor: names + Student ID + score from review."""
 from __future__ import annotations
 
 import logging
@@ -27,57 +27,102 @@ def _build_review(aid):
         if hasattr(par, "build_review"):
             return par.build_review(aid)
     except Exception as e:
-        log.debug("build_review import: %s", e)
+        log.debug("build_review: %s", e)
     return None
 
 
-def _student_code(eng, row):
-    code = str(
-        row.get("studentCode")
-        or row.get("student_code")
-        or row.get("studentId")
-        or row.get("student_id")
+def _fill_from_review(r, rev):
+    if not isinstance(rev, dict):
+        return r
+    name = (
+        rev.get("fullName")
+        or rev.get("studentName")
+        or rev.get("name")
+        or (rev.get("student") or {}).get("name")
+        or (rev.get("student") or {}).get("fullName")
+    )
+    if name:
+        r["fullName"] = name
+        r["name"] = name
+        r["studentName"] = name
+    school = rev.get("school") or (rev.get("student") or {}).get("school")
+    if school:
+        r["school"] = school
+        r["studentSchool"] = school
+    klass = rev.get("className") or (rev.get("student") or {}).get("className")
+    if klass:
+        r["className"] = klass
+        r["studentClass"] = klass
+    code = (
+        rev.get("studentCode")
+        or rev.get("studentId")
+        or (rev.get("student") or {}).get("code")
         or ""
-    ).strip()
+    )
+    code = str(code).strip()
     if code and code not in ("—", "-", "None", "null"):
-        return code
-    name = str(row.get("fullName") or row.get("studentName") or row.get("name") or "").strip()
-    sn = str(row.get("studentName") or "").strip()
-    if sn.isdigit() and len(sn) >= 10:
-        return sn
-    if eng is None or not name:
-        return ""
+        r["studentCode"] = code
+        r["studentId"] = code
+    if rev.get("score") is not None:
+        r["score"] = rev.get("score")
+    if rev.get("correct") is not None:
+        r["correct"] = rev.get("correct")
+    if rev.get("total"):
+        r["total"] = rev.get("total")
+    return r
+
+
+def _lookup_student(eng, r):
+    if eng is None:
+        return r
     try:
         from sqlalchemy import text
+        aid = str(r.get("attemptId") or r.get("id") or "").strip()
+        if not aid:
+            return r
         with eng.connect() as conn:
-            r = conn.execute(
-                text(
-                    """SELECT COALESCE(NULLIF(TRIM(student_code), ''), id::text) AS code
-                       FROM students
-                       WHERE full_name = :n
-                          OR TRIM(COALESCE(last_name,'') || ' ' || COALESCE(first_name,'')) = :n
-                       LIMIT 1"""
-                ),
-                {"n": name},
-            ).mappings().first()
-            if r and r.get("code"):
-                return str(r["code"])
-    except Exception as e:
-        log.debug("student code: %s", e)
-        try:
-            from sqlalchemy import text
-            with eng.connect() as conn:
-                r = conn.execute(
+            row = None
+            try:
+                row = conn.execute(
                     text(
-                        "SELECT id::text AS code FROM students WHERE full_name = :n LIMIT 1"
+                        """SELECT
+                             COALESCE(NULLIF(TRIM(st.full_name), ''), NULLIF(TRIM(a.student_name), ''), '') AS full_name,
+                             COALESCE(NULLIF(TRIM(st.school_name), ''), COALESCE(a.student_school, '')) AS school,
+                             COALESCE(NULLIF(TRIM(st.class_name), ''), COALESCE(a.student_class, '')) AS class_name,
+                             COALESCE(NULLIF(TRIM(st.student_code), ''), st.id::text, '') AS code
+                           FROM attempts a
+                           LEFT JOIN students st ON (
+                             (a.student_id IS NOT NULL AND st.id = a.student_id)
+                             OR (a.student_name IS NOT NULL AND TRIM(a.student_name) ~ '^[0-9]{8,}$'
+                                 AND (st.student_code = TRIM(a.student_name) OR st.id::text = TRIM(a.student_name)))
+                           )
+                           WHERE a.id::text = :id LIMIT 1"""
                     ),
-                    {"n": name},
+                    {"id": aid},
                 ).mappings().first()
-                if r and r.get("code"):
-                    return str(r["code"])
-        except Exception as e2:
-            log.debug("student code2: %s", e2)
-    return ""
+            except Exception as e:
+                log.debug("attempt join: %s", e)
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            if row:
+                if row.get("full_name"):
+                    r["fullName"] = row["full_name"]
+                    r["name"] = row["full_name"]
+                    r["studentName"] = row["full_name"]
+                if row.get("school"):
+                    r["school"] = row["school"]
+                    r["studentSchool"] = row["school"]
+                if row.get("class_name"):
+                    r["className"] = row["class_name"]
+                    r["studentClass"] = row["class_name"]
+                if row.get("code"):
+                    r["studentCode"] = str(row["code"])
+                    r["studentId"] = str(row["code"])
+    except Exception as e:
+        log.debug("lookup_student: %s", e)
+    return r
 
 
 def _enrich_row(row, eng, review_cache):
@@ -85,23 +130,8 @@ def _enrich_row(row, eng, review_cache):
         return row
     r = dict(row)
     aid = str(r.get("attemptId") or r.get("id") or "").strip()
-    code = _student_code(eng, r)
-    if code:
-        r["studentCode"] = code
-        r["studentId"] = code
-    else:
-        r["studentCode"] = r.get("studentCode") or "—"
-        r["studentId"] = r.get("studentId") or r["studentCode"]
 
-    try:
-        score = int(r.get("score") or 0)
-    except Exception:
-        score = 0
-    try:
-        correct = int(r.get("correct") or 0)
-    except Exception:
-        correct = 0
-    if aid and (score == 0 or correct == 0):
+    if aid:
         if aid not in review_cache:
             try:
                 review_cache[aid] = _build_review(aid)
@@ -109,13 +139,26 @@ def _enrich_row(row, eng, review_cache):
                 log.debug("review %s: %s", aid, e)
                 review_cache[aid] = None
         rev = review_cache.get(aid)
-        if isinstance(rev, dict) and rev.get("items") is not None:
-            r["score"] = rev.get("score", score)
-            r["correct"] = rev.get("correct", correct)
-            if rev.get("total"):
-                r["total"] = rev.get("total")
-            score = int(r.get("score") or 0)
+        if isinstance(rev, dict):
+            r = _fill_from_review(r, rev)
 
+    r = _lookup_student(eng, r)
+
+    if not r.get("fullName") and not r.get("name"):
+        r["fullName"] = r.get("studentName") or "—"
+        r["name"] = r["fullName"]
+    if not r.get("studentCode"):
+        r["studentCode"] = r.get("studentId") or "—"
+        r["studentId"] = r["studentCode"]
+    if not r.get("school"):
+        r["school"] = r.get("studentSchool") or "—"
+    if not r.get("className"):
+        r["className"] = r.get("studentClass") or "—"
+
+    try:
+        score = int(r.get("score") or 0)
+    except Exception:
+        score = 0
     ps = r.get("passScore") or r.get("pass_score") or 70
     try:
         ps = int(ps)

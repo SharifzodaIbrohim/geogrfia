@@ -1,21 +1,19 @@
-/** admin-olympiad.js loader */
+/** admin-olympiad.js — load known-good body then local matching defaults */
 (function () {
-  var n = 6, loaded = 0, parts = [];
-  function go() {
-    if (loaded < n) return;
-    try {
-      var s = atob(parts.join(''));
-      var u = new Uint8Array(s.length);
-      for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
-      (0, eval)(new TextDecoder('utf-8').decode(u));
-    } catch (e) { console.error('[admin-olympiad]', e); }
+  var URLS = [
+    'https://cdn.jsdelivr.net/gh/SharifzodaIbrohim/geogrfia@24f6c636/js/admin-olympiad.js',
+    'https://cdn.jsdelivr.net/gh/SharifzodaIbrohim/geogrfia@1456c879/js/admin-olympiad.js'
+  ];
+  function run(src) {
+    try { (0, eval)(src); console.log('[admin-olympiad] body loaded'); }
+    catch (e) { console.error('[admin-olympiad] eval', e); }
   }
-  for (var i = 0; i < n; i++) {
-    (function (idx) {
-      fetch('/_ao_b64_' + idx + '.txt?v=' + Date.now())
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-        .then(function (t) { parts[idx] = (t || '').replace(/\s+/g, ''); loaded++; go(); })
-        .catch(function (e) { console.error(e); });
-    })(i);
+  function tryLoad(i) {
+    if (i >= URLS.length) { console.error('[admin-olympiad] all CDNs failed'); return; }
+    fetch(URLS[i] + '?v=' + Date.now())
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(run)
+      .catch(function () { tryLoad(i + 1); });
   }
+  tryLoad(0);
 })();

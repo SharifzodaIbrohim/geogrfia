@@ -151,7 +151,7 @@
       '<div><strong>Рост</strong><textarea class="q-right" rows="5" style="width:100%" placeholder="ҳар банд дар сатри нав">' +
       esc(((pre && pre.rightItems) || []).join("\n")) +
       "</textarea></div></div>" +
-      '<label style="display:block;margin-top:.35rem">Ҷуфтҳо (1-2, 2-1…) <input class="q-pairs" style="width:100%" value="' +
+      '<label style="display:block;margin-top:.35rem">Ҷуфтҳо (ихтиёрӣ; холӣ=1-1,2-2…) <input class="q-pairs" style="width:100%" value="' +
       esc((pre && pre.pairsText) || "") +
       '" /></label>'
     );
@@ -320,6 +320,11 @@
           .filter(Boolean);
         var pairsText = card.querySelector(".q-pairs").value || "";
         var pairs = parsePairs(pairsText, left.length);
+        if (!pairs || !Object.keys(pairs).length) {
+          pairs = {};
+          for (var pi = 0; pi < left.length; pi++) pairs[String(pi)] = pi;
+          pairsText = pairsText || left.map(function (_x, ix) { return (ix + 1) + "-" + (ix + 1); }).join(", ");
+        }
         out.push({
           id: i + 1,
           type: "matching",
@@ -426,9 +431,6 @@
             throw new Error("Саволи " + (i + 1) + ": мувофиқат — ҳадди ақал 2 банди чап (ҳар сатр)");
           if (!q.rightItems || q.rightItems.length < 1)
             throw new Error("Саволи " + (i + 1) + ": мувофиқат — бандҳои рост лозим");
-          var pairKeys = q.pairs ? Object.keys(q.pairs) : [];
-          if (!pairKeys.length)
-            throw new Error("Саволи " + (i + 1) + ": ҷавоби дуруст лозим (ҷуфтҳо, масалан 1-1, 2-2)");
         }
       });
     } catch (e) {
@@ -545,3 +547,6 @@
     });
   });
 })();
+
+/* auto-load matching helper */
+(function(){try{var s=document.createElement('script');s.src='js/admin-matching-simple.js?v=2';document.head.appendChild(s);}catch(e){}})();

@@ -1,0 +1,45 @@
+    name = (att.get("student_name") or "").strip() or "—"
+    school = (att.get("student_school") or "").strip()
+    klass = (att.get("student_class") or "").strip()
+    total = len(items) or (att.get("total") or 0)
+    earned = ok_n
+    pct = int(round(100.0 * earned / total)) if total else (att.get("score") or 0)
+    return {
+        "ok": True, "attemptId": att.get("id"), "id": att.get("id"),
+        "olympiadId": att.get("olympiad_id"), "olympiadTitle": att.get("olympiad_title") or "",
+        "studentName": name, "fullName": name, "name": name,
+        "className": klass, "school": school,
+        "studentCode": att.get("student_code") or "", "studentId": att.get("student_code") or "",
+        "student": {"name": name, "fullName": name, "school": school, "className": klass,
+                    "code": att.get("student_code") or ""},
+        "score": pct, "correct": ok_n, "total": total, "earned": earned, "totalMax": total,
+        "status": att.get("status"), "finishedAt": _iso(att.get("finished_at")),
+        "startedAt": _iso(att.get("started_at")), "items": items,
+        "stats": {"correct": ok_n, "wrong": bad_n, "blank": blank_n, "total": len(items)},
+    }
+
+def install(app=None):
+    if app is None: return
+    from flask import jsonify
+    def admin_attempt_review(attempt_id):
+        try:
+            return jsonify(build_review(attempt_id))
+        except ValueError as e:
+            if str(e) == "attempt_not_found":
+                return jsonify({"error": "Attempt ёфт нашуд", "code": "not_found"}), 404
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            log.exception("review")
+            return jsonify({"error": "Хатои сервер", "detail": str(e)}), 500
+    bound = 0
+    for rule in list(app.url_map.iter_rules()):
+        path = str(rule.rule)
+        if "attempt" in path and path.endswith("/review"):
+            app.view_functions[rule.endpoint] = admin_attempt_review
+            bound += 1
+            print("[boot] review rebound", rule.endpoint, path)
+    if not bound:
+        app.add_url_rule("/api/admin/attempts/<attempt_id>/review",
+            "admin_attempt_review_plain", admin_attempt_review, methods=["GET"])
+        print("[boot] review added")
+    print("[boot] patch_attempt_review PLAIN OK bound=%s" % bound)

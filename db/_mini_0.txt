@@ -1,0 +1,72 @@
+"""Admin attempt review — minimal plain (always loads)."""
+from __future__ import annotations
+import json, logging
+log = logging.getLogger("geografia.review")
+
+def _eng():
+    try:
+        from db.connection import get_engine
+        e = get_engine()
+        if e is not None: return e
+    except Exception: pass
+    from db import connection as c
+    e = getattr(c, "engine", None)
+    if e is not None: return e
+    raise RuntimeError("no engine")
+
+def _parse(v):
+    if v is None: return None
+    if isinstance(v, (dict, list)): return v
+    if isinstance(v, (bytes, bytearray)):
+        try: v = v.decode("utf-8")
+        except Exception: return None
+    if isinstance(v, str):
+        s = v.strip()
+        if not s: return None
+        try: return json.loads(s)
+        except Exception: return None
+    return None
+
+def _iso(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+def _opts(q):
+    out = []
+    for o in (q.get("options") or q.get("choices") or []):
+        out.append(str(o.get("text") or o.get("label") or o) if isinstance(o, dict) else str(o))
+    return out
+
+def _correct(q, texts):
+    for k in ("correctAnswer", "answerText", "correct"):
+        v = q.get(k)
+        if v is not None and not isinstance(v, (list, dict)):
+            return str(v)
+    ci = q.get("correctIndex", q.get("correct_index", q.get("answer")))
+    try:
+        if ci is not None and str(ci).strip().isdigit():
+            i = int(str(ci).strip())
+            if 0 <= i < len(texts): return texts[i]
+    except Exception: pass
+    return None
+
+def _map_ans(sel, texts):
+    if sel is None: return None
+    if isinstance(sel, int) and 0 <= sel < len(texts): return texts[sel]
+    if isinstance(sel, str):
+        s = sel.strip()
+        if s.isdigit() and texts:
+            i = int(s)
+            if 0 <= i < len(texts): return texts[i]
+        return s
+    if isinstance(sel, dict):
+        for k in ("t","text","answer","value"):
+            if sel.get(k) is not None: return str(sel[k])
+        for k in ("i","index","selected_idx"):
+            if sel.get(k) is not None:
+                try:
+                    i = int(sel[k])
+                    if 0 <= i < len(texts): return texts[i]
+                except Exception: pass
+        return json.dumps(sel, ensure_ascii=False)
+    return str(sel)
+

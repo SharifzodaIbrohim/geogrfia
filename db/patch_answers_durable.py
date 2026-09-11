@@ -1,101 +1,96 @@
 """Durable answers on submit — answers_json MUST survive even if attempt_answers fails.
 
-Root cause of blank Review:
+History / root causes:
   - attempt_answers.question_id is UUID in schema
-  - olympiad question ids are often non-UUID strings
+  - client may send answer as index string "0" / "1" (not option text)
   - INSERT failed → whole engine.begin() rolled back → answers_json never saved
   - score was written in a separate transaction → score exists, answers blank
 
 Fix:
-  1. ALTER question_id to TEXT (idempotent)
+  1. Ensure schema columns
   2. Write answers_json in its own commit (never share tx with row inserts)
   3. attempt_answers best-effort with savepoints
-  4. outermost submit wrap + before_request rewrap
+  4. Map pure digit / letter answers → selected_idx
 """
 from __future__ import annotations
-
-import json
-import logging
-import uuid
+import json, logging, uuid
+from sqlalchemy import text
 
 log = logging.getLogger("geografia.patch_answers_durable")
 
-
-def _engine():
+def _eng():
     try:
-        from db.connection import engine, is_postgres_enabled
-
-        if is_postgres_enabled() and engine is not None:
-            return engine
+        from db.connection import get_engine
+        e = get_engine()
+        if e is not None:
+            return e
     except Exception:
         pass
-    return None
+    from db import connection as c
+    return getattr(c, "engine", None)
 
-
-def _ensure_schema(eng) -> None:
-    from sqlalchemy import text
-
-    with eng.begin() as conn:
-        for col in ("answers_json", "score_map_json"):
+def ensure_schema(eng=None):
+    eng = eng or _eng()
+    if eng is None:
+        return
+    try:
+        with eng.begin() as conn:
+            for col in ("answers_json", "score_map_json"):
+                try:
+                    conn.execute(text(f"ALTER TABLE attempts ADD COLUMN IF NOT EXISTS {col} JSONB"))
+                except Exception:
+                    pass
+            for stmt in (
+                "ALTER TABLE attempt_answers ALTER COLUMN question_id TYPE TEXT USING question_id::text",
+                "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS selected_text TEXT",
+                "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS is_correct BOOLEAN",
+            ):
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    pass
             try:
-                conn.execute(
-                    text(f"ALTER TABLE attempts ADD COLUMN IF NOT EXISTS {col} JSONB")
-                )
-            except Exception as e:
-                log.warning("ensure %s: %s", col, e)
-        for sql in (
-            "ALTER TABLE attempt_answers ALTER COLUMN question_id TYPE TEXT USING question_id::text",
-            "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS selected_text TEXT",
-            "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS is_correct BOOLEAN",
-        ):
-            try:
-                conn.execute(text(sql))
-            except Exception as e:
-                log.debug("schema alter: %s", e)
-        try:
-            conn.execute(
-                text(
+                conn.execute(text(
                     "CREATE TABLE IF NOT EXISTS attempt_answers ("
-                    "id UUID PRIMARY KEY, attempt_id UUID NOT NULL, "
+                    "id TEXT PRIMARY KEY, attempt_id UUID, "
                     "question_id TEXT NOT NULL, selected_idx INT, "
                     "is_correct BOOLEAN, selected_text TEXT, "
                     "UNIQUE (attempt_id, question_id))"
-                )
-            )
-        except Exception:
-            pass
-
+                ))
+            except Exception:
+                pass
+    except Exception as e:
+        log.warning("ensure_schema: %s", e)
 
 def persist(attempt_id, answers, score_map=None):
-    eng = _engine()
-    if eng is None or not attempt_id:
-        log.error("persist: no engine or attempt_id")
+    eng = _eng()
+    if eng is None:
+        return False
+    attempt_id = str(attempt_id or "").strip()
+    if not attempt_id:
         return False
     answers = answers if isinstance(answers, dict) else {}
-    from sqlalchemy import text
-
+    ensure_schema(eng)
     aj = json.dumps(answers, ensure_ascii=False)
     sm = json.dumps(score_map or {}, ensure_ascii=False)
-    ok_json = False
     try:
         with eng.begin() as conn:
-            for sql in (
+            updated = 0
+            for stmt in (
                 "UPDATE attempts SET answers_json = CAST(:aj AS jsonb), score_map_json = CAST(:sm AS jsonb) WHERE id::text = :id",
                 "UPDATE attempts SET answers_json = :aj::jsonb WHERE id::text = :id",
             ):
                 try:
-                    res = conn.execute(
-                        text(sql), {"aj": aj, "sm": sm, "id": str(attempt_id)}
-                    )
-                    if int(res.rowcount or 0) > 0:
-                        ok_json = True
+                    r = conn.execute(text(stmt), {"aj": aj, "sm": sm, "id": attempt_id})
+                    updated = r.rowcount or 0
+                    if updated:
                         break
                 except Exception as e:
                     log.warning("answers_json try: %s", e)
-        if ok_json:
-            log.info("answers_json OK attempt=%s n=%d", attempt_id, len(answers))
-        else:
-            log.error("answers_json UPDATE 0 rows attempt=%s — row missing?", attempt_id)
+            if updated:
+                log.info("answers_json OK attempt=%s n=%d", attempt_id, len(answers))
+            else:
+                log.error("answers_json UPDATE 0 rows attempt=%s — row missing?", attempt_id)
     except Exception as e:
         log.error("answers_json fatal: %s", e)
 
@@ -116,8 +111,20 @@ def persist(attempt_id, answers, score_map=None):
                         st = str(st)
                 elif isinstance(sel, int):
                     si = sel
+                    st = None
                 elif isinstance(sel, str):
-                    st = sel
+                    s = sel.strip()
+                    if s.isdigit():
+                        try:
+                            si = int(s)
+                            st = None  # text resolved at review from opts
+                        except Exception:
+                            st = s
+                    elif len(s) == 1 and s.upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                        si = ord(s.upper()) - 65
+                        st = None
+                    else:
+                        st = s
                 qid_s = str(qid)
                 sp = conn.begin_nested()
                 try:
@@ -132,7 +139,7 @@ def persist(attempt_id, answers, score_map=None):
                         ),
                         {
                             "id": str(uuid.uuid4()),
-                            "aid": str(attempt_id),
+                            "aid": attempt_id,
                             "qid": qid_s,
                             "sel": si,
                             "st": st,
@@ -147,137 +154,8 @@ def persist(attempt_id, answers, score_map=None):
                     log.warning("attempt_answers row qid=%s: %s", qid_s, e)
     except Exception as e:
         log.error("attempt_answers batch: %s", e)
-
-    return ok_json
-
+    return True
 
 def install(app=None):
-    eng = _engine()
-    if eng is not None:
-        try:
-            _ensure_schema(eng)
-        except Exception as e:
-            log.warning("schema ensure: %s", e)
-
-    try:
-        try:
-            from db import olympiad_engine as oe
-        except Exception:
-            import olympiad_engine as oe
-    except Exception as e:
-        log.warning("oe import: %s", e)
-        return
-
-    def _wrap(oe_mod):
-        orig = oe_mod.submit_exam
-
-        def wrapped(
-            session_id, session_token=None, answers=None, fingerprint=None, **kwargs
-        ):
-            if isinstance(session_token, dict) and answers is None:
-                answers = session_token
-                session_token = kwargs.get("sessionToken") or kwargs.get(
-                    "session_token"
-                )
-            answers = answers if isinstance(answers, dict) else {}
-            result = orig(
-                session_id,
-                session_token,
-                answers,
-                fingerprint=fingerprint,
-                **kwargs,
-            )
-            try:
-                sm = {}
-                try:
-                    sessions = oe_mod._load_sessions() or {}
-                    sess = sessions.get(str(session_id)) or {}
-                    sm = sess.get("scoreMap") or {}
-                    if sess is not None:
-                        sess = dict(sess)
-                        sess["answers"] = answers
-                        sessions[str(session_id)] = sess
-                        oe_mod._save_sessions(sessions)
-                except Exception:
-                    pass
-                ok = persist(str(session_id), answers, sm)
-                if not ok:
-                    log.error(
-                        "persist FAILED after submit attempt=%s n_answers=%d",
-                        session_id,
-                        len(answers),
-                    )
-                elif not answers:
-                    log.warning("submit with EMPTY answers attempt=%s", session_id)
-            except Exception as e:
-                log.error("post-submit persist: %s", e)
-            return result
-
-        oe_mod.submit_exam = wrapped
-
-    _wrap(oe)
-
-    if app is not None:
-        try:
-            from flask import jsonify
-
-            def _attempt_debug(aid):
-                eng2 = _engine()
-                if eng2 is None:
-                    return jsonify({"error": "no pg"}), 500
-                from sqlalchemy import text
-
-                with eng2.connect() as conn:
-                    row = conn.execute(
-                        text(
-                            "SELECT id::text, status::text, score, "
-                            "answers_json IS NOT NULL AS has_aj, "
-                            "score_map_json IS NOT NULL AS has_sm, "
-                            "finished_at "
-                            "FROM attempts WHERE id::text = :id"
-                        ),
-                        {"id": str(aid)},
-                    ).mappings().first()
-                    n_aa = 0
-                    try:
-                        n_aa = int(
-                            conn.execute(
-                                text(
-                                    "SELECT COUNT(*) FROM attempt_answers "
-                                    "WHERE attempt_id::text = :id"
-                                ),
-                                {"id": str(aid)},
-                            ).scalar()
-                            or 0
-                        )
-                    except Exception:
-                        n_aa = -1
-                if not row:
-                    return jsonify({"error": "not_found", "id": aid}), 404
-                return jsonify(
-                    {
-                        "id": row["id"],
-                        "status": row["status"],
-                        "score": row["score"],
-                        "hasAnswersJson": bool(row["has_aj"]),
-                        "hasScoreMapJson": bool(row["has_sm"]),
-                        "attemptAnswersRows": n_aa,
-                        "finishedAt": str(row["finished_at"])
-                        if row["finished_at"]
-                        else None,
-                    }
-                )
-
-            app.add_url_rule(
-                "/api/admin/attempts/<aid>/debug-answers",
-                "attempt_debug_answers",
-                _attempt_debug,
-                methods=["GET"],
-            )
-        except Exception as e:
-            log.warning("debug route: %s", e)
-
-    print(
-        "[boot] patch_answers_durable: answers_json own-tx + question_id TEXT + savepoints"
-    )
-    log.info("patch_answers_durable installed (split-tx)")
+    ensure_schema()
+    print("[boot] patch_answers_durable OK")

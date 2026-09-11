@@ -40,33 +40,64 @@ def _correct(q, texts):
     for k in ("correctAnswer", "answerText", "correct"):
         v = q.get(k)
         if v is not None and not isinstance(v, (list, dict)):
+            vs = str(v).strip()
+            if vs.isdigit() and texts:
+                i = int(vs)
+                if 0 <= i < len(texts):
+                    return texts[i]
             return str(v)
     ci = q.get("correctIndex", q.get("correct_index", q.get("answer")))
     try:
-        if ci is not None and str(ci).strip().isdigit():
-            i = int(str(ci).strip())
-            if 0 <= i < len(texts): return texts[i]
-    except Exception: pass
+        if ci is not None:
+            s = str(ci).strip()
+            if s.isdigit():
+                i = int(s)
+                if 0 <= i < len(texts):
+                    return texts[i]
+            if not s.isdigit() and s:
+                return s
+    except Exception:
+        pass
+    for i, o in enumerate(q.get("options") or []):
+        if isinstance(o, dict) and (o.get("isCorrect") or o.get("is_correct")):
+            return str(o.get("text") or o.get("label") or (texts[i] if i < len(texts) else ""))
     return None
 
 def _map_ans(sel, texts):
-    if sel is None: return None
-    if isinstance(sel, int) and 0 <= sel < len(texts): return texts[sel]
+    """Map student answer (index or text) → option text."""
+    if sel is None:
+        return None
+    texts = texts or []
+    if isinstance(sel, bool):
+        return str(sel)
+    if isinstance(sel, int):
+        if 0 <= sel < len(texts):
+            return texts[sel]
+        return str(sel)
+    if isinstance(sel, float) and sel == int(sel):
+        i = int(sel)
+        if 0 <= i < len(texts):
+            return texts[i]
+        return str(i)
     if isinstance(sel, str):
         s = sel.strip()
+        if not s:
+            return None
         if s.isdigit() and texts:
             i = int(s)
-            if 0 <= i < len(texts): return texts[i]
+            if 0 <= i < len(texts):
+                return texts[i]
+        if len(s) == 1 and s.upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" and texts:
+            i = ord(s.upper()) - 65
+            if 0 <= i < len(texts):
+                return texts[i]
         return s
     if isinstance(sel, dict):
-        for k in ("t","text","answer","value"):
-            if sel.get(k) is not None: return str(sel[k])
-        for k in ("i","index","selected_idx"):
+        for k in ("t", "text", "answer", "value", "selected_text"):
             if sel.get(k) is not None:
-                try:
-                    i = int(sel[k])
-                    if 0 <= i < len(texts): return texts[i]
-                except Exception: pass
+                return _map_ans(sel[k], texts)
+        for k in ("i", "index", "selected_idx", "oi", "optionIndex"):
+            if sel.get(k) is not None:
+                return _map_ans(sel[k], texts)
         return json.dumps(sel, ensure_ascii=False)
     return str(sel)
-

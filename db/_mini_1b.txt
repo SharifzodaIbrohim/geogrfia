@@ -1,4 +1,3 @@
-
             # Load from olympiad_questions + olympiad_options (Neon schema)
             try:
                 rows = conn.execute(text("""
@@ -47,9 +46,8 @@
                     q["options"] = [o["text"] if isinstance(o, dict) else str(o) for o in q.get("options") or []]
             except Exception as e:
                 log.warning("review qs table: %s", e)
-                try: conn.rollback()
-                except Exception: pass
 
+    # --- build items ---
     items = []
     ok_n = bad_n = blank_n = 0
     LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -69,16 +67,13 @@
         if aa is None and i < len(answers_rows):
             aa = answers_rows[i]
         if aa:
-            student = aa.get("selected_text") or aa.get("answer_text")
-            if student is None and aa.get("selected_idx") is not None:
-                try:
-                    si = int(aa["selected_idx"])
-                    if 0 <= si < len(opts):
-                        student = opts[si]
-                    else:
-                        student = str(si)
-                except Exception:
-                    student = str(aa.get("selected_idx"))
+            # Prefer selected_idx; always normalize digit/letter via _map_ans
+            raw_st = aa.get("selected_text") or aa.get("answer_text")
+            raw_si = aa.get("selected_idx")
+            if raw_si is not None and str(raw_si).strip() != "":
+                student = _map_ans(raw_si, opts)
+            if student is None and raw_st is not None:
+                student = _map_ans(raw_st, opts)
         # 2) answers_json dict
         if student is None and isinstance(answers_json, dict):
             raw = answers_json.get(qid)
@@ -114,3 +109,39 @@
             "points": 1 if is_ok else 0, "maxScore": q.get("maxScore") or 1,
         })
 
+    earned = sum(1 for it in items if it.get("isCorrect"))
+    total = len(items) or 1
+    score_pct = int(round(100.0 * earned / total)) if total else 0
+    pct = score_pct
+
+    # writeback score if we computed better detail
+    try:
+        eng = _eng()
+        with eng.begin() as conn:
+            from sqlalchemy import text as _t
+            ps = int(att.get("pass_score") or 70)
+            st = "passed" if score_pct >= ps else "failed"
+            conn.execute(_t(
+                "UPDATE attempts SET score=:s, correct=:c, total=:t, status=:st WHERE id::text=:id"
+            ), {"s": int(score_pct), "c": int(ok_n), "t": int(total if total else len(items)), "st": st, "id": attempt_id})
+            conn.commit()
+    except Exception as e:
+        log.warning("score writeback: %s", e)
+
+    name = att.get("student_name") or ""
+    klass = att.get("student_class") or ""
+    school = att.get("student_school") or ""
+
+    return {
+        "ok": True, "attemptId": att.get("id"), "id": att.get("id"),
+        "olympiadId": att.get("olympiad_id"), "olympiadTitle": att.get("olympiad_title") or "",
+        "studentName": name, "fullName": name, "name": name,
+        "className": klass, "school": school,
+        "studentCode": att.get("student_code") or "", "studentId": att.get("student_code") or "",
+        "student": {"name": name, "fullName": name, "school": school, "className": klass,
+                    "code": att.get("student_code") or ""},
+        "score": pct, "correct": ok_n, "total": total, "earned": earned, "totalMax": total,
+        "status": att.get("status"), "finishedAt": _iso(att.get("finished_at")),
+        "startedAt": _iso(att.get("started_at")), "items": items,
+        "stats": {"correct": ok_n, "wrong": bad_n, "blank": blank_n, "total": len(items)},
+    }

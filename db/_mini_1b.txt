@@ -60,8 +60,41 @@
         opts = _opts(q)
         correct = _correct(q, opts)
         student = None
-        if isinstance(answers_json, dict):
-            student = _map_ans(answers_json.get(qid) or answers_json.get(str(i)), opts)
+        # 1) attempt_answers by question id
+        aa = None
+        for row in answers_rows:
+            if str(row.get("qid") or "") == qid:
+                aa = row
+                break
+        if aa is None and i < len(answers_rows):
+            aa = answers_rows[i]
+        if aa:
+            student = aa.get("selected_text") or aa.get("answer_text")
+            if student is None and aa.get("selected_idx") is not None:
+                try:
+                    si = int(aa["selected_idx"])
+                    if 0 <= si < len(opts):
+                        student = opts[si]
+                    else:
+                        student = str(si)
+                except Exception:
+                    student = str(aa.get("selected_idx"))
+        # 2) answers_json dict
+        if student is None and isinstance(answers_json, dict):
+            raw = answers_json.get(qid)
+            if raw is None:
+                raw = answers_json.get(str(i))
+            if raw is None:
+                for k, v in answers_json.items():
+                    if str(k) == qid or str(k).endswith(qid[-8:] if len(qid) > 8 else qid):
+                        raw = v
+                        break
+            if raw is None and len(answers_json) == 1:
+                raw = next(iter(answers_json.values()))
+            student = _map_ans(raw, opts)
+        # 3) answers_json list
+        if student is None and isinstance(answers_json, list) and i < len(answers_json):
+            student = _map_ans(answers_json[i], opts)
         is_blank = student is None or str(student).strip() in ("", "None")
         is_ok = (not is_blank) and correct is not None and str(student).strip().lower() == str(correct).strip().lower()
         if is_blank: blank_n += 1; label = "Беҷавоб"

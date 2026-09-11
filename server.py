@@ -230,6 +230,14 @@ except Exception as e:
     print("[boot] patch_monitor_durable failed:", e)
 
 
+# --- Score by question text (shuffle-safe) — MUST run before answers_durable ---
+try:
+    from db.patch_score_text import install as _install_score_text
+    _install_score_text(app)
+    print("[boot] patch_score_text installed")
+except Exception as e:
+    print("[boot] patch_score_text failed:", e)
+
 # --- Durable answers on submit (answers_json + attempt_answers) ---
 try:
     from db.patch_answers_durable import install as _install_answers_durable

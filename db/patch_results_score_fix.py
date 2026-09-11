@@ -1,9 +1,11 @@
-"""Enrich admin results/monitor: names + Student ID + score from review."""
+"""Enrich admin results/monitor: names, olympiad title, live sessions, score."""
 from __future__ import annotations
 
 import logging
 
 log = logging.getLogger("geografia.results_score_fix")
+
+_oly_title_cache: dict = {}
 
 
 def _eng():
@@ -29,6 +31,29 @@ def _build_review(aid):
     except Exception as e:
         log.debug("build_review: %s", e)
     return None
+
+
+def _oly_title(eng, oid):
+    if not oid:
+        return ""
+    oid = str(oid)
+    if oid in _oly_title_cache:
+        return _oly_title_cache[oid]
+    title = ""
+    if eng is not None:
+        try:
+            from sqlalchemy import text
+            with eng.connect() as conn:
+                row = conn.execute(
+                    text("SELECT title FROM olympiads WHERE id::text = :id LIMIT 1"),
+                    {"id": oid},
+                ).mappings().first()
+                if row and row.get("title"):
+                    title = str(row["title"])
+        except Exception as e:
+            log.debug("oly title: %s", e)
+    _oly_title_cache[oid] = title
+    return title
 
 
 def _fill_from_review(r, rev):
@@ -81,7 +106,6 @@ def _lookup_student(eng, r):
         if not aid:
             return r
         with eng.connect() as conn:
-            row = None
             try:
                 row = conn.execute(
                     text(
@@ -106,6 +130,7 @@ def _lookup_student(eng, r):
                     conn.rollback()
                 except Exception:
                     pass
+                row = None
             if row:
                 if row.get("full_name"):
                     r["fullName"] = row["full_name"]
@@ -144,6 +169,14 @@ def _enrich_row(row, eng, review_cache):
 
     r = _lookup_student(eng, r)
 
+    oid = r.get("olympiadId") or r.get("olympiad_id")
+    title = r.get("olympiadTitle") or r.get("title") or ""
+    if not title and oid:
+        title = _oly_title(eng, oid)
+    if title:
+        r["olympiadTitle"] = title
+        r["title"] = title
+
     if not r.get("fullName") and not r.get("name"):
         r["fullName"] = r.get("studentName") or "—"
         r["name"] = r["fullName"]
@@ -174,6 +207,58 @@ def _enrich_row(row, eng, review_cache):
     return r
 
 
+def _live_sessions(eng):
+    if eng is None:
+        return []
+    rows = []
+    try:
+        from sqlalchemy import text
+        with eng.connect() as conn:
+            q = text(
+                """SELECT
+                     a.id::text AS attempt_id,
+                     CAST(a.status AS text) AS status,
+                     a.started_at,
+                     a.expires_at,
+                     a.olympiad_id::text AS olympiad_id,
+                     COALESCE(NULLIF(TRIM(st.full_name), ''), NULLIF(TRIM(a.student_name), ''), '—') AS full_name,
+                     COALESCE(NULLIF(TRIM(st.student_code), ''), st.id::text, a.student_id::text, '') AS student_code,
+                     COALESCE(o.title, '') AS olympiad_title
+                   FROM attempts a
+                   LEFT JOIN students st ON (
+                     (a.student_id IS NOT NULL AND st.id = a.student_id)
+                     OR (a.student_name IS NOT NULL AND TRIM(a.student_name) ~ '^[0-9]{8,}$'
+                         AND (st.student_code = TRIM(a.student_name) OR st.id::text = TRIM(a.student_name)))
+                   )
+                   LEFT JOIN olympiads o ON o.id = a.olympiad_id
+                   WHERE CAST(a.status AS text) IN ('in_progress', 'started', 'active')
+                      OR (a.finished_at IS NULL AND a.started_at IS NOT NULL
+                          AND CAST(a.status AS text) NOT IN ('finished','passed','failed','timeout','submitted'))
+                   ORDER BY a.started_at DESC NULLS LAST
+                   LIMIT 50"""
+            )
+            for row in conn.execute(q).mappings().all():
+                rows.append({
+                    "attemptId": row.get("attempt_id"),
+                    "id": row.get("attempt_id"),
+                    "fullName": row.get("full_name") or "—",
+                    "name": row.get("full_name") or "—",
+                    "studentName": row.get("full_name") or "—",
+                    "studentCode": row.get("student_code") or "—",
+                    "studentId": row.get("student_code") or "—",
+                    "olympiadId": row.get("olympiad_id"),
+                    "olympiadTitle": row.get("olympiad_title") or "",
+                    "title": row.get("olympiad_title") or "",
+                    "status": row.get("status") or "in_progress",
+                    "startedAt": str(row.get("started_at") or ""),
+                    "expiresAt": str(row.get("expires_at") or ""),
+                    "answersCount": "—",
+                })
+    except Exception as e:
+        log.warning("live sessions: %s", e)
+    return rows
+
+
 def _enrich_payload(data, eng):
     cache = {}
     if isinstance(data, list):
@@ -184,26 +269,33 @@ def _enrich_payload(data, eng):
     for key in ("results", "recent", "recentResults", "items", "attempts"):
         if isinstance(out.get(key), list):
             out[key] = [_enrich_row(x, eng, cache) for x in out[key]]
+
+    live = out.get("liveSessions") or out.get("sessions") or []
+    if not live:
+        live = _live_sessions(eng)
+    else:
+        live = [_enrich_row(x, eng, cache) for x in live]
+    out["liveSessions"] = live
+    out["sessions"] = live
+
     rows = out.get("recent") or out.get("recentResults") or out.get("results") or []
+    stats = dict(out.get("stats") or {})
     if isinstance(rows, list) and rows:
         passed = sum(
-            1
-            for x in rows
-            if str(x.get("status") or "").lower() in ("passed", "pass")
-            or x.get("passed") is True
+            1 for x in rows
+            if str(x.get("status") or "").lower() in ("passed", "pass") or x.get("passed") is True
         )
         failed = sum(
-            1
-            for x in rows
-            if str(x.get("status") or "").lower() in ("failed", "fail", "timeout")
-            or x.get("passed") is False
+            1 for x in rows
+            if str(x.get("status") or "").lower() in ("failed", "fail", "timeout") or x.get("passed") is False
         )
-        stats = dict(out.get("stats") or {})
         stats["passed"] = passed
         stats["failed"] = failed
         if not stats.get("results"):
             stats["results"] = len(rows)
-        out["stats"] = stats
+    stats["liveSessions"] = len(live)
+    stats["inProgress"] = len(live)
+    out["stats"] = stats
     return out
 
 
@@ -227,9 +319,7 @@ def install(app=None):
                 if hasattr(resp, "get_json"):
                     data = resp.get_json(silent=True)
                     if data is not None:
-                        return jsonify(_enrich_payload(data, eng)), getattr(
-                            resp, "status_code", 200
-                        )
+                        return jsonify(_enrich_payload(data, eng)), getattr(resp, "status_code", 200)
                 if isinstance(resp, tuple) and resp:
                     body = resp[0]
                     code = resp[1] if len(resp) > 1 else 200

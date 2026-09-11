@@ -68,15 +68,15 @@ _EXTRA_PUBLIC = {
     "js.js", "js/i18n.js", "js/platform-home.js", "js/quiz-platform.js", "js/profile.js",
     "js/admin.js", "js/admin-session.js", "js/admin-fixes.js", "js/admin-gmail.js",
     "js/admin-content.js", "js/admin-leaderboard.js", "js/admin-olympiad.js",
-    "js/admin-students-reg.js", "js/admin-students-reg-body.js",
-    "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js", "js/admin-audit.js",
-    "js/admin-export.js", "js/admin-results-review.js", "js/admin-results-click-fix.js",
-    "js/student.js", "favicon.svg", "favicon.png", "robots.txt", "sitemap.xml",
-    "og-default.png",
+    "js/admin-students-reg.js", "js/admin-davotnoma-print.js", "js/admin-rbac-ui.js",
+    "js/admin-audit.js", "js/admin-export.js", "js/admin-results-review.js",
+    "js/admin-results-click-fix.js", "js/student.js", "js/student-confirm.js",
+    "favicon.svg", "favicon.png", "robots.txt", "sitemap.xml", "og-default.png",
 }
 for _i in range(24):
     _EXTRA_PUBLIC.add(f"_asr_x{_i}.txt")
 for _i in range(4):
+    _EXTRA_PUBLIC.add(f"_st_b64_{_i}.txt")
     _EXTRA_PUBLIC.add(f"_st_p{_i}.txt")
 for _i in range(10):
     _EXTRA_PUBLIC.add(f"js/_sh{_i}.txt")
@@ -88,11 +88,6 @@ for _i in range(9):
     _EXTRA_PUBLIC.add(f"js/_aj{_i}.txt")
     _EXTRA_PUBLIC.add(f"_aj{_i}.txt")
 try:
-    from server_public_paths_note import EXTRA as _NOTE_EXTRA
-    _EXTRA_PUBLIC |= set(_NOTE_EXTRA)
-except Exception:
-    pass
-try:
     if isinstance(globals().get("PUBLIC_PATHS"), set):
         PUBLIC_PATHS |= _EXTRA_PUBLIC
     elif isinstance(globals().get("PUBLIC_PATHS"), (list, tuple)):
@@ -102,7 +97,6 @@ except Exception as e:
 
 try:
     from flask import request as _req, jsonify as _jsonify
-
     def _google_login_safe():
         try:
             from db.google_auth import verify_google_token
@@ -116,82 +110,69 @@ try:
             return _jsonify({"ok": True, "user": info})
         except Exception as e:
             return _jsonify({"error": str(e)}), 500
-
     bound = 0
     for rule in list(app.url_map.iter_rules()):
         if "google" in str(rule.rule) and "login" in str(rule.rule):
             app.view_functions[rule.endpoint] = _google_login_safe
             bound += 1
-            print(f"[boot] safety-net: rebound {rule.endpoint} -> google_login_safe")
     if "google_login" in app.view_functions:
         app.view_functions["google_login"] = _google_login_safe
         bound += 1
     print(f"[boot] safety-net: google_login bound={bound}")
-    print("[boot] safety-net OK")
 except Exception as e:
     print("[boot] safety-net failed:", e)
 
 try:
-    from db.patch_student_portal import install as _install_student_portal
-    _install_student_portal(app)
+    from db.patch_student_portal import install as _isp
+    _isp(app)
 except Exception as e:
     print("[boot] patch_student_portal failed:", e)
-
 try:
-    from db.patch_admin_create_role import install as _install_admin_create_role
-    _install_admin_create_role(app)
+    from db.patch_admin_create_role import install as _iac
+    _iac(app)
 except Exception as e:
     print("[boot] patch_admin_create_role failed:", e)
-
 try:
-    from db.patch_admin_auth_bearer import install as _install_admin_auth_bearer
-    _install_admin_auth_bearer(app)
+    from db.patch_admin_auth_bearer import install as _iab
+    _iab(app)
 except Exception as e:
     print("[boot] patch_admin_auth_bearer failed:", e)
-
 try:
-    from db.patch_names import install as _install_patch_names
-    _install_patch_names(app)
+    from db.patch_names import install as _in
+    _in(app)
 except Exception as e:
     print("[boot] patch_names failed:", e)
-
 try:
-    from db.patch_monitor_durable import install as _install_monitor_durable
-    _install_monitor_durable(app)
+    from db.patch_monitor_durable import install as _imd
+    _imd(app)
 except Exception as e:
     print("[boot] patch_monitor_durable failed:", e)
-
 try:
-    from db.patch_score_text import install as _install_score_text
-    _install_score_text(app)
+    from db.patch_score_text import install as _ist
+    _ist(app)
     print("[boot] patch_score_text installed")
 except Exception as e:
     print("[boot] patch_score_text failed:", e)
-
 try:
-    from db.patch_answers_durable import install as _install_answers_durable
-    _install_answers_durable(app)
+    from db.patch_answers_durable import install as _iad
+    _iad(app)
 except Exception as e:
     print("[boot] patch_answers_durable failed:", e)
-
 try:
-    from db.patch_attempt_review import install as _install_attempt_review
-    _install_attempt_review(app)
+    from db.patch_attempt_review import install as _iar
+    _iar(app)
 except Exception as e:
     print("[boot] patch_attempt_review failed:", e)
-
 try:
-    from db.patch_results_score_fix import install as _install_results_score_fix
-    _install_results_score_fix(app)
+    from db.patch_results_score_fix import install as _irsf
+    _irsf(app)
 except Exception as e:
     print("[boot] patch_results_score_fix failed:", e)
-
 try:
-    from db.patch_clear_recent import install as _install_clear_recent
-    _install_clear_recent(app)
+    from db.patch_clear_recent import install as _icr
+    _icr(app)
 except Exception as e:
     print("[boot] patch_clear_recent failed:", e)
-
 try:
     from db.bootstrap_admin import install_bootstrap
     install_bootstrap()

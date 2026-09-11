@@ -1,0 +1,45 @@
+def build_review(attempt_id):
+    attempt_id = str(attempt_id or "").strip()
+    if not attempt_id: raise ValueError("attempt_not_found")
+    from sqlalchemy import text
+    eng = _eng()
+    att = None
+    answers_json = None
+    with eng.connect() as conn:
+        for sql in [
+            """SELECT a.id::text AS id, a.olympiad_id::text AS olympiad_id,
+               COALESCE(NULLIF(TRIM(st.full_name),''), NULLIF(TRIM(a.student_name),''), '') AS student_name,
+               COALESCE(NULLIF(TRIM(st.class_name),''), COALESCE(a.student_class,'')) AS student_class,
+               COALESCE(NULLIF(TRIM(st.school_name),''), COALESCE(a.student_school,'')) AS student_school,
+               COALESCE(NULLIF(TRIM(st.student_code),''), '') AS student_code,
+               a.score, a.correct, a.total, CAST(a.status AS text) AS status,
+               a.finished_at, a.started_at, o.title AS olympiad_title, o.questions_json, a.answers_json
+               FROM attempts a
+               LEFT JOIN olympiads o ON o.id = a.olympiad_id
+               LEFT JOIN students st ON (
+                 (a.student_id IS NOT NULL AND st.id = a.student_id)
+                 OR (a.student_name IS NOT NULL AND TRIM(a.student_name) ~ '^[0-9]{8,}$' AND st.student_code = TRIM(a.student_name))
+               )
+               WHERE a.id::text = :id LIMIT 1""",
+            """SELECT a.id::text AS id, a.olympiad_id::text AS olympiad_id,
+               COALESCE(a.student_name,'') AS student_name, COALESCE(a.student_class,'') AS student_class,
+               COALESCE(a.student_school,'') AS student_school, '' AS student_code,
+               a.score, a.correct, a.total, CAST(a.status AS text) AS status,
+               a.finished_at, a.started_at, o.title AS olympiad_title, o.questions_json, a.answers_json
+               FROM attempts a LEFT JOIN olympiads o ON o.id = a.olympiad_id
+               WHERE a.id::text = :id LIMIT 1""",
+        ]:
+            try:
+                row = conn.execute(text(sql), {"id": attempt_id}).mappings().first()
+                if row:
+                    att = dict(row)
+                    break
+            except Exception as e:
+                log.warning("review att: %s", e)
+                try: conn.rollback()
+                except Exception: pass
+        if not att: raise ValueError("attempt_not_found")
+        answers_json = _parse(att.get("answers_json"))
+        qs = _parse(att.get("questions_json")) or []
+        if isinstance(qs, dict): qs = qs.get("questions") or qs.get("items") or []
+        if not qs and att.get("olympiad_id"):

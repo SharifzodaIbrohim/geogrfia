@@ -1,29 +1,34 @@
-// Student portal — olympiad UI (aligned with student.html IDs)
+/** Student portal loader — joins /_st_p0..3.txt then eval */
 (function () {
-  'use strict';
-
-  var I18N = {
-    tg: {
-      loginTitle: 'Воридшавии хонанда',
-      loginBtn: 'Ворид',
-      logout: 'Баромадан',
-      yourScore: 'Холи шумо',
-      timeUp: 'Вақт тамом шуд.',
-      submitExam: 'Супоридан',
-      startExam: 'Оғоз',
-      prev: '← Қаблӣ',
-      next: 'Баъдӣ →',
-      questionLabel: 'Савол',
-      submitted: 'Супорида шуд',
-      confirmSubmit: 'Оё шумо мехоҳед супоред? Баъд аз супоридан тағйир дода намешавад.',
-      pendingReview: 'Натиҷа баъдтар эълон мешавад.',
-      timeout: 'Вақт тамом шуд',
-      back: 'Бозгашт',
-      noEvents: 'Ҳоло олимпиадаи фаъол нест.',
-      loading: 'Бор шуда истодааст…'
+  var parts = [];
+  var n = 4;
+  var loaded = 0;
+  function go() {
+    if (loaded < n) return;
+    var code = parts.join('');
+    try {
+      (0, eval)(code);
+    } catch (e) {
+      console.error('student.js load failed', e);
+      var el = document.getElementById('loginError') || document.body;
+      if (el) el.textContent = (el.textContent || '') + ' [JS: ' + (e.message || e) + ']';
     }
-  };
-
-  // PLACEHOLDER_FULL_BODY - will be replaced by sequential part pushes if needed
-  console.warn('student.js stub — waiting for full body deploy');
+  }
+  for (var i = 0; i < n; i++) {
+    (function (idx) {
+      fetch('/_st_p' + idx + '.txt?v=' + Date.now())
+        .then(function (r) {
+          if (!r.ok) throw new Error('part ' + idx + ' HTTP ' + r.status);
+          return r.text();
+        })
+        .then(function (t) {
+          parts[idx] = t;
+          loaded++;
+          go();
+        })
+        .catch(function (e) {
+          console.error(e);
+        });
+    })(i);
+  }
 })();

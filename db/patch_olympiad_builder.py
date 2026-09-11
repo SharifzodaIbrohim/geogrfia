@@ -74,7 +74,6 @@ def normalize_question(i: int, q: dict) -> dict:
                     pairs[str(int(k))] = int(v)
                 except (TypeError, ValueError):
                     pass
-        # Auto identity 1→1, 2→2 when empty
         if not pairs:
             for i0 in range(len(left)):
                 pairs[str(i0)] = i0
@@ -97,7 +96,6 @@ def normalize_question(i: int, q: dict) -> dict:
             "maxScore": ms,
         }
 
-    # text
     correct = (
         q.get("correctText")
         or q.get("correctAnswer")
@@ -135,7 +133,6 @@ def score_question(q: dict, selected: Any) -> tuple[float, float]:
         try:
             sel = int(selected)
         except (TypeError, ValueError):
-            # text selected vs options
             opts = q.get("options") or []
             sel = None
             if selected is not None:
@@ -177,7 +174,6 @@ def score_question(q: dict, selected: Any) -> tuple[float, float]:
                 except Exception:
                     if str(got).strip().lower() == str(v).strip().lower():
                         ok += 1
-        # Partial: each correct pair earns max_s/total (4 pts / 4 pairs = 1 each)
         return ((ok / total) * max_s if total else 0.0), max_s
 
     if qtype == "text":
@@ -208,5 +204,143 @@ def install(app=None):
     if app is None:
         print("[boot] patch_olympiad_builder: helpers only")
         return
+
+    try:
+        from flask import request, jsonify
+
+        target_ep = None
+        orig = None
+        for rule in list(app.url_map.iter_rules()):
+            if str(rule.rule) == "/api/admin/olympiads" and "POST" in (rule.methods or set()):
+                target_ep = rule.endpoint
+                orig = app.view_functions.get(target_ep)
+                break
+        if orig is None and "admin_create_olympiad" in app.view_functions:
+            target_ep = "admin_create_olympiad"
+            orig = app.view_functions[target_ep]
+
+        if orig is not None:
+
+            def admin_create_olympiad_multi(*args, **kwargs):
+                payload = request.get_json(silent=True) or {}
+                title = str(payload.get("title") or "").strip()
+                raw_questions = payload.get("questions") or []
+                if not title:
+                    return jsonify({"error": "Унвонро ворид кунед."}), 400
+                if not isinstance(raw_questions, list) or len(raw_questions) < 1:
+                    return jsonify({"error": "Камаш 1 савол лозим аст."}), 400
+
+                questions = []
+                for i, q in enumerate(raw_questions):
+                    if not isinstance(q, dict):
+                        return jsonify({"error": f"Саволи {i + 1} нодуруст аст."}), 400
+                    nq = normalize_question(i, q)
+                    qtype = str(nq.get("type") or "single")
+                    text = str(nq.get("text") or "").strip()
+                    if not text:
+                        return jsonify({"error": f"Саволи {i + 1}: матн холӣ."}), 400
+                    if qtype == "single":
+                        opts = [str(o).strip() for o in (nq.get("options") or []) if str(o).strip()]
+                        if len(opts) < 2:
+                            return jsonify({"error": f"Саволи {i + 1}: ҳадди ақал 2 вариант."}), 400
+                        ans = nq.get("answer")
+                        try:
+                            ans = int(ans)
+                        except (TypeError, ValueError):
+                            ans = 0
+                        if ans < 0 or ans >= len(opts):
+                            return jsonify({"error": f"Ҷавоби дурусти саволи {i + 1} нодуруст аст."}), 400
+                        nq["options"] = opts
+                        nq["answer"] = ans
+                    elif qtype == "short":
+                        if not str(nq.get("correctText") or "").strip():
+                            return jsonify({"error": f"Саволи {i + 1}: ҷавоби дуруст лозим."}), 400
+                    elif qtype == "matching":
+                        left = nq.get("leftItems") or []
+                        right = nq.get("rightItems") or []
+                        pairs = nq.get("pairs") or {}
+                        if len(left) < 2:
+                            return jsonify({"error": f"Саволи {i + 1}: мувофиқат — ҳадди ақал 2 банди чап."}), 400
+                        if len(right) < 1:
+                            return jsonify({"error": f"Саволи {i + 1}: мувофиқат — бандҳои рост лозим."}), 400
+                        if not pairs:
+                            pairs = {str(j): j for j in range(len(left))}
+                            nq["pairs"] = pairs
+                    questions.append(nq)
+
+                payload = dict(payload)
+                payload["questions"] = questions
+                payload["title"] = title
+                if "isActive" not in payload and "active" in payload:
+                    payload["isActive"] = bool(payload.get("active"))
+                if "startTime" not in payload and payload.get("startAt"):
+                    payload["startTime"] = payload.get("startAt")
+                if "endTime" not in payload and payload.get("endAt"):
+                    payload["endTime"] = payload.get("endAt")
+
+                try:
+                    import db.repo as repo
+                except Exception:
+                    try:
+                        import repo  # type: ignore
+                    except Exception:
+                        repo = None
+
+                has_multi = any(str(q.get("type")) != "single" for q in questions)
+                if has_multi and repo is not None and getattr(repo, "create_olympiad", None):
+                    try:
+                        admin = None
+                        try:
+                            admin_fn = None
+                            globs = getattr(orig, "__globals__", {}) or {}
+                            for name in ("require_admin", "_require_admin", "require_admin_user"):
+                                if name in globs and callable(globs[name]):
+                                    admin_fn = globs[name]
+                                    break
+                            if callable(admin_fn):
+                                admin = admin_fn()
+                        except Exception as e:
+                            log.warning("require_admin: %s", e)
+                            admin = None
+                        if isinstance(admin, tuple):
+                            return admin
+                        otype = str(payload.get("type") or "olympiad")
+                        if otype not in ("olympiad", "quiz"):
+                            otype = "olympiad"
+                        try:
+                            pass_score = int(payload.get("passScore", 70))
+                        except (TypeError, ValueError):
+                            pass_score = 70
+                        data = {
+                            "title": title,
+                            "type": otype,
+                            "passScore": pass_score,
+                            "isActive": bool(payload.get("isActive", payload.get("active", False))),
+                            "startTime": payload.get("startTime") or payload.get("startAt"),
+                            "endTime": payload.get("endTime") or payload.get("endAt"),
+                            "questions": questions,
+                            "showResultsToStudents": bool(payload.get("showResultsToStudents", True)),
+                            "durationSec": payload.get("durationSec"),
+                            "createdBy": (admin or {}).get("login") if isinstance(admin, dict) else None,
+                        }
+                        olympiad = repo.create_olympiad(data)
+                        if isinstance(olympiad, dict):
+                            oid = olympiad.get("id")
+                            return jsonify({"olympiad": olympiad, "id": oid, "ok": True}), 201
+                        return jsonify({"olympiad": olympiad, "ok": True}), 201
+                    except Exception as e:
+                        log.exception("multi-type create via repo")
+                        return jsonify({"error": str(e)}), 500
+
+                return orig(*args, **kwargs)
+
+            admin_create_olympiad_multi.__name__ = getattr(orig, "__name__", "admin_create_olympiad")
+            app.view_functions[target_ep] = admin_create_olympiad_multi
+            print("[boot] patch_olympiad_builder: POST /api/admin/olympiads multi-type wrap")
+        else:
+            print("[boot] patch_olympiad_builder: create endpoint not found")
+    except Exception as e:
+        log.warning("create wrap failed: %s", e)
+        print("[boot] patch_olympiad_builder: create wrap failed:", e)
 
     print("[boot] patch_olympiad_builder: multi-type + maxScore + matching partial")

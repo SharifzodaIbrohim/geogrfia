@@ -12,7 +12,7 @@ def build_review(attempt_id):
                COALESCE(NULLIF(TRIM(st.full_name),''), NULLIF(TRIM(a.student_name),''), '') AS student_name,
                COALESCE(NULLIF(TRIM(st.class_name),''), COALESCE(a.student_class,'')) AS student_class,
                COALESCE(NULLIF(TRIM(st.school_name),''), COALESCE(a.student_school,'')) AS student_school,
-               COALESCE(NULLIF(TRIM(st.student_code),''), '') AS student_code,
+               COALESCE(NULLIF(TRIM(st.student_code),''), NULLIF(TRIM(st.id::text),''), '') AS student_code,
                a.score, a.correct, a.total, CAST(a.status AS text) AS status,
                a.finished_at, a.started_at, o.title AS olympiad_title, o.questions_json, a.answers_json
                FROM attempts a
@@ -20,6 +20,7 @@ def build_review(attempt_id):
                LEFT JOIN students st ON (
                  (a.student_id IS NOT NULL AND st.id = a.student_id)
                  OR (a.student_name IS NOT NULL AND TRIM(a.student_name) ~ '^[0-9]{8,}$' AND st.student_code = TRIM(a.student_name))
+                 OR (a.student_name IS NOT NULL AND NULLIF(TRIM(st.full_name), '') IS NOT NULL AND TRIM(st.full_name) = TRIM(a.student_name))
                )
                WHERE a.id::text = :id LIMIT 1""",
             """SELECT a.id::text AS id, a.olympiad_id::text AS olympiad_id,
@@ -45,7 +46,7 @@ def build_review(attempt_id):
         answers_rows = []
         try:
             answers_rows = [dict(r) for r in conn.execute(text("""
-                SELECT question_id::text AS qid, selected_idx, selected_text, answer_text, is_correct
+                SELECT question_id::text AS qid, selected_idx, selected_text, is_correct
                 FROM attempt_answers WHERE attempt_id::text = :id
             """), {"id": attempt_id}).mappings().all()]
         except Exception as e:

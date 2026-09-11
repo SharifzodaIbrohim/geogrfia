@@ -1,6 +1,5 @@
 /**
- * Admin Export UI — search/filter + CSV download for Results tab.
- * Uses live backend routes: /api/admin/results/export, /api/admin/students/export
+ * Admin Export UI — XLSX via /api/admin/export/* (openpyxl)
  */
 (function () {
   'use strict';
@@ -85,7 +84,7 @@
         throw new Error(data.error || ('Хато ' + res.status));
       }
       const blob = await res.blob();
-      let filename = fallbackName || 'Geografia_Export.csv';
+      let filename = fallbackName || 'Geografia_Export.xlsx';
       const cd = res.headers.get('Content-Disposition') || '';
       const m = /filename="?([^\";]+)"?/i.exec(cd);
       if (m) filename = m[1];
@@ -105,30 +104,25 @@
     }
   }
 
-  let _allRows = [];
-  let _previewTimer = null;
-
-  function applyClientFilter() {
-    // client-side filter already reflected in queryString for export;
-  }
+  function applyClientFilter() {}
 
   async function updatePreview() {
     const hint = document.getElementById('exportPreviewHint');
     if (!hint) return;
     try {
-      const res = await fetch('/api/admin/results/export' + queryString(), {
-        method: 'HEAD',
+      const res = await fetch('/api/admin/export/preview' + queryString(), {
+        method: 'GET',
         credentials: 'include',
         headers: authHeaders(),
       });
-      const rows = document.querySelectorAll('#resultsBody tr').length;
-      if (rows > 0) {
-        hint.textContent = rows + ' сатр дар ҷадвал (export CSV)';
-      } else if (res.ok) {
-        hint.textContent = 'Export омода (CSV)';
-      } else {
-        hint.textContent = 'Export: фильтрро интихоб кунед';
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const n = data.count ?? data.total ?? 0;
+        hint.textContent = n + ' сатр барои export (XLSX)';
+        return;
       }
+      const rows = document.querySelectorAll('#resultsBody tr').length;
+      hint.textContent = rows ? (rows + ' сатр дар ҷадвал') : '';
     } catch (e) {
       const rows = document.querySelectorAll('#resultsBody tr').length;
       hint.textContent = rows ? (rows + ' сатр дар ҷадвал') : '';
@@ -136,8 +130,8 @@
   }
 
   function schedulePreview() {
-    clearTimeout(_previewTimer);
-    _previewTimer = setTimeout(updatePreview, 250);
+    clearTimeout(window.__geoExportPreviewTimer);
+    window.__geoExportPreviewTimer = setTimeout(updatePreview, 250);
   }
 
   function loadResultsForOlympiad(id) {
@@ -162,10 +156,6 @@
           applyClientFilter();
           schedulePreview();
         });
-        if (id === 'resultSearchQ') el.addEventListener('search', () => {
-          applyClientFilter();
-          schedulePreview();
-        });
       });
 
     document.getElementById('btnRefreshResults')?.addEventListener('click', () => {
@@ -175,7 +165,7 @@
     });
 
     document.getElementById('btnExportFiltered')?.addEventListener('click', () => {
-      downloadExport('/api/admin/results/export' + queryString(), 'Geografia_Results.csv');
+      downloadExport('/api/admin/export/results' + queryString(), 'Geografia_Results.xlsx');
     });
 
     document.getElementById('btnExportOlympiad')?.addEventListener('click', () => {
@@ -184,16 +174,16 @@
         alert('Аввал олимпиадаро интихоб кунед');
         return;
       }
-      downloadExport('/api/admin/results/export?olympiadId=' + encodeURIComponent(id), 'Geografia_Olympiad_Results.csv');
+      downloadExport('/api/admin/export/olympiad/' + encodeURIComponent(id), 'Geografia_Olympiad_Results.xlsx');
     });
 
     document.getElementById('btnExportFull')?.addEventListener('click', () => {
-      if (!confirm('Export пурраи натиҷаҳо (CSV). Давом?')) return;
-      downloadExport('/api/admin/results/export', 'Geografia_Full_Results.csv');
+      if (!confirm('Export пурраи платформа (Excel). Давом?')) return;
+      downloadExport('/api/admin/export/full', 'Geografia_Full_Export.xlsx');
     });
 
     document.getElementById('btnExportStudents')?.addEventListener('click', () => {
-      downloadExport('/api/admin/students/export', 'Geografia_Students.csv');
+      downloadExport('/api/admin/export/students', 'Geografia_Students.xlsx');
     });
 
     document.querySelectorAll('.tab[data-tab="results"]').forEach((btn) => {

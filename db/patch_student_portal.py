@@ -1,8 +1,4 @@
-"""Student portal: /api/student/login + /api/student/olympiads.
-
-Ensures students see active olympiads/quizzes and can start them.
-Empty participant list → LOCKED (admin must assign students).
-"""
+"""Student portal: login + olympiads with one-attempt flags."""
 from __future__ import annotations
 
 import logging
@@ -60,19 +56,13 @@ def install(app) -> None:
     def student_login():
         payload = request.get_json(silent=True) or {}
         code = str(
-            payload.get("studentId")
-            or payload.get("id")
-            or payload.get("code")
-            or ""
+            payload.get("studentId") or payload.get("id") or payload.get("code") or ""
         ).strip()
         if not code:
             return jsonify({"error": "ID-и хонанда лозим аст."}), 400
         st = find_student_by_code(code)
         if not st:
-            return jsonify({
-                "error": "ID нодуруст аст ё хонанда ёфт нашуд.",
-                "reason": "student_not_found",
-            }), 401
+            return jsonify({"error": "ID нодуруст аст ё хонанда ёфт нашуд.", "reason": "student_not_found"}), 401
         return jsonify({"ok": True, "student": _public_student(st)})
 
     def student_olympiads():
@@ -89,10 +79,7 @@ def install(app) -> None:
             return jsonify({"error": "studentId лозим аст."}), 400
         st = find_student_by_code(code)
         if not st:
-            return jsonify({
-                "error": "Хонанда ёфт нашуд.",
-                "reason": "student_not_found",
-            }), 401
+            return jsonify({"error": "Хонанда ёфт нашуд.", "reason": "student_not_found"}), 401
 
         try:
             items = list_olympiads() or []
@@ -100,12 +87,9 @@ def install(app) -> None:
             log.warning("list_olympiads: %s", e)
             items = []
 
-        olympiads = []
-        quizzes = []
+        olympiads, quizzes = [], []
         for o in items:
-            if not isinstance(o, dict):
-                continue
-            if o.get("isActive") is False:
+            if not isinstance(o, dict) or o.get("isActive") is False:
                 continue
             oid = str(o.get("id") or "")
             if not oid:
@@ -119,8 +103,7 @@ def install(app) -> None:
                 log.warning("access check %s: %s", oid, e)
             allowed = bool(access.get("allowed"))
 
-            att_status = None
-            already = False
+            att_status, already = None, False
             try:
                 from sqlalchemy import text as _t
                 from db.connection import get_engine
@@ -129,7 +112,7 @@ def install(app) -> None:
                     with _eng.connect() as _conn:
                         _row = _conn.execute(
                             _t(
-                                """SELECT CAST(status AS text) AS status, score, finished_at
+                                """SELECT CAST(status AS text) AS status, finished_at
                                    FROM attempts
                                    WHERE olympiad_id::text = :oid
                                      AND (
@@ -140,9 +123,8 @@ def install(app) -> None:
                                          WHERE student_code = :code OR id::text = :code
                                        )
                                      )
-                                   ORDER BY
-                                     CASE WHEN finished_at IS NOT NULL THEN 0 ELSE 1 END,
-                                     finished_at DESC NULLS LAST
+                                   ORDER BY CASE WHEN finished_at IS NOT NULL THEN 0 ELSE 1 END,
+                                            finished_at DESC NULLS LAST
                                    LIMIT 1"""
                             ),
                             {"oid": oid, "code": code},
@@ -177,10 +159,7 @@ def install(app) -> None:
                 "finished": already,
                 "submitted": already,
             }
-            if card["type"] == "quiz":
-                quizzes.append(card)
-            else:
-                olympiads.append(card)
+            (quizzes if card["type"] == "quiz" else olympiads).append(card)
 
         return jsonify({
             "ok": True,
@@ -189,27 +168,19 @@ def install(app) -> None:
             "quizzes": quizzes,
         })
 
-    def _bind(rule: str, ep: str, fn, methods: list[str]):
-        bound = False
+    def _bind(rule, ep, fn, methods):
         for r in list(app.url_map.iter_rules()):
             if r.rule == rule:
                 app.view_functions[r.endpoint] = fn
-                bound = True
         if ep in app.view_functions:
             app.view_functions[ep] = fn
-            bound = True
-        if not bound:
-            try:
-                app.add_url_rule(rule, ep, fn, methods=methods)
-            except AssertionError:
-                for r in list(app.url_map.iter_rules()):
-                    if r.rule == rule:
-                        app.view_functions[r.endpoint] = fn
+        try:
+            app.add_url_rule(rule, ep, fn, methods=methods)
+        except Exception:
+            pass
 
     _bind("/api/student/login", "student_portal_login", student_login, ["POST"])
     if "student_login" in app.view_functions:
         app.view_functions["student_login"] = student_login
     _bind("/api/student/olympiads", "student_portal_olympiads", student_olympiads, ["GET"])
-
-    log.info("student portal routes installed")
-    print("[boot] patch_student_portal: login + olympiads list")
+    print("[boot] patch_student_portal: login + olympiads + one-attempt-ui")

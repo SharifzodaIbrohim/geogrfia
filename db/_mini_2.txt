@@ -4,6 +4,22 @@
     total = len(items) or (att.get("total") or 0)
     earned = ok_n
     pct = int(round(100.0 * earned / total)) if total else (att.get("score") or 0)
+    score_pct = pct
+    # Persist recalculated score if DB has 0 but answers graded better
+    try:
+        stored = att.get("score")
+        if items and (stored is None or int(stored or 0) == 0) and score_pct > 0:
+            with eng.connect() as conn:
+                from sqlalchemy import text as _t
+                ps = int(att.get("pass_score") or 70)
+                st = "passed" if score_pct >= ps else "failed"
+                conn.execute(_t(
+                    "UPDATE attempts SET score=:s, correct=:c, total=:t, status=:st WHERE id::text=:id"
+                ), {"s": int(score_pct), "c": int(ok_n), "t": int(total if total else len(items)), "st": st, "id": attempt_id})
+                conn.commit()
+    except Exception as e:
+        log.warning("score writeback: %s", e)
+
     return {
         "ok": True, "attemptId": att.get("id"), "id": att.get("id"),
         "olympiadId": att.get("olympiad_id"), "olympiadTitle": att.get("olympiad_title") or "",

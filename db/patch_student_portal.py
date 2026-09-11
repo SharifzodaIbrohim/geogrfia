@@ -80,44 +80,83 @@ def install(app) -> None:
             request.args.get("studentId")
             or request.args.get("id")
             or request.headers.get("X-Student-Id")
-            or (request.get_json(silent=True) or {}).get("studentId")
-            or (request.get_json(silent=True) or {}).get("id")
             or ""
         ).strip()
         if not code:
-            return jsonify({"error": "studentId лозим аст.", "olympiads": [], "quizzes": []}), 400
+            body = request.get_json(silent=True) or {}
+            code = str(body.get("studentId") or body.get("id") or body.get("code") or "").strip()
+        if not code:
+            return jsonify({"error": "studentId лозим аст."}), 400
         st = find_student_by_code(code)
         if not st:
             return jsonify({
                 "error": "Хонанда ёфт нашуд.",
-                "olympiads": [],
-                "quizzes": [],
+                "reason": "student_not_found",
             }), 401
 
-        olympiads = []
-        quizzes = []
-        seen = set()
         try:
             items = list_olympiads() or []
         except Exception as e:
             log.warning("list_olympiads: %s", e)
             items = []
 
+        olympiads = []
+        quizzes = []
         for o in items:
-            oid = str(o.get("id") or "")
-            if not oid or oid in seen:
+            if not isinstance(o, dict):
                 continue
             if o.get("isActive") is False:
                 continue
+            oid = str(o.get("id") or "")
+            if not oid:
+                continue
             window = _window_status(o)
-            seen.add(oid)
-            access = {"allowed": False, "reason": "unknown"}
+            access = {"allowed": True, "reason": "open"}
             try:
                 from db.student_access import student_has_olympiad_access
                 access = student_has_olympiad_access(oid, code)
             except Exception as e:
                 log.warning("access check %s: %s", oid, e)
             allowed = bool(access.get("allowed"))
+
+            att_status = None
+            already = False
+            try:
+                from sqlalchemy import text as _t
+                from db.connection import get_engine
+                _eng = get_engine()
+                if _eng is not None:
+                    with _eng.connect() as _conn:
+                        _row = _conn.execute(
+                            _t(
+                                """SELECT CAST(status AS text) AS status, score, finished_at
+                                   FROM attempts
+                                   WHERE olympiad_id::text = :oid
+                                     AND (
+                                       student_id::text = :code
+                                       OR TRIM(COALESCE(student_name,'')) = :code
+                                       OR student_id IN (
+                                         SELECT id FROM students
+                                         WHERE student_code = :code OR id::text = :code
+                                       )
+                                     )
+                                   ORDER BY
+                                     CASE WHEN finished_at IS NOT NULL THEN 0 ELSE 1 END,
+                                     finished_at DESC NULLS LAST
+                                   LIMIT 1"""
+                            ),
+                            {"oid": oid, "code": code},
+                        ).mappings().first()
+                        if _row:
+                            att_status = str(_row.get("status") or "").lower()
+                            if att_status in (
+                                "finished", "passed", "failed", "timeout", "submitted",
+                                "complete", "completed",
+                            ) or _row.get("finished_at") is not None:
+                                already = True
+            except Exception as e:
+                log.warning("attempt status %s: %s", oid, e)
+
             card = {
                 "id": oid,
                 "title": o.get("title") or "Бе ном",
@@ -126,13 +165,17 @@ def install(app) -> None:
                 "passScore": o.get("passScore") or 70,
                 "questionCount": o.get("questionCount") or len(o.get("questions") or []),
                 "isActive": o.get("isActive") is not False,
-                "isOpen": window == "open" and allowed,
+                "isOpen": window == "open" and allowed and not already,
                 "windowStatus": window if allowed else ("locked" if window == "open" else window),
                 "accessAllowed": allowed,
                 "accessReason": access.get("reason"),
                 "startTime": o.get("startTime"),
                 "endTime": o.get("endTime"),
                 "durationSec": o.get("durationSec"),
+                "attemptStatus": att_status,
+                "alreadySubmitted": already,
+                "finished": already,
+                "submitted": already,
             }
             if card["type"] == "quiz":
                 quizzes.append(card)
@@ -167,8 +210,6 @@ def install(app) -> None:
     if "student_login" in app.view_functions:
         app.view_functions["student_login"] = student_login
     _bind("/api/student/olympiads", "student_portal_olympiads", student_olympiads, ["GET"])
-
-    # Empty list locked via db.student_access (no open override).
 
     log.info("student portal routes installed")
     print("[boot] patch_student_portal: login + olympiads list")

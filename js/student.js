@@ -46,10 +46,10 @@
 
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function show(el, on) {
@@ -123,16 +123,7 @@
     if (prog) prog.textContent = t('questionLabel') + ' ' + (exam.idx + 1) + ' / ' + exam.questions.length;
     var html = '<div class="q-text"><strong>' + esc(t('questionLabel') + ' ' + (exam.idx + 1)) + '</strong><p>' + esc(q.text) + '</p></div>';
     var cur = exam.answers[q.id];
-    if (q.type === 'single' || q.type === 'choice' || q.type === 'mcq' || (!q.type && !(q.leftItems && q.leftItems.length))) {
-      html += '<div class="exam-opts">';
-      q.options.forEach(function (opt, j) {
-        var val = opt.id != null ? opt.id : j;
-        var sel = String(cur) === String(val) || String(cur) === String(j) || cur === opt.text;
-        html += '<button type="button" class="exam-opt' + (sel ? ' selected' : '') + '" data-qid="' + esc(q.id) + '" data-val="' + esc(val) + '">' +
-          '<span class="opt-letter">' + esc(opt.letter || LETTERS[j]) + '</span> ' + esc(opt.text) + '</button>';
-      });
-      html += '</div>';
-    } else if (q.type === 'matching' || q.type === 'match') {
+    if (q.type === 'matching' || q.type === 'match') {
       var map = (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur : {};
       var left = q.leftItems || [];
       var right = q.rightItems || [];
@@ -149,6 +140,15 @@
           html += '<option value="' + ri + '"' + (selected ? ' selected' : '') + '>' + esc(R) + '</option>';
         });
         html += '</select></div>';
+      });
+      html += '</div>';
+    } else if (q.type === 'single' || q.type === 'choice' || q.type === 'mcq' || !q.type) {
+      html += '<div class="exam-opts">';
+      q.options.forEach(function (opt, j) {
+        var val = opt.id != null ? opt.id : j;
+        var sel = String(cur) === String(val) || String(cur) === String(j) || cur === opt.text;
+        html += '<button type="button" class="exam-opt' + (sel ? ' selected' : '') + '" data-qid="' + esc(q.id) + '" data-val="' + esc(val) + '">' +
+          '<span class="opt-letter">' + esc(opt.letter || LETTERS[j]) + '</span> ' + esc(opt.text) + '</button>';
       });
       html += '</div>';
     } else if (q.type === 'short' || q.type === 'text') {
@@ -191,18 +191,12 @@
     if (!exam) return;
     stopTimers();
     if (!auto) {
-      if (!window.confirm(lang() === 'ru' ? 'Сдать экзамен?' : lang() === 'en' ? 'Submit exam?' : 'Шумо мехоҳед супоред?')) {
-        return;
-      }
+      if (!window.confirm(lang() === 'ru' ? 'Сдать экзамен?' : lang() === 'en' ? 'Submit exam?' : 'Шумо мехоҳед супоред?')) return;
     }
     try {
       var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
         method: 'POST',
-        body: JSON.stringify({
-          studentId: studentId(),
-          attemptId: exam.attemptId,
-          answers: exam.answers
-        })
+        body: JSON.stringify({ studentId: studentId(), attemptId: exam.attemptId, answers: exam.answers })
       });
       var score = data.score != null ? data.score : data.percent;
       var hide = !!(data.hideScore || data.showResultsToStudents === false);
@@ -219,22 +213,14 @@
           scoreEl.textContent = (score != null ? score : '—') + (score != null ? '%' : '');
         }
         if (detailEl) {
-          detailEl.textContent = (auto ? (t('timeUp') + ' ') : '') +
-            (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
+          detailEl.textContent = (auto ? (t('timeUp') + ' ') : '') + (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
         }
-        if (statusEl) {
-          statusEl.textContent = data.passed ? 'Гузашт' : (auto ? t('timeout') : t('submitted'));
-        }
+        if (statusEl) statusEl.textContent = data.passed ? 'Гузашт' : (auto ? t('timeout') : t('submitted'));
       }
       exam = null;
       show($('examView'), false);
-      if ($('resultView')) {
-        show($('resultView'), true);
-        show($('listView'), false);
-      } else {
-        alert(hide ? t('submitted') : ((score != null ? score + '%' : t('submitted'))));
-        show($('listView'), true);
-      }
+      if ($('resultView')) { show($('resultView'), true); show($('listView'), false); }
+      else { alert(hide ? t('submitted') : ((score != null ? score + '%' : t('submitted')))); show($('listView'), true); }
     } catch (e) {
       alert(e.message || String(e));
     }
@@ -285,31 +271,19 @@
       var list = data.olympiads || data.items || [];
       var box = $('olympiadList');
       if (!box) return;
-      if (!list.length) {
-        box.innerHTML = '<p class="muted">Олимпиада нест</p>';
-        return;
-      }
+      if (!list.length) { box.innerHTML = '<p class="muted">Олимпиада нест</p>'; return; }
       box.innerHTML = list.map(function (o) {
         var nq = o.questionCount || (o.questions && o.questions.length) || '?';
         var done = !!(o.alreadySubmitted || o.finished || o.submitted);
-        var btn;
-        if (done) {
-          btn = '<button class="btn" disabled>' + esc(t('submitted')) + '</button>';
-        } else {
-          btn = '<button class="btn primary start-exam" data-id="' + esc(o.id) + '">' + esc(t('startExam')) + '</button>';
-        }
-        return '<div class="card oly-card" style="margin-bottom:.75rem;padding:1rem">' +
-          '<strong>' + esc(o.title || 'Олимпиада') + '</strong>' +
-          '<div class="muted">Саволҳо: ' + nq + '</div>' + btn + '</div>';
+        var btn = done
+          ? '<button class="btn" disabled>' + esc(t('submitted')) + '</button>'
+          : '<button class="btn primary start-exam" data-id="' + esc(o.id) + '">' + esc(t('startExam')) + '</button>';
+        return '<div class="card oly-card" style="margin-bottom:.75rem;padding:1rem"><strong>' + esc(o.title || 'Олимпиада') + '</strong><div class="muted">Саволҳо: ' + nq + '</div>' + btn + '</div>';
       }).join('');
       box.querySelectorAll('.start-exam').forEach(function (b) {
-        b.addEventListener('click', function () {
-          startExam(b.getAttribute('data-id'));
-        });
+        b.addEventListener('click', function () { startExam(b.getAttribute('data-id')); });
       });
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   function bindNav() {
@@ -326,9 +300,7 @@
       exam.idx = Math.min(exam.questions.length - 1, exam.idx + 1);
       renderQuestion();
     });
-    if (sub) sub.addEventListener('click', function () {
-      submitExam(false);
-    });
+    if (sub) sub.addEventListener('click', function () { submitExam(false); });
   }
 
   function init() {
@@ -342,22 +314,16 @@
     if (form) {
       form.addEventListener('submit', async function (ev) {
         ev.preventDefault();
-        var id = ($('studentIdInput') || {}).value || '';
-        id = String(id).trim();
+        var id = String((($('studentIdInput') || {}).value || '')).trim();
         if (!id) return;
         try {
-          var data = await api('/api/student/login', {
-            method: 'POST',
-            body: JSON.stringify({ studentId: id })
-          });
+          var data = await api('/api/student/login', { method: 'POST', body: JSON.stringify({ studentId: id }) });
           localStorage.setItem('geo_student_id', data.studentId || id);
           if (data.token) localStorage.setItem('geo_student_token', data.token);
           show($('loginView'), false);
           show($('appView') || $('listView'), true);
           loadList();
-        } catch (e) {
-          alert(e.message || String(e));
-        }
+        } catch (e) { alert(e.message || String(e)); }
       });
     }
     var lo = $('logoutBtn');

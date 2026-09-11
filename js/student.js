@@ -1,4 +1,4 @@
-// Student portal — compact restore (confirm + hideScore + one-attempt)
+// Student portal — styled restore (admin.css cards + confirm + hideScore)
 (function () {
   'use strict';
   var API = '';
@@ -67,17 +67,22 @@
   }
 
   function setHeader() {
-    var nameEl = $('studentName') || $('studentHeader');
-    if (!student || !nameEl) return;
+    var nameEl = $('studentName');
+    var metaEl = $('studentMeta');
+    if (!student) return;
     var name = student.fullName || student.name || studentId() || '—';
+    if (nameEl) nameEl.textContent = name;
     var bits = [];
     if (student.className || student.class_name) bits.push(student.className || student.class_name);
     if (student.school || student.school_name) bits.push(student.school || student.school_name);
-    nameEl.textContent = bits.length ? (name + ' · ' + bits.join(' · ')) : name;
+    if (metaEl) metaEl.textContent = bits.length ? (' · ' + bits.join(' · ')) : '';
   }
 
   async function doLogin(id) {
-    var data = await api('/api/student/login', { method: 'POST', body: JSON.stringify({ studentId: id, id: id, code: id }) });
+    var data = await api('/api/student/login', {
+      method: 'POST',
+      body: JSON.stringify({ studentId: id, id: id, code: id })
+    });
     student = data.student || data;
     saveLocal(student);
     return student;
@@ -90,42 +95,51 @@
     show($('appView'), false);
   }
 
-  async function loadList() {
-    var box = $('olympiadList') || $('eventList');
-    var empty = $('olympiadEmpty') || $('eventEmpty');
+  function renderCards(box, list, emptyEl) {
     if (!box) return;
-    box.innerHTML = '';
+    if (!list || !list.length) {
+      box.innerHTML = '';
+      show(emptyEl, true);
+      return;
+    }
+    show(emptyEl, false);
+    box.innerHTML = list.map(function (o) {
+      var id = o.id;
+      var title = esc(o.title || o.name || 'Олимпиада');
+      var nq = o.questionCount || (o.questions && o.questions.length) || '?';
+      var dur = o.durationSec != null ? Math.round(Number(o.durationSec) / 60) : o.durationMin;
+      var durTxt = dur ? (dur + ' дақ') : '';
+      var done = !!(o.alreadySubmitted || o.finished || o.submitted);
+      var locked = o.accessAllowed === false || o.windowStatus === 'locked' ||
+        o.windowStatus === 'not_started' || o.windowStatus === 'ended';
+      var btn;
+      if (done) {
+        btn = '<button class="btn" disabled>' + esc(t('submitted')) + '</button>';
+      } else if (locked || o.isOpen === false) {
+        btn = '<button class="btn" disabled>' + esc(o.windowStatus || 'locked') + '</button>';
+      } else {
+        btn = '<button class="btn primary" data-start="' + esc(id) + '">' + esc(t('startExam')) + '</button>';
+      }
+      return (
+        '<div class="card event-card" data-id="' + esc(id) + '">' +
+          '<div class="card-title">' + title + '</div>' +
+          '<div class="muted">' + nq + ' савол' + (durTxt ? ' · ' + durTxt : '') + '</div>' +
+          '<div class="card-actions">' + btn + '</div>' +
+        '</div>'
+      );
+    }).join('');
+    box.querySelectorAll('[data-start]').forEach(function (b) {
+      b.addEventListener('click', function () { startExam(b.getAttribute('data-start')); });
+    });
+  }
+
+  async function loadList() {
     try {
       var data = await api('/api/student/olympiads?studentId=' + encodeURIComponent(studentId()));
-      var list = (data.olympiads || []).concat(data.quizzes || []);
-      if (!list.length) {
-        if (empty) { empty.textContent = t('noEvents'); show(empty, true); }
-        return;
-      }
-      show(empty, false);
-      list.forEach(function (o) {
-        var id = o.id;
-        var done = !!(o.alreadySubmitted || o.finished || o.submitted);
-        var card = document.createElement('div');
-        card.className = 'event-card card';
-        var btn;
-        if (done) {
-          btn = '<span class="badge">' + esc(t('submitted')) + '</span>';
-        } else if (o.isOpen !== false) {
-          btn = '<button class="btn primary" data-start="' + esc(id) + '">' + esc(t('startExam')) + '</button>';
-        } else {
-          btn = '<span class="muted">' + esc(o.windowStatus || '—') + '</span>';
-        }
-        card.innerHTML =
-          '<div class="event-title">' + esc(o.title || 'Олимпиада') + '</div>' +
-          '<div class="event-meta muted">' + esc((o.questionCount || '?') + ' савол · ' + (o.durationSec ? Math.round(o.durationSec / 60) + ' дақ' : '—')) + '</div>' +
-          '<div class="event-actions">' + btn + '</div>';
-        box.appendChild(card);
-      });
-      box.querySelectorAll('[data-start]').forEach(function (b) {
-        b.addEventListener('click', function () { startExam(b.getAttribute('data-start')); });
-      });
+      renderCards($('olympiadList'), data.olympiads || [], $('olympiadEmpty'));
+      renderCards($('quizList'), data.quizzes || [], $('quizEmpty'));
     } catch (e) {
+      var empty = $('olympiadEmpty');
       if (empty) { empty.textContent = e.message || String(e); show(empty, true); }
     }
   }
@@ -229,7 +243,7 @@
     var html = '<div class="q-text"><strong>' + esc(t('questionLabel') + ' ' + (exam.idx + 1)) + '</strong><p>' + esc(q.text) + '</p></div>';
     var cur = exam.answers[q.id];
     if (q.type === 'single' || q.type === 'choice' || q.type === 'mcq' || !q.type) {
-      html += '<div class="exam-options">';
+      html += '<div class="exam-opts">';
       q.options.forEach(function (opt, j) {
         var val = opt.id != null ? opt.id : j;
         var sel = String(cur) === String(val) || String(cur) === String(j) || cur === opt.text;

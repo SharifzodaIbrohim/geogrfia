@@ -1,4 +1,4 @@
-"""Admin XLSX export — /api/admin/export/* (openpyxl). Student ID as text."""
+"""Admin XLSX export — /api/admin/export/* (openpyxl). Safe route rebind."""
 from __future__ import annotations
 
 import io
@@ -69,15 +69,34 @@ def _score_pct(row: dict) -> Any:
     return ""
 
 
+def _style_header(ws, headers):
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+    fill = PatternFill("solid", fgColor="1B4332")
+    font = Font(bold=True, color="FFFFFF")
+    thin = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(1, col, h)
+        cell.fill = fill
+        cell.font = font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = thin
+    return thin
+
+
 def _wb_results(rows: list) -> io.BytesIO:
     from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.styles import Alignment
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Натиҷаҳо"
-
     headers = [
         "Ном",
         "Student ID",
@@ -90,22 +109,7 @@ def _wb_results(rows: list) -> io.BytesIO:
         "Статус",
         "Санаи анҷом",
     ]
-    header_fill = PatternFill("solid", fgColor="1B4332")
-    header_font = Font(bold=True, color="FFFFFF")
-    thin = Border(
-        left=Side(style="thin", color="CCCCCC"),
-        right=Side(style="thin", color="CCCCCC"),
-        top=Side(style="thin", color="CCCCCC"),
-        bottom=Side(style="thin", color="CCCCCC"),
-    )
-
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(1, col, h)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = thin
-
+    thin = _style_header(ws, headers)
     for r_i, row in enumerate(rows, 2):
         vals = [
             _name(row),
@@ -125,13 +129,10 @@ def _wb_results(rows: list) -> io.BytesIO:
             if c_i == 2:
                 cell.number_format = "@"
                 cell.alignment = Alignment(horizontal="left")
-
-    widths = [28, 22, 18, 10, 24, 10, 10, 10, 14, 20]
-    for i, w in enumerate(widths, 1):
+    for i, w in enumerate([28, 22, 18, 10, 24, 10, 10, 10, 14, 20], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(1, len(rows)+1)}"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(1, len(rows) + 1)}"
     ws.freeze_panes = "A2"
-
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -140,27 +141,13 @@ def _wb_results(rows: list) -> io.BytesIO:
 
 def _wb_students(rows: list) -> io.BytesIO:
     from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Хонандагон"
     headers = ["Student ID", "Ном", "Мактаб", "Синф", "Санаи бақайд"]
-    header_fill = PatternFill("solid", fgColor="1B4332")
-    header_font = Font(bold=True, color="FFFFFF")
-    thin = Border(
-        left=Side(style="thin", color="CCCCCC"),
-        right=Side(style="thin", color="CCCCCC"),
-        top=Side(style="thin", color="CCCCCC"),
-        bottom=Side(style="thin", color="CCCCCC"),
-    )
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(1, col, h)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
-        cell.border = thin
+    thin = _style_header(ws, headers)
     for r_i, row in enumerate(rows, 2):
         vals = [
             str(row.get("id") or row.get("studentId") or ""),
@@ -184,54 +171,91 @@ def _wb_students(rows: list) -> io.BytesIO:
 
 
 def _wb_full(results: list, students: list, olympiads: list) -> io.BytesIO:
-    from openpyxl import Workbook, load_workbook
-    from openpyxl.styles import Font, PatternFill
+    """Single workbook, 3 sheets — no private openpyxl APIs."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
+
     ws = wb.active
     ws.title = "Натиҷаҳо"
-    buf_r = _wb_results(results)
-    wb_r = load_workbook(buf_r)
-    ws_src = wb_r.active
-    for row in ws_src.iter_rows():
-        for cell in row:
-            ws.cell(cell.row, cell.column, cell.value)
-            try:
-                ws.cell(cell.row, cell.column).number_format = cell.number_format
-            except Exception:
-                pass
+    headers = [
+        "Ном",
+        "Student ID",
+        "Мактаб",
+        "Синф",
+        "Олимпиада",
+        "Хол (%)",
+        "Дуруст",
+        "Ҳама",
+        "Статус",
+        "Санаи анҷом",
+    ]
+    thin = _style_header(ws, headers)
+    for r_i, row in enumerate(results, 2):
+        vals = [
+            _name(row),
+            _sid(row),
+            _school(row),
+            _class(row),
+            _oly(row),
+            _score_pct(row),
+            row.get("correct") if row.get("correct") is not None else "",
+            row.get("total") if row.get("total") is not None else "",
+            _status_label(row.get("status")),
+            str(row.get("finishedAt") or row.get("finished_at") or "")[:19],
+        ]
+        for c_i, v in enumerate(vals, 1):
+            cell = ws.cell(r_i, c_i, v)
+            cell.border = thin
+            if c_i == 2:
+                cell.number_format = "@"
+                cell.alignment = Alignment(horizontal="left")
     for i, w in enumerate([28, 22, 18, 10, 24, 10, 10, 10, 14, 20], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
 
     ws2 = wb.create_sheet("Хонандагон")
-    buf_s = _wb_students(students)
-    wb_s = load_workbook(buf_s)
-    for cell in wb_s.active._cells.values():
-        ws2.cell(cell.row, cell.column, cell.value)
-        if cell.column == 1:
-            ws2.cell(cell.row, cell.column).number_format = "@"
+    h2 = ["Student ID", "Ном", "Мактаб", "Синф", "Санаи бақайд"]
+    thin2 = _style_header(ws2, h2)
+    for r_i, row in enumerate(students, 2):
+        vals = [
+            str(row.get("id") or row.get("studentId") or ""),
+            str(row.get("fullName") or row.get("name") or "—"),
+            str(row.get("school") or "—"),
+            str(row.get("className") or "—"),
+            str(row.get("createdAt") or "")[:19],
+        ]
+        for c_i, v in enumerate(vals, 1):
+            cell = ws2.cell(r_i, c_i, v)
+            cell.border = thin2
+            if c_i == 1:
+                cell.number_format = "@"
     for i, w in enumerate([22, 28, 18, 10, 20], 1):
         ws2.column_dimensions[get_column_letter(i)].width = w
+    ws2.freeze_panes = "A2"
 
     ws3 = wb.create_sheet("Олимпиадаҳо")
-    headers = ["ID", "Унвон", "Навъ", "Ҳад %", "Фаъол", "Сана"]
-    fill = PatternFill("solid", fgColor="1B4332")
-    font = Font(bold=True, color="FFFFFF")
-    for c, h in enumerate(headers, 1):
-        cell = ws3.cell(1, c, h)
-        cell.fill = fill
-        cell.font = font
+    h3 = ["ID", "Унвон", "Навъ", "Ҳад %", "Фаъол", "Сана"]
+    thin3 = _style_header(ws3, h3)
     for r_i, o in enumerate(olympiads, 2):
-        ws3.cell(r_i, 1, str(o.get("id") or ""))
-        ws3.cell(r_i, 1).number_format = "@"
-        ws3.cell(r_i, 2, o.get("title") or "")
-        ws3.cell(r_i, 3, o.get("type") or "")
-        ws3.cell(r_i, 4, o.get("passScore") or o.get("pass_score") or "")
-        ws3.cell(r_i, 5, "Ҳа" if o.get("active") else "Не")
-        ws3.cell(r_i, 6, str(o.get("createdAt") or "")[:19])
+        vals = [
+            str(o.get("id") or ""),
+            o.get("title") or "",
+            o.get("type") or "",
+            o.get("passScore") or o.get("pass_score") or "",
+            "Ҳа" if o.get("active") else "Не",
+            str(o.get("createdAt") or "")[:19],
+        ]
+        for c_i, v in enumerate(vals, 1):
+            cell = ws3.cell(r_i, c_i, v)
+            cell.border = thin3
+            if c_i == 1:
+                cell.number_format = "@"
     for i, w in enumerate([36, 28, 12, 10, 10, 20], 1):
         ws3.column_dimensions[get_column_letter(i)].width = w
+    ws3.freeze_panes = "A2"
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -302,11 +326,15 @@ def install(app=None):
     def _get_json(path: str):
         with app.test_client() as client:
             for k, v in request.cookies.items():
-                client.set_cookie("localhost", k, v)
+                try:
+                    client.set_cookie("localhost", k, v)
+                except Exception:
+                    pass
             r = client.get(path, headers=_auth_headers())
             if r.status_code == 401:
                 return None, 401
             if r.status_code >= 400:
+                log.warning("export internal GET %s -> %s", path, r.status_code)
                 return None, r.status_code
             try:
                 return r.get_json(silent=True) or {}, 200
@@ -321,63 +349,114 @@ def install(app=None):
             download_name=filename,
         )
 
-    @app.get("/api/admin/export/preview")
     def admin_export_preview():
-        data, code = _get_json("/api/admin/results?" + request.query_string.decode())
-        if code == 401:
-            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        rows = (data or {}).get("results") or (data or {}).get("items") or []
-        rows = _filter_rows(rows, request.args)
-        return jsonify({"count": len(rows), "total": len(rows)})
-
-    @app.get("/api/admin/export/results")
-    def admin_export_results():
-        data, code = _get_json("/api/admin/results?" + request.query_string.decode())
-        if code == 401:
-            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        rows = (data or {}).get("results") or (data or {}).get("items") or []
-        rows = _filter_rows(rows, request.args)
-        buf = _wb_results(rows)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-        return _send_xlsx(buf, f"Geografia_Results_{stamp}.xlsx")
-
-    @app.get("/api/admin/export/olympiad/<oid>")
-    def admin_export_olympiad(oid):
-        data, code = _get_json(f"/api/admin/olympiads/{oid}/results")
-        if code == 401:
-            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        if code >= 400:
-            data, code = _get_json(f"/api/admin/results?olympiadId={oid}")
+        try:
+            data, code = _get_json("/api/admin/results?" + request.query_string.decode())
             if code == 401:
                 return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        rows = (data or {}).get("results") or (data or {}).get("items") or []
-        buf = _wb_results(rows)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-        return _send_xlsx(buf, f"Geografia_Olympiad_{stamp}.xlsx")
+            rows = (data or {}).get("results") or (data or {}).get("items") or []
+            rows = _filter_rows(rows, request.args)
+            return jsonify({"count": len(rows), "total": len(rows)})
+        except Exception as e:
+            log.exception("export preview")
+            return jsonify({"error": str(e)}), 500
 
-    @app.get("/api/admin/export/students")
+    def admin_export_results():
+        try:
+            data, code = _get_json("/api/admin/results?" + request.query_string.decode())
+            if code == 401:
+                return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+            rows = (data or {}).get("results") or (data or {}).get("items") or []
+            rows = _filter_rows(rows, request.args)
+            buf = _wb_results(rows)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+            return _send_xlsx(buf, f"Geografia_Results_{stamp}.xlsx")
+        except Exception as e:
+            log.exception("export results")
+            return jsonify({"error": "Export хато: " + str(e)}), 500
+
+    def admin_export_olympiad(oid):
+        try:
+            data, code = _get_json(f"/api/admin/olympiads/{oid}/results")
+            if code == 401:
+                return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+            if code >= 400 or not data:
+                data, code = _get_json(f"/api/admin/results?olympiadId={oid}")
+                if code == 401:
+                    return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+            rows = (data or {}).get("results") or (data or {}).get("items") or []
+            buf = _wb_results(rows)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+            return _send_xlsx(buf, f"Geografia_Olympiad_{stamp}.xlsx")
+        except Exception as e:
+            log.exception("export olympiad")
+            return jsonify({"error": "Export хато: " + str(e)}), 500
+
     def admin_export_students():
-        data, code = _get_json("/api/admin/students")
-        if code == 401:
-            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        rows = (data or {}).get("students") or (data or {}).get("items") or []
-        buf = _wb_students(rows)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-        return _send_xlsx(buf, f"Geografia_Students_{stamp}.xlsx")
+        try:
+            data, code = _get_json("/api/admin/students")
+            if code == 401:
+                return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+            rows = (data or {}).get("students") or (data or {}).get("items") or []
+            buf = _wb_students(rows)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+            return _send_xlsx(buf, f"Geografia_Students_{stamp}.xlsx")
+        except Exception as e:
+            log.exception("export students")
+            return jsonify({"error": "Export хато: " + str(e)}), 500
 
-    @app.get("/api/admin/export/full")
     def admin_export_full():
-        res_data, code = _get_json("/api/admin/results")
-        if code == 401:
-            return jsonify({"error": "Дастрасӣ рад шуд."}), 401
-        st_data, _ = _get_json("/api/admin/students")
-        ol_data, _ = _get_json("/api/admin/olympiads")
-        results = (res_data or {}).get("results") or []
-        students = (st_data or {}).get("students") or []
-        olympiads = (ol_data or {}).get("olympiads") or (ol_data if isinstance(ol_data, list) else [])
-        buf = _wb_full(results, students, olympiads)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-        return _send_xlsx(buf, f"Geografia_Full_{stamp}.xlsx")
+        try:
+            res_data, code = _get_json("/api/admin/results")
+            if code == 401:
+                return jsonify({"error": "Дастрасӣ рад шуд."}), 401
+            st_data, _ = _get_json("/api/admin/students")
+            ol_data, _ = _get_json("/api/admin/olympiads")
+            results = (res_data or {}).get("results") or []
+            students = (st_data or {}).get("students") or []
+            olympiads = (ol_data or {}).get("olympiads") or (
+                ol_data if isinstance(ol_data, list) else []
+            )
+            buf = _wb_full(results, students, olympiads)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+            return _send_xlsx(buf, f"Geografia_Full_{stamp}.xlsx")
+        except Exception as e:
+            log.exception("export full")
+            return jsonify({"error": "Export хато: " + str(e)}), 500
 
-    print("[boot] patch_admin_export: XLSX routes /api/admin/export/* installed")
+    routes = [
+        ("/api/admin/export/preview", "geo_export_preview", admin_export_preview, ["GET"]),
+        ("/api/admin/export/results", "geo_export_results", admin_export_results, ["GET"]),
+        ("/api/admin/export/olympiad/<oid>", "geo_export_olympiad", admin_export_olympiad, ["GET"]),
+        ("/api/admin/export/students", "geo_export_students", admin_export_students, ["GET"]),
+        ("/api/admin/export/full", "geo_export_full", admin_export_full, ["GET"]),
+    ]
+
+    for rule, endpoint, view, methods in routes:
+        if endpoint in app.view_functions:
+            try:
+                del app.view_functions[endpoint]
+            except Exception:
+                pass
+        try:
+            app.add_url_rule(rule, endpoint=endpoint, view_func=view, methods=methods)
+        except Exception as e:
+            log.warning("add_url_rule %s failed: %s", rule, e)
+            app.view_functions[endpoint] = view
+            try:
+                app.add_url_rule(
+                    rule, endpoint=endpoint, view_func=view, methods=methods, strict_slashes=False
+                )
+            except Exception as e2:
+                log.error("export route bind failed %s: %s", rule, e2)
+
+    for ep, fn in (
+        ("admin_export_students", admin_export_students),
+        ("export_students", admin_export_students),
+        ("admin_export_full", admin_export_full),
+    ):
+        if ep in app.view_functions:
+            app.view_functions[ep] = fn
+
+    print("[boot] patch_admin_export v2: XLSX /api/admin/export/* bound")
     return True

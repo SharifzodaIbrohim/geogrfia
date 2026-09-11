@@ -5,6 +5,7 @@ def build_review(attempt_id):
     eng = _eng()
     att = None
     answers_json = None
+    answers_rows = []
     with eng.connect() as conn:
         for sql in [
             """SELECT a.id::text AS id, a.olympiad_id::text AS olympiad_id,
@@ -40,6 +41,26 @@ def build_review(attempt_id):
                 except Exception: pass
         if not att: raise ValueError("attempt_not_found")
         answers_json = _parse(att.get("answers_json"))
+        # attempt_answers rows (durable)
+        answers_rows = []
+        try:
+            answers_rows = [dict(r) for r in conn.execute(text("""
+                SELECT question_id::text AS qid, selected_idx, selected_text, answer_text, is_correct
+                FROM attempt_answers WHERE attempt_id::text = :id
+            """), {"id": attempt_id}).mappings().all()]
+        except Exception as e:
+            log.warning("review aa: %s", e)
+            try: conn.rollback()
+            except Exception: pass
+            try:
+                answers_rows = [dict(r) for r in conn.execute(text("""
+                    SELECT question_id::text AS qid, selected_idx, selected_text, is_correct
+                    FROM attempt_answers WHERE attempt_id::text = :id
+                """), {"id": attempt_id}).mappings().all()]
+            except Exception as e2:
+                log.warning("review aa2: %s", e2)
+                try: conn.rollback()
+                except Exception: pass
         qs = _parse(att.get("questions_json")) or []
         if isinstance(qs, dict): qs = qs.get("questions") or qs.get("items") or []
         if not qs and att.get("olympiad_id"):

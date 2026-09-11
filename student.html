@@ -2,76 +2,82 @@
 <html lang="tg">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Хонанда — Олимпиада</title>
-  <link rel="stylesheet" href="css/platform.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Хонанда — Олимпиада ва викторина</title>
+  <link rel="stylesheet" href="css/admin.css" />
   <link rel="stylesheet" href="css/student.css" />
 </head>
-<body class="student-page">
-  <header class="student-top">
-    <div id="studentHeader" class="student-header-info"></div>
-    <div class="student-top-actions">
-      <select id="pfLang" aria-label="Language">
-        <option value="tg">TJ</option>
-        <option value="ru">RU</option>
-        <option value="en">EN</option>
-      </select>
-      <a class="btn ghost" href="/">Сайт</a>
-      <button type="button" class="btn" id="logoutBtn">Баромадан</button>
-    </div>
-  </header>
-
-  <main>
-    <section id="loginView">
-      <form id="studentLoginForm" class="card login-card">
-        <h1>Воридшавии хонанда</h1>
-        <label>ID-и хонанда
-          <input id="studentIdInput" name="studentId" autocomplete="username" required />
-        </label>
-        <p id="loginError" class="error hidden"></p>
-        <button type="submit" class="btn primary">Ворид</button>
-      </form>
-    </section>
-
-    <section id="appView" class="hidden">
+<body>
+  <div id="loginView" class="auth-shell">
+    <form id="studentLoginForm" class="auth-card">
+      <h1>Воридшавии хонанда</h1>
+      <p class="muted">Танҳо бо ID-е, ки админ додааст</p>
+      <label>ID-и шумо</label>
+      <input id="studentIdInput" type="text" inputmode="numeric" placeholder="Рақами донишҷӯ" required />
+      <button type="submit" class="btn primary">Ворид шудан</button>
+      <p id="loginError" class="error hidden"></p>
+      <p class="muted center"><a href="/">Бозгашт ба сайт</a></p>
+    </form>
+  </div>
+  <div id="appView" class="hidden">
+    <header class="topbar">
+      <div>
+        <strong id="studentName">—</strong>
+        <span id="studentMeta" class="muted"></span>
+      </div>
+      <div class="topbar-actions">
+        <select id="pfLang" class="pf-lang" title="Забон" aria-label="Language" style="margin-right:8px">
+          <option value="tg">TJ</option>
+          <option value="ru">RU</option>
+          <option value="en">EN</option>
+        </select>
+        <a href="/" class="btn ghost">Сайт</a>
+        <button id="logoutBtn" type="button" class="btn">Баромадан</button>
+      </div>
+    </header>
+    <main class="panel">
       <section id="listView">
-        <h2>Олимпиадаҳо</h2>
-        <div id="olympiadList"></div>
+        <h2>Олимпиадаҳои фаъол</h2>
+        <div id="olympiadList" class="cards"></div>
         <p id="olympiadEmpty" class="muted hidden">Ҳоло олимпиадаи фаъол нест.</p>
+        <h2 style="margin-top:1.5rem">Викторинаҳо</h2>
+        <div id="quizList" class="cards"></div>
+        <p id="quizEmpty" class="muted hidden">Ҳоло викторина нест.</p>
       </section>
-
-      <section id="examView" class="hidden">
-        <div class="exam-bar">
-          <span id="examTitle"></span>
-          <span id="examTimer" class="timer"></span>
-          <span id="examProgress"></span>
-        </div>
-        <div id="examQuestionPane"></div>
-        <div class="exam-nav">
-          <button type="button" class="btn" id="examPrevBtn">← Қаблӣ</button>
-          <button type="button" class="btn" id="examNextBtn">Баъдӣ →</button>
-          <button type="button" class="btn primary" id="submitExamBtn">Супоридан</button>
+      <section id="examView" class="hidden exam-shell">
+        <div class="exam-card">
+          <div class="exam-head">
+            <div class="exam-brand">GEOGRAFIA</div>
+            <h1 id="examTitle" class="exam-title">—</h1>
+            <div class="exam-meta">
+              <span id="examTimer" class="exam-chip">—</span>
+              <span id="examProgress" class="exam-chip accent">Савол 0 / 0</span>
+            </div>
+          </div>
+          <div id="examQuestionPane" class="exam-body"></div>
+          <div class="exam-nav">
+            <button type="button" id="examPrevBtn" class="btn ghost">← Қаблӣ</button>
+            <div id="examDots" class="exam-dots" aria-hidden="true"></div>
+            <button type="button" id="examNextBtn" class="btn">Баъдӣ →</button>
+          </div>
+          <div class="exam-footer">
+            <button type="button" id="submitExamBtn" class="btn primary exam-submit">Супоридан</button>
+            <p id="examMsg" class="msg hidden"></p>
+          </div>
         </div>
       </section>
-
       <section id="resultView" class="hidden">
-        <div class="card result-card">
+        <div class="card highlight center result-card">
           <h2>Натиҷа</h2>
           <p class="score-big" id="resultScore">0%</p>
           <p id="resultDetail"></p>
           <p id="resultStatus" class="badge"></p>
-          <button type="button" class="btn" id="resultBackBtn">Бозгашт</button>
+          <button id="resultBackBtn" type="button" class="btn">Бозгашт</button>
         </div>
       </section>
-    </section>
-  </main>
-
-  <noscript><p class="error" style="text-align:center;padding:1rem">Саҳифаро навсозӣ кунед. JavaScript лозим аст.</p></noscript>
-  <script>
-    window.__geoStudentBoot = true;
-  </script>
+    </main>
+  </div>
   <script src="js/i18n.js"></script>
   <script src="js/student.js"></script>
-  <script src="js/student-confirm.js"></script>
 </body>
 </html>

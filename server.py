@@ -78,6 +78,8 @@ for _i in range(24):
 for _i in range(4):
     _EXTRA_PUBLIC.add(f"_st_b64_{_i}.txt")
     _EXTRA_PUBLIC.add(f"_st_p{_i}.txt")
+for _i in range(6):
+    _EXTRA_PUBLIC.add(f"_ao_b64_{_i}.txt")
 for _i in range(10):
     _EXTRA_PUBLIC.add(f"js/_sh{_i}.txt")
     _EXTRA_PUBLIC.add(f"_sh{_i}.txt")
@@ -95,86 +97,45 @@ try:
 except Exception as e:
     print("[boot] PUBLIC_PATHS merge skipped:", e)
 
-try:
-    from flask import request as _req, jsonify as _jsonify
-    def _google_login_safe():
-        try:
-            from db.google_auth import verify_google_token
-            data = _req.get_json(silent=True) or {}
-            token = data.get("idToken") or data.get("credential") or data.get("token")
-            if not token:
-                return _jsonify({"error": "token required"}), 400
-            info = verify_google_token(token)
-            if not info:
-                return _jsonify({"error": "invalid token"}), 401
-            return _jsonify({"ok": True, "user": info})
-        except Exception as e:
-            return _jsonify({"error": str(e)}), 500
-    bound = 0
-    for rule in list(app.url_map.iter_rules()):
-        if "google" in str(rule.rule) and "login" in str(rule.rule):
-            app.view_functions[rule.endpoint] = _google_login_safe
-            bound += 1
-    if "google_login" in app.view_functions:
-        app.view_functions["google_login"] = _google_login_safe
-        bound += 1
-    print(f"[boot] safety-net: google_login bound={bound}")
-except Exception as e:
-    print("[boot] safety-net failed:", e)
-
+# Boot patches (order matters)
 try:
     from db.patch_student_portal import install as _isp
     _isp(app)
 except Exception as e:
     print("[boot] patch_student_portal failed:", e)
+
 try:
-    from db.patch_admin_create_role import install as _iac
-    _iac(app)
+    from db.patch_admin_create_role import install as _pacr
+    _pacr(app)
 except Exception as e:
     print("[boot] patch_admin_create_role failed:", e)
+
 try:
-    from db.patch_admin_auth_bearer import install as _iab
-    _iab(app)
+    from db.patch_admin_auth_bearer import install as _paab
+    _paab(app)
 except Exception as e:
     print("[boot] patch_admin_auth_bearer failed:", e)
+
 try:
-    from db.patch_names import install as _in
-    _in(app)
+    from db.patch_olympiad_builder import install as _pob
+    _pob(app)
 except Exception as e:
-    print("[boot] patch_names failed:", e)
+    print("[boot] patch_olympiad_builder failed:", e)
+
 try:
-    from db.patch_monitor_durable import install as _imd
-    _imd(app)
-except Exception as e:
-    print("[boot] patch_monitor_durable failed:", e)
-try:
-    from db.patch_score_text import install as _ist
-    _ist(app)
-    print("[boot] patch_score_text installed")
-except Exception as e:
-    print("[boot] patch_score_text failed:", e)
-try:
-    from db.patch_answers_durable import install as _iad
-    _iad(app)
+    from db.patch_answers_durable import install as _pad
+    _pad(app)
 except Exception as e:
     print("[boot] patch_answers_durable failed:", e)
+
 try:
-    from db.patch_attempt_review import install as _iar
-    _iar(app)
+    from db.patch_attempt_review import install as _par
+    _par(app)
 except Exception as e:
     print("[boot] patch_attempt_review failed:", e)
+
 try:
-    from db.patch_results_score_fix import install as _irsf
-    _irsf(app)
+    from db.patch_results_score_fix import install as _prsf
+    _prsf(app)
 except Exception as e:
     print("[boot] patch_results_score_fix failed:", e)
-try:
-    from db.patch_clear_recent import install as _icr
-    _icr(app)
-except Exception as e:
-    print("[boot] patch_clear_recent failed:", e)
-try:
-    from db.bootstrap_admin import install_bootstrap
-    install_bootstrap()
-except Exception as e:
-    print("[boot] bootstrap_admin failed:", e)

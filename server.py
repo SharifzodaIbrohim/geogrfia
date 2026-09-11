@@ -181,6 +181,12 @@ try:
 except Exception as e:
     print("[boot] patch_clear_recent failed:", e)
 try:
+    from db.patch_admin_export import install as _iax
+    _iax(app)
+    print("[boot] patch_admin_export installed")
+except Exception as e:
+    print("[boot] patch_admin_export failed:", e)
+try:
     from db.bootstrap_admin import install_bootstrap
     install_bootstrap()
 except Exception as e:

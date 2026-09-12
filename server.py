@@ -161,6 +161,12 @@ try:
 except Exception as e:
     print("[boot] patch_olympiad_builder failed:", e)
 try:
+    from db.patch_olympiad_questions_pg import install as _iqpg
+    _iqpg(app)
+    print("[boot] patch_olympiad_questions_pg installed")
+except Exception as e:
+    print("[boot] patch_olympiad_questions_pg failed:", e)
+try:
     from db.patch_answers_durable import install as _iad
     _iad(app)
 except Exception as e:

@@ -194,7 +194,7 @@
       if (!window.confirm(lang() === 'ru' ? 'Сдать экзамен?' : lang() === 'en' ? 'Submit exam?' : 'Шумо мехоҳед супоред?')) return;
     }
     try {
-      var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/exam-submit', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/submit', {
         method: 'POST',
         body: JSON.stringify({ studentId: studentId(), attemptId: exam.attemptId, answers: exam.answers })
       });
@@ -229,11 +229,11 @@
   async function startExam(olympiadId) {
     stopTimers();
     try {
-      var data = await api('/api/olympiads/' + encodeURIComponent(olympiadId) + '/exam-start', {
+      var data = await api('/api/olympiads/' + encodeURIComponent(olympiadId) + '/start', {
         method: 'POST',
-        body: JSON.stringify({ studentId: studentId() })
+        body: JSON.stringify({ studentId: studentId(), student_id: studentId() })
       });
-      var qs = data.questions || (data.exam && data.exam.questions) || [];
+      var qs = data.questions || (data.exam && data.exam.questions) || data.items || [];
       exam = {
         olympiadId: olympiadId,
         attemptId: data.attemptId || data.id,

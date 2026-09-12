@@ -183,4 +183,23 @@ def install(app) -> None:
     if "student_login" in app.view_functions:
         app.view_functions["student_login"] = student_login
     _bind("/api/student/olympiads", "student_portal_olympiads", student_olympiads, ["GET"])
+
+    # 405: JS used POST /exam-start which had no POST handler. Alias to real /start + /submit.
+    start_fn = submit_fn = None
+    for r in list(app.url_map.iter_rules()):
+        rule = str(r.rule)
+        methods = r.methods or set()
+        if "POST" not in methods:
+            continue
+        if "/olympiads/" in rule and rule.endswith("/start") and "exam" not in rule:
+            start_fn = app.view_functions.get(r.endpoint)
+        if "/olympiads/" in rule and rule.endswith("/submit") and "exam" not in rule:
+            submit_fn = app.view_functions.get(r.endpoint)
+    if start_fn:
+        _bind("/api/olympiads/<olympiad_id>/exam-start", "geo_exam_start_alias", start_fn, ["POST"])
+        print("[boot] patch_student_portal: alias POST /exam-start -> /start")
+    if submit_fn:
+        _bind("/api/olympiads/<olympiad_id>/exam-submit", "geo_exam_submit_alias", submit_fn, ["POST"])
+        print("[boot] patch_student_portal: alias POST /exam-submit -> /submit")
+
     print("[boot] patch_student_portal: login + olympiads + one-attempt-ui")

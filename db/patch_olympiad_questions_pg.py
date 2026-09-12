@@ -136,7 +136,10 @@ def install(app=None):
     if _create is not None:
         def create_olympiad(data: dict) -> dict:
             data = dict(data or {})
-            questions = data.get("questions") or []
+            # Deep-copy BEFORE original create (it mutates questions to single-only)
+            questions = json.loads(json.dumps(data.get("questions") or [], ensure_ascii=False))
+            # Keep full multi-type on data for any downstream that reads it
+            data["questions"] = json.loads(json.dumps(questions, ensure_ascii=False))
             if "isActive" not in data:
                 data["isActive"] = True
             show_results = data.get("showResultsToStudents")

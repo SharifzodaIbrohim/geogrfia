@@ -96,7 +96,6 @@ try:
 except Exception as e:
     print("[boot] PUBLIC_PATHS merge skipped:", e)
 
-# Safety-net: rebound google login
 try:
     from flask import request as _req, jsonify as _jsonify
     def _google_login_safe():
@@ -176,6 +175,12 @@ try:
     _iar(app)
 except Exception as e:
     print("[boot] patch_attempt_review failed:", e)
+try:
+    from db.patch_review_multitype import install as _irm
+    _irm(app)
+    print("[boot] patch_review_multitype installed")
+except Exception as e:
+    print("[boot] patch_review_multitype failed:", e)
 try:
     from db.patch_results_score_fix import install as _irsf
     _irsf(app)

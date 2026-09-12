@@ -145,41 +145,137 @@
   padding-top: 3px;
 }
 
-/* Short / text answer */
-.exam-text-input {
+/* Short / text / matching inputs — dark theme (JS uses .exam-input) */
+.exam-text-input,
+.exam-input,
+input.exam-input,
+textarea.exam-input,
+select.exam-input,
+select.match-select {
   display: block;
   width: 100%;
   box-sizing: border-box;
   min-height: 48px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--border, rgba(255,255,255,0.12));
-  background: var(--bg, #141614);
-  color: var(--text, #f2f4f1);
+  border: 1px solid var(--border, rgba(255,255,255,0.14));
+  background: var(--bg, #141614) !important;
+  color: var(--text, #f2f4f1) !important;
   font-size: 0.95rem;
   line-height: 1.45;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+textarea.exam-input,
+textarea.exam-text-input {
+  min-height: 110px;
   resize: vertical;
 }
 
-.exam-text-input:focus {
+.exam-text-input:focus,
+.exam-input:focus,
+select.match-select:focus {
   outline: none;
-  border-color: var(--accent, #70db97);
+  border-color: var(--accent, #70db97) !important;
+  box-shadow: 0 0 0 3px rgba(112, 219, 151, 0.18);
 }
 
-.exam-text-input::placeholder {
+.exam-text-input::placeholder,
+.exam-input::placeholder {
   color: var(--muted, #9aa39a);
 }
 
+/* Matching block */
 .exam-match {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .exam-match-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.10));
+  background: var(--surface, #1a1f1a);
+}
+
+.match-left {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text, #f2f4f1);
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.match-left-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: rgba(112, 219, 151, 0.18);
+  color: var(--accent, #70db97);
+}
+
+select.match-select,
+select.exam-input.match-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 36px 10px 14px;
+  border-radius: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa39a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+
+select.match-select option {
+  background: #1a1f1a;
+  color: #f2f4f1;
+}
+
+.exam-answer-hint {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--muted, #9aa39a);
+}
+
+/* q-text from student.js */
+.q-text {
+  margin-bottom: 16px;
+}
+.q-text strong {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted, #9aa39a);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.q-text p {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text, #f2f4f1);
 }
 
 .exam-nav {
@@ -287,8 +383,12 @@
   .exam-body { min-height: 180px; }
   .exam-meta { gap: 6px; }
   .exam-chip { font-size: 0.75rem; padding: 4px 10px; }
-  .exam-match-row { flex-direction: column; align-items: stretch; }
-  .match-select { width: 100%; }
+  .exam-match-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .match-select, select.match-select { width: 100%; }
+  .exam-input, .exam-text-input { font-size: 16px; /* prevent iOS zoom */ }
 }
 
 

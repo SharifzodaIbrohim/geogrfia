@@ -89,6 +89,19 @@
     }
   }
 
+  function fillStudentHeader() {
+    var nameEl = $('studentName');
+    var metaEl = $('studentMeta');
+    var nm = '';
+    var meta = '';
+    try {
+      nm = localStorage.getItem('geo_student_name') || '';
+      meta = localStorage.getItem('geo_student_meta') || '';
+    } catch (e) {}
+    if (nameEl) nameEl.textContent = nm || studentId() || '—';
+    if (metaEl) metaEl.textContent = meta || '';
+  }
+
   function normalizeQ(q, i) {
     if (!q) return { id: String(i), text: '', type: 'single', options: [], leftItems: [], rightItems: [] };
     var opts = q.options || q.choices || [];
@@ -234,31 +247,44 @@
         body: JSON.stringify({ studentId: studentId(), student_id: studentId() })
       });
       var qs = data.questions || (data.exam && data.exam.questions) || data.items || [];
+      var rem = data.remainingSec != null ? Number(data.remainingSec)
+        : (data.durationSec != null ? Number(data.durationSec)
+        : (data.durationMin != null ? Number(data.durationMin) * 60 : 0));
+      if (!isFinite(rem) || rem < 0) rem = 0;
       exam = {
         olympiadId: olympiadId,
-        attemptId: data.attemptId || data.id,
+        attemptId: data.attemptId || data.id || data.sessionToken,
         questions: qs,
         answers: data.answers || {},
         idx: 0,
         endsAt: data.endsAt || data.endAt || null,
-        durationSec: data.durationSec || 0
+        durationSec: rem,
+        title: data.title || data.olympiadTitle || ''
       };
+      var titleEl = $('examTitle');
+      if (titleEl) titleEl.textContent = exam.title || 'Олимпиада';
+      fillStudentHeader();
       show($('listView'), false);
       show($('resultView'), false);
       show($('examView'), true);
       renderQuestion();
+      function paintTimer(sec) {
+        var el = $('examTimer');
+        if (!el) return;
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      }
       if (exam.endsAt || exam.durationSec) {
         var end = exam.endsAt ? new Date(exam.endsAt).getTime() : (Date.now() + exam.durationSec * 1000);
+        paintTimer(Math.max(0, Math.floor((end - Date.now()) / 1000)));
         timerId = setInterval(function () {
           var left = Math.max(0, Math.floor((end - Date.now()) / 1000));
-          var el = $('examTimer');
-          if (el) {
-            var m = Math.floor(left / 60);
-            var s = left % 60;
-            el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
-          }
+          paintTimer(left);
           if (left <= 0) submitExam(true);
         }, 1000);
+      } else {
+        paintTimer(0);
       }
     } catch (e) {
       alert(e.message || String(e));
@@ -283,12 +309,19 @@
       box.querySelectorAll('.start-exam').forEach(function (b) {
         b.addEventListener('click', function () { startExam(b.getAttribute('data-id')); });
       });
+      if (data.student) {
+        try {
+          localStorage.setItem('geo_student_name', data.student.fullName || data.student.name || '');
+          localStorage.setItem('geo_student_meta', [data.student.className || '', data.student.school || ''].filter(Boolean).join(' · '));
+        } catch (e1) {}
+        fillStudentHeader();
+      }
     } catch (e) { console.error(e); }
   }
 
   function bindNav() {
-    var prev = $('prevQuestionBtn');
-    var next = $('nextQuestionBtn');
+    var prev = $('examPrevBtn') || $('prevQuestionBtn');
+    var next = $('examNextBtn') || $('nextQuestionBtn');
     var sub = $('submitExamBtn');
     if (prev) prev.addEventListener('click', function () {
       if (!exam) return;
@@ -306,6 +339,7 @@
   function init() {
     bindNav();
     if (studentId()) {
+      fillStudentHeader();
       show($('loginView'), false);
       show($('appView') || $('listView'), true);
       loadList();
@@ -318,8 +352,14 @@
         if (!id) return;
         try {
           var data = await api('/api/student/login', { method: 'POST', body: JSON.stringify({ studentId: id }) });
-          localStorage.setItem('geo_student_id', data.studentId || id);
+          localStorage.setItem('geo_student_id', data.studentId || (data.student && data.student.id) || id);
           if (data.token) localStorage.setItem('geo_student_token', data.token);
+          try {
+            var st = data.student || {};
+            localStorage.setItem('geo_student_name', st.fullName || st.name || '');
+            localStorage.setItem('geo_student_meta', [st.className || '', st.school || ''].filter(Boolean).join(' · '));
+          } catch (e0) {}
+          fillStudentHeader();
           show($('loginView'), false);
           show($('appView') || $('listView'), true);
           loadList();
@@ -330,6 +370,8 @@
     if (lo) lo.addEventListener('click', function () {
       localStorage.removeItem('geo_student_id');
       localStorage.removeItem('geo_student_token');
+      localStorage.removeItem('geo_student_name');
+      localStorage.removeItem('geo_student_meta');
       location.reload();
     });
   }

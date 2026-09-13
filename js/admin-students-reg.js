@@ -1,16 +1,20 @@
-/* admin-students-reg — load known-good body from jsDelivr @b272cc85 */
+/* admin-students-reg — same-origin XHR (bypass fetch CORS wrap) */
 (function () {
-  var BASE = "https://cdn.jsdelivr.net/gh/SharifzodaIbrohim/geogrfia@b272cc856ee5b329cbf658a6f3984ceb963a55b9";
   var F = [];
-  for (var i = 0; i < 24; i++) F.push(BASE + "/_asr_x" + i + ".txt");
-  Promise.all(
-    F.map(function (f) {
-      return fetch(f, { cache: "no-store" }).then(function (r) {
-        if (!r.ok) throw new Error(f + " " + r.status);
-        return r.text();
-      });
-    })
-  )
+  for (var i = 0; i < 24; i++) F.push("/_asr_x" + i + ".txt?v=b272cc85");
+  function xhr(url) {
+    return new Promise(function (res, rej) {
+      var x = new XMLHttpRequest();
+      x.open("GET", url, true);
+      x.onload = function () {
+        if (x.status >= 200 && x.status < 300) res(x.responseText);
+        else rej(new Error(url + " " + x.status));
+      };
+      x.onerror = function () { rej(new Error("xhr " + url)); };
+      x.send();
+    });
+  }
+  Promise.all(F.map(xhr))
     .then(function (parts) {
       var b64 = parts.join("").replace(/\s+/g, "");
       var bin = atob(b64);

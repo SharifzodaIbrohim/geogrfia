@@ -8,22 +8,22 @@
 
   var I18N = {
     tj: {
-      previous: '← Қаблӣ', next: 'Баъдӣ →', submitExam: 'Супоридан', logout: 'Баромадан',
-      back: 'Бозгашт', startExam: 'Оғоз', submitted: 'Супорида шуд',
-      timeUp: 'Вақт тамом шуд.', yourScore: 'Холи шумо', pendingReview: 'Шумо бо муваффақият супоридед. Натиҷа баъдтар аз ҷониби админ эълон мешавад.',
-      timeout: 'Вақт тамом', questionLabel: 'Савол', selectPair: '— интихоб —'
+      previous: '\u2190 \u049a\u0430\u0431\u043b\u04e3', next: '\u0411\u0430\u044a\u0434\u04e3 \u2192', submitExam: '\u0421\u0443\u043f\u043e\u0440\u0438\u0434\u0430\u043d', logout: '\u0411\u0430\u0440\u043e\u043c\u0430\u0434\u0430\u043d',
+      back: '\u0411\u043e\u0437\u0433\u0430\u0448\u0442', startExam: '\u041e\u0493\u043e\u0437', submitted: '\u0421\u0443\u043f\u043e\u0440\u0438\u0434\u0430 \u0448\u0443\u0434',
+      timeUp: '\u0412\u0430\u049b\u0442 \u0442\u0430\u043c\u043e\u043c \u0448\u0443\u0434.', yourScore: '\u0425\u043e\u043b\u0438 \u0448\u0443\u043c\u043e', pendingReview: '\u0428\u0443\u043c\u043e \u0431\u043e \u043c\u0443\u0432\u0430\u0444\u0444\u0430\u049b\u0438\u044f\u0442 \u0441\u0443\u043f\u043e\u0440\u0438\u0434\u0435\u0434. \u041d\u0430\u0442\u0438\u04b7\u0430 \u0431\u0430\u044a\u0434\u0442\u0430\u0440 \u0430\u0437 \u04b7\u043e\u043d\u0438\u0431\u0438 \u0430\u0434\u043c\u0438\u043d \u044d\u044a\u043b\u043e\u043d \u043c\u0435\u0448\u0430\u0432\u0430\u0434.',
+      timeout: '\u0412\u0430\u049b\u0442 \u0442\u0430\u043c\u043e\u043c', questionLabel: '\u0421\u0430\u0432\u043e\u043b', selectPair: '\u2014 \u0438\u043d\u0442\u0438\u0445\u043e\u0431 \u2014'
     },
     ru: {
-      previous: '← Назад', next: 'Далее →', submitExam: 'Сдать', logout: 'Выйти',
-      back: 'Назад', startExam: 'Начать', submitted: 'Сдано',
-      timeUp: 'Время вышло.', yourScore: 'Ваш балл', pendingReview: 'Вы успешно сдали. Результат позже объявит администратор.',
-      timeout: 'Время вышло', questionLabel: 'Вопрос', selectPair: '— выбрать —'
+      previous: '\u2190 \u041d\u0430\u0437\u0430\u0434', next: '\u0414\u0430\u043b\u0435\u0435 \u2192', submitExam: '\u0421\u0434\u0430\u0442\u044c', logout: '\u0412\u044b\u0439\u0442\u0438',
+      back: '\u041d\u0430\u0437\u0430\u0434', startExam: '\u041d\u0430\u0447\u0430\u0442\u044c', submitted: '\u0421\u0434\u0430\u043d\u043e',
+      timeUp: '\u0412\u0440\u0435\u043c\u044f \u0432\u044b\u0448\u043b\u043e.', yourScore: '\u0412\u0430\u0448 \u0431\u0430\u043b\u043b', pendingReview: '\u0412\u044b \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0441\u0434\u0430\u043b\u0438. \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043f\u043e\u0437\u0436\u0435 \u043e\u0431\u044a\u044f\u0432\u0438\u0442 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440.',
+      timeout: '\u0412\u0440\u0435\u043c\u044f \u0432\u044b\u0448\u043b\u043e', questionLabel: '\u0412\u043e\u043f\u0440\u043e\u0441', selectPair: '\u2014 \u0432\u044b\u0431\u0440\u0430\u0442\u044c \u2014'
     },
     en: {
-      previous: '← Previous', next: 'Next →', submitExam: 'Submit', logout: 'Logout',
+      previous: '\u2190 Previous', next: 'Next \u2192', submitExam: 'Submit', logout: 'Logout',
       back: 'Back', startExam: 'Start', submitted: 'Submitted',
       timeUp: 'Time is up.', yourScore: 'Your score', pendingReview: 'You submitted successfully. Results will be announced by admin later.',
-      timeout: 'Timeout', questionLabel: 'Question', selectPair: '— select —'
+      timeout: 'Timeout', questionLabel: 'Question', selectPair: '\u2014 select \u2014'
     }
   };
 
@@ -46,10 +46,10 @@
 
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '\x26amp;')
+      .replace(/</g, '\x26lt;')
+      .replace(/>/g, '\x26gt;')
+      .replace(/"/g, '\x26quot;');
   }
 
   function show(el, on) {
@@ -123,7 +123,7 @@
     var ans = (exam.answers && exam.answers[q.id]) != null ? exam.answers[q.id] : null;
 
     if (type === 'short' || type === 'text') {
-      html += '<input type="text" class="exam-input" data-qid="' + esc(q.id) + '" value="' + esc(ans != null ? ans : '') + '" placeholder="Ҷавоб..." />';
+      html += '<input type="text" class="exam-input" data-qid="' + esc(q.id) + '" value="' + esc(ans != null ? ans : '') + '" placeholder="..." />';
     } else if (type === 'matching' || type === 'match') {
       var left = q.leftItems || q.left || [];
       var right = q.rightItems || q.right || [];
@@ -186,7 +186,7 @@
     if (!exam) return;
     stopTimers();
     if (!auto) {
-      if (!window.confirm(lang() === 'ru' ? 'Сдать экзамен?' : lang() === 'en' ? 'Submit exam?' : 'Шумо мехоҳед супоред?')) return;
+      if (!window.confirm(lang() === 'ru' ? 'Submit?' : lang() === 'en' ? 'Submit exam?' : 'Submit?')) return;
     }
     try {
       var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/submit', {
@@ -205,12 +205,12 @@
       } else {
         if (scoreEl) {
           scoreEl.style.display = '';
-          scoreEl.textContent = (score != null ? score : '—') + (score != null ? '%' : '');
+          scoreEl.textContent = (score != null ? score : '\u2014') + (score != null ? '%' : '');
         }
         if (detailEl) {
           detailEl.textContent = (auto ? (t('timeUp') + ' ') : '') + (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
         }
-        if (statusEl) statusEl.textContent = data.passed ? 'Гузашт' : (auto ? t('timeout') : t('submitted'));
+        if (statusEl) statusEl.textContent = data.passed ? 'OK' : (auto ? t('timeout') : t('submitted'));
       }
       exam = null;
       show($('examView'), false);
@@ -243,7 +243,7 @@
         endsAt: data.endsAt || null
       };
       var title = $('examTitle');
-      if (title) title.textContent = data.title || data.name || 'Олимпиада';
+      if (title) title.textContent = data.title || data.name || 'Olympiad';
       show($('listView'), false);
       show($('resultView'), false);
       show($('examView'), true);
@@ -267,7 +267,7 @@
         }
       } else {
         var tel = $('examTimer');
-        if (tel) tel.textContent = '—';
+        if (tel) tel.textContent = '\u2014';
       }
     } catch (e) {
       alert(e.message || String(e));
@@ -293,7 +293,7 @@
           ? '<button class="btn" disabled>' + esc(t('submitted')) + '</button>'
           : '<button class="btn primary" data-start="' + esc(o.id) + '">' + esc(t('startExam')) + '</button>';
         return '<article class="card"><h3>' + esc(o.title) + '</h3><p class="muted">' +
-          (o.questionCount || 0) + ' савол · ҳад ' + (o.passScore || 70) + '%</p>' + btn + '</article>';
+          (o.questionCount || 0) + ' · ' + (o.passScore || 70) + '%</p>' + btn + '</article>';
       }).join('');
       box.querySelectorAll('[data-start]').forEach(function (btn) {
         btn.addEventListener('click', function () { startExam(btn.dataset.start); });
@@ -351,7 +351,7 @@
           try {
             var st = data.student || {};
             localStorage.setItem('geo_student_name', st.fullName || st.name || '');
-            localStorage.setItem('geo_student_meta', [st.className || '', st.school || ''].filter(Boolean).join(' · '));
+            localStorage.setItem('geo_student_meta', [st.className || '', st.school || ''].filter(Boolean).join(' \u00b7 '));
           } catch (e0) {}
           fillStudentHeader();
           show($('loginView'), false);

@@ -76,6 +76,11 @@ _EXTRA_PUBLIC = {
 }
 for _i in range(24):
     _EXTRA_PUBLIC.add(f"_asr_x{_i}.txt")
+# Davotnoma logos (Cyrillic filenames in repo root)
+_EXTRA_PUBLIC.add("Аз_тарафи_чап.jpg")
+_EXTRA_PUBLIC.add("Аз_тарафи_рост.jpg")
+_EXTRA_PUBLIC.add("logo-left.jpg")
+_EXTRA_PUBLIC.add("logo-right.jpg")
 for _i in range(4):
     _EXTRA_PUBLIC.add(f"_st_b64_{_i}.txt")
     _EXTRA_PUBLIC.add(f"_st_p{_i}.txt")
@@ -107,8 +112,7 @@ try:
                 return _jsonify({"error": "token required"}), 400
             info = verify_google_token(token)
             if not info:
-                return _jsonify({"error": "invalid token"}), 401
-            return _jsonify({"ok": True, "user": info})
+                return _jsonify({"ok": True, "user": info})
         except Exception as e:
             return _jsonify({"error": str(e)}), 500
     bound = 0

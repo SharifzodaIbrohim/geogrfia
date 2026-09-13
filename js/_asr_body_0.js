@@ -1,0 +1,40 @@
+/* Student reg + camera + CSV + folder + Даъватнома */
+(function () {
+  var TOKEN_KEY = "geo_admin_token";
+  var DIR_DB = "geografia_admin_fs";
+  var DIR_STORE = "handles";
+  var DIR_KEY = "students_info_dir";
+  var _regLock = false;
+  var _dirMemory = null;
+  var _camStream = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&" + "amp;")
+      .replace(/</g, "&" + "lt;")
+      .replace(/>/g, "&" + "gt;")
+      .replace(/"/g, "&" + "quot;")
+      .replace(/'/g, "&#" + "39;");
+  }
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem("adminToken") || "";
+  }
+  async function api(path, options) {
+    options = options || {};
+    var headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+    var token = getToken();
+    if (token) {
+      headers["X-Admin-Token"] = token;
+      headers["Authorization"] = "Bearer " + token;
+    }
+    var res = await fetch(path, Object.assign({}, options, { headers: headers, credentials: "include" }));
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || data.message || ("Хато " + res.status));
+    return data;
+  }
+  function val(id) {
+    var el = document.getElementById(id);
+    return el && el.value != null ? String(el.value).trim() : "";
+  }
+  /* CONTINUED IN PART1 */
+}/* end marker part0 - will be joined */

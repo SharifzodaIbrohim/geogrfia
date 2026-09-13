@@ -8,22 +8,22 @@
 
   var I18N = {
     tj: {
-      previous: '\u2190 \u049a\u0430\u0431\u043b\u04e3', next: '\u0411\u0430\u044a\u0434\u04e3 \u2192', submitExam: '\u0421\u0443\u043f\u043e\u0440\u0438\u0434\u0430\u043d', logout: '\u0411\u0430\u0440\u043e\u043c\u0430\u0434\u0430\u043d',
-      back: '\u0411\u043e\u0437\u0433\u0430\u0448\u0442', startExam: '\u041e\u0493\u043e\u0437', submitted: '\u0421\u0443\u043f\u043e\u0440\u0438\u0434\u0430 \u0448\u0443\u0434',
-      timeUp: '\u0412\u0430\u049b\u0442 \u0442\u0430\u043c\u043e\u043c \u0448\u0443\u0434.', yourScore: '\u0425\u043e\u043b\u0438 \u0448\u0443\u043c\u043e', pendingReview: '\u0428\u0443\u043c\u043e \u0431\u043e \u043c\u0443\u0432\u0430\u0444\u0444\u0430\u049b\u0438\u044f\u0442 \u0441\u0443\u043f\u043e\u0440\u0438\u0434\u0435\u0434. \u041d\u0430\u0442\u0438\u04b7\u0430 \u0431\u0430\u044a\u0434\u0442\u0430\u0440 \u0430\u0437 \u04b7\u043e\u043d\u0438\u0431\u0438 \u0430\u0434\u043c\u0438\u043d \u044d\u044a\u043b\u043e\u043d \u043c\u0435\u0448\u0430\u0432\u0430\u0434.',
-      timeout: '\u0412\u0430\u049b\u0442 \u0442\u0430\u043c\u043e\u043c', questionLabel: '\u0421\u0430\u0432\u043e\u043b', selectPair: '\u2014 \u0438\u043d\u0442\u0438\u0445\u043e\u0431 \u2014'
+      previous: '← Қаблӣ', next: 'Баъдӣ →', submitExam: 'Супоридан', logout: 'Баромадан',
+      back: 'Бозгашт', startExam: 'Оғоз', submitted: 'Супорида шуд',
+      timeUp: 'Вақт тамом шуд.', yourScore: 'Холи шумо', pendingReview: 'Шумо бо муваффақият супоридед. Натиҷа баъдтар аз ҷониби админ эълон мешавад.',
+      timeout: 'Вақт тамом', questionLabel: 'Савол', selectPair: '— интихоб —'
     },
     ru: {
-      previous: '\u2190 \u041d\u0430\u0437\u0430\u0434', next: '\u0414\u0430\u043b\u0435\u0435 \u2192', submitExam: '\u0421\u0434\u0430\u0442\u044c', logout: '\u0412\u044b\u0439\u0442\u0438',
-      back: '\u041d\u0430\u0437\u0430\u0434', startExam: '\u041d\u0430\u0447\u0430\u0442\u044c', submitted: '\u0421\u0434\u0430\u043d\u043e',
-      timeUp: '\u0412\u0440\u0435\u043c\u044f \u0432\u044b\u0448\u043b\u043e.', yourScore: '\u0412\u0430\u0448 \u0431\u0430\u043b\u043b', pendingReview: '\u0412\u044b \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0441\u0434\u0430\u043b\u0438. \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043f\u043e\u0437\u0436\u0435 \u043e\u0431\u044a\u044f\u0432\u0438\u0442 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440.',
-      timeout: '\u0412\u0440\u0435\u043c\u044f \u0432\u044b\u0448\u043b\u043e', questionLabel: '\u0412\u043e\u043f\u0440\u043e\u0441', selectPair: '\u2014 \u0432\u044b\u0431\u0440\u0430\u0442\u044c \u2014'
+      previous: '← Назад', next: 'Далее →', submitExam: 'Сдать', logout: 'Выйти',
+      back: 'Назад', startExam: 'Начать', submitted: 'Сдано',
+      timeUp: 'Время вышло.', yourScore: 'Ваш балл', pendingReview: 'Вы успешно сдали. Результат позже объявит администратор.',
+      timeout: 'Время вышло', questionLabel: 'Вопрос', selectPair: '— выбрать —'
     },
     en: {
-      previous: '\u2190 Previous', next: 'Next \u2192', submitExam: 'Submit', logout: 'Logout',
+      previous: '← Previous', next: 'Next →', submitExam: 'Submit', logout: 'Logout',
       back: 'Back', startExam: 'Start', submitted: 'Submitted',
       timeUp: 'Time is up.', yourScore: 'Your score', pendingReview: 'You submitted successfully. Results will be announced by admin later.',
-      timeout: 'Timeout', questionLabel: 'Question', selectPair: '\u2014 select \u2014'
+      timeout: 'Timeout', questionLabel: 'Question', selectPair: '— select —'
     }
   };
 
@@ -46,7 +46,7 @@
 
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '\x26amp;')
+      .replace(/\x26/g, '\x26amp;')
       .replace(/</g, '\x26lt;')
       .replace(/>/g, '\x26gt;')
       .replace(/"/g, '\x26quot;');
@@ -66,13 +66,35 @@
     }
   }
 
+  function normalizeQ(q, idx) {
+    if (!q || typeof q !== 'object') return { id: String(idx + 1), text: '', type: 'single', options: [] };
+    var id = q.id != null ? q.id : (idx + 1);
+    var type = (q.type || 'single').toLowerCase();
+    if (type === 'choice' || type === 'mcq') type = 'single';
+    if (type === 'match') type = 'matching';
+    var options = [];
+    (q.options || []).forEach(function (o, j) {
+      if (o && typeof o === 'object') {
+        options.push({ id: o.id != null ? o.id : j, text: o.text || o.label || String(o), letter: o.letter || LETTERS[j] });
+      } else {
+        options.push({ id: j, text: String(o == null ? '' : o), letter: LETTERS[j] });
+      }
+    });
+    return {
+      id: id,
+      text: q.text || q.question || '',
+      type: type,
+      options: options,
+      leftItems: q.leftItems || q.left || [],
+      rightItems: q.rightItems || q.right || []
+    };
+  }
+
   async function api(path, options) {
     options = options || {};
     var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
     var tok = '';
-    try {
-      tok = localStorage.getItem('geo_student_token') || '';
-    } catch (e) {}
+    try { tok = localStorage.getItem('geo_student_token') || ''; } catch (e) {}
     if (tok) {
       headers['X-Student-Token'] = tok;
       headers['Authorization'] = 'Bearer ' + tok;
@@ -86,8 +108,7 @@
   }
 
   function fillStudentHeader() {
-    var name = '';
-    var meta = '';
+    var name = '', meta = '';
     try {
       name = localStorage.getItem('geo_student_name') || '';
       meta = localStorage.getItem('geo_student_meta') || '';
@@ -99,85 +120,78 @@
   }
 
   function stopTimers() {
-    if (timerId) {
-      clearInterval(timerId);
-      timerId = null;
-    }
+    if (timerId) { clearInterval(timerId); timerId = null; }
   }
 
   function renderQuestion() {
-    if (!exam || !exam.questions) return;
-    var qs = exam.questions;
-    var idx = exam.idx || 0;
-    if (idx < 0) idx = 0;
-    if (idx >= qs.length) idx = qs.length - 1;
-    exam.idx = idx;
-    var q = qs[idx];
-    var pane = $('examQuestionPane');
-    if (!pane || !q) return;
+    if (!exam || !exam.questions || !exam.questions.length) return;
+    var pane = $('examQuestionPane') || $('examQuestion');
+    if (!pane) return;
+    var q = normalizeQ(exam.questions[exam.idx], exam.idx);
     var prog = $('examProgress');
-    if (prog) prog.textContent = t('questionLabel') + ' ' + (idx + 1) + ' / ' + qs.length;
-
-    var html = '<div class="exam-q"><p class="exam-q-text">' + esc(q.text || '') + '</p>';
-    var type = (q.type || 'single').toLowerCase();
-    var ans = (exam.answers && exam.answers[q.id]) != null ? exam.answers[q.id] : null;
-
-    if (type === 'short' || type === 'text') {
-      html += '<input type="text" class="exam-input" data-qid="' + esc(q.id) + '" value="' + esc(ans != null ? ans : '') + '" placeholder="..." />';
-    } else if (type === 'matching' || type === 'match') {
-      var left = q.leftItems || q.left || [];
-      var right = q.rightItems || q.right || [];
-      var map = (ans && typeof ans === 'object') ? ans : {};
+    if (prog) prog.textContent = t('questionLabel') + ' ' + (exam.idx + 1) + ' / ' + exam.questions.length;
+    var html = '<div class="exam-q"><p class="exam-q-text">' + esc(q.text) + '</p></div>';
+    var cur = exam.answers[q.id];
+    if (q.type === 'matching') {
+      var map = (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur : {};
+      var left = q.leftItems || [];
+      var right = q.rightItems || [];
       html += '<div class="exam-match">';
-      left.forEach(function (L, i) {
-        var key = String(i);
-        html += '<div class="exam-match-row"><span>' + esc(L) + '</span><select data-qid="' + esc(q.id) + '" data-left="' + key + '">';
-        html += '<option value="">' + esc(t('selectPair')) + '</option>';
-        right.forEach(function (R, j) {
-          var sel = map[key] == j || map[key] == String(j) ? ' selected' : '';
-          html += '<option value="' + j + '"' + sel + '>' + esc(R) + '</option>';
+      left.forEach(function (L, li) {
+        var selVal = map[String(li)];
+        if (selVal === undefined || selVal === null) selVal = '';
+        html += '<div class="exam-match-row">' +
+          '<span class="match-left">' + esc(L) + '</span>' +
+          '<select class="exam-input match-select" data-qid="' + esc(q.id) + '" data-left="' + li + '">' +
+          '<option value="">' + esc(t('selectPair')) + '</option>';
+        right.forEach(function (R, ri) {
+          var selected = String(selVal) === String(ri);
+          html += '<option value="' + ri + '"' + (selected ? ' selected' : '') + '>' + esc(R) + '</option>';
         });
         html += '</select></div>';
       });
       html += '</div>';
-    } else {
-      var opts = q.options || [];
+    } else if (q.type === 'single' || !q.type) {
       html += '<div class="exam-opts">';
-      opts.forEach(function (o, i) {
-        var letter = LETTERS[i] || (i + 1);
-        var checked = ans === i || ans === String(i) ? ' checked' : '';
-        html += '<label class="exam-opt"><input type="radio" name="q' + esc(q.id) + '" value="' + i + '"' + checked + ' data-qid="' + esc(q.id) + '" /> <span>' + letter + '. ' + esc(o) + '</span></label>';
+      q.options.forEach(function (opt, j) {
+        var val = opt.id != null ? opt.id : j;
+        var sel = String(cur) === String(val) || String(cur) === String(j) || cur === opt.text;
+        html += '<button type="button" class="exam-opt' + (sel ? ' selected' : '') + '" data-qid="' + esc(q.id) + '" data-val="' + esc(val) + '">' +
+          '<span class="opt-letter">' + esc(opt.letter || LETTERS[j]) + '</span> ' + esc(opt.text) + '</button>';
       });
       html += '</div>';
+    } else if (q.type === 'short' || q.type === 'text') {
+      html += '<input class="exam-input" data-qid="' + esc(q.id) + '" value="' + esc(typeof cur === 'string' || typeof cur === 'number' ? cur : '') + '" />';
+    } else {
+      html += '<textarea class="exam-input" data-qid="' + esc(q.id) + '">' + esc(typeof cur === 'string' ? cur : '') + '</textarea>';
     }
-    html += '</div>';
     pane.innerHTML = html;
-
-    pane.querySelectorAll('input[type=radio]').forEach(function (inp) {
-      inp.addEventListener('change', function () {
-        if (!exam.answers) exam.answers = {};
-        exam.answers[inp.dataset.qid] = Number(inp.value);
+    pane.querySelectorAll('.exam-opt').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        exam.answers[btn.getAttribute('data-qid')] = btn.getAttribute('data-val');
+        renderQuestion();
       });
     });
-    pane.querySelectorAll('input.exam-input').forEach(function (inp) {
-      inp.addEventListener('input', function () {
-        if (!exam.answers) exam.answers = {};
-        exam.answers[inp.dataset.qid] = inp.value;
-      });
-    });
-    pane.querySelectorAll('select[data-left]').forEach(function (sel) {
+    pane.querySelectorAll('.match-select').forEach(function (sel) {
       sel.addEventListener('change', function () {
-        if (!exam.answers) exam.answers = {};
-        var qid = sel.dataset.qid;
-        if (!exam.answers[qid] || typeof exam.answers[qid] !== 'object') exam.answers[qid] = {};
-        exam.answers[qid][sel.dataset.left] = sel.value === '' ? null : Number(sel.value);
+        var qid = sel.getAttribute('data-qid');
+        var leftIdx = sel.getAttribute('data-left');
+        var map2 = exam.answers[qid];
+        if (!map2 || typeof map2 !== 'object' || Array.isArray(map2)) map2 = {};
+        if (sel.value === '') delete map2[String(leftIdx)];
+        else map2[String(leftIdx)] = parseInt(sel.value, 10);
+        exam.answers[qid] = map2;
       });
     });
-
+    pane.querySelectorAll('input.exam-input, textarea.exam-input').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        exam.answers[inp.getAttribute('data-qid')] = inp.value;
+      });
+    });
     var dots = $('examDots');
     if (dots) {
-      dots.innerHTML = qs.map(function (_, i) {
-        return '<span class="dot' + (i === idx ? ' on' : '') + '"></span>';
+      dots.innerHTML = exam.questions.map(function (_, i) {
+        return '<span class="dot' + (i === exam.idx ? ' on' : '') + '"></span>';
       }).join('');
     }
   }
@@ -186,7 +200,8 @@
     if (!exam) return;
     stopTimers();
     if (!auto) {
-      if (!window.confirm(lang() === 'ru' ? 'Submit?' : lang() === 'en' ? 'Submit exam?' : 'Submit?')) return;
+      var msg = lang() === 'ru' ? 'Сдать экзамен?' : (lang() === 'en' ? 'Submit exam?' : 'Шумо мехоҳед супоред?');
+      if (!window.confirm(msg)) return;
     }
     try {
       var data = await api('/api/olympiads/' + encodeURIComponent(exam.olympiadId) + '/submit', {
@@ -205,12 +220,12 @@
       } else {
         if (scoreEl) {
           scoreEl.style.display = '';
-          scoreEl.textContent = (score != null ? score : '\u2014') + (score != null ? '%' : '');
+          scoreEl.textContent = (score != null ? score : '—') + (score != null ? '%' : '');
         }
         if (detailEl) {
           detailEl.textContent = (auto ? (t('timeUp') + ' ') : '') + (score != null ? (t('yourScore') + ': ' + score + '%') : t('submitted'));
         }
-        if (statusEl) statusEl.textContent = data.passed ? 'OK' : (auto ? t('timeout') : t('submitted'));
+        if (statusEl) statusEl.textContent = data.passed ? 'Гузашт' : (auto ? t('timeout') : t('submitted'));
       }
       exam = null;
       show($('examView'), false);
@@ -243,7 +258,7 @@
         endsAt: data.endsAt || null
       };
       var title = $('examTitle');
-      if (title) title.textContent = data.title || data.name || 'Olympiad';
+      if (title) title.textContent = data.title || data.name || 'Олимпиада';
       show($('listView'), false);
       show($('resultView'), false);
       show($('examView'), true);
@@ -256,18 +271,16 @@
           var s = sec % 60;
           el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
         }
-        if (exam.endsAt || exam.durationSec) {
-          var end = exam.endsAt ? new Date(exam.endsAt).getTime() : (Date.now() + exam.durationSec * 1000);
-          paintTimer(Math.max(0, Math.floor((end - Date.now()) / 1000)));
-          timerId = setInterval(function () {
-            var left = Math.max(0, Math.floor((end - Date.now()) / 1000));
-            paintTimer(left);
-            if (left <= 0) submitExam(true);
-          }, 1000);
-        }
+        var end = exam.endsAt ? new Date(exam.endsAt).getTime() : (Date.now() + exam.durationSec * 1000);
+        paintTimer(Math.max(0, Math.floor((end - Date.now()) / 1000)));
+        timerId = setInterval(function () {
+          var left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+          paintTimer(left);
+          if (left <= 0) submitExam(true);
+        }, 1000);
       } else {
         var tel = $('examTimer');
-        if (tel) tel.textContent = '\u2014';
+        if (tel) tel.textContent = '—';
       }
     } catch (e) {
       alert(e.message || String(e));
@@ -293,7 +306,7 @@
           ? '<button class="btn" disabled>' + esc(t('submitted')) + '</button>'
           : '<button class="btn primary" data-start="' + esc(o.id) + '">' + esc(t('startExam')) + '</button>';
         return '<article class="card"><h3>' + esc(o.title) + '</h3><p class="muted">' +
-          (o.questionCount || 0) + ' · ' + (o.passScore || 70) + '%</p>' + btn + '</article>';
+          (o.questionCount || 0) + ' савол · ҳад ' + (o.passScore || 70) + '%</p>' + btn + '</article>';
       }).join('');
       box.querySelectorAll('[data-start]').forEach(function (btn) {
         btn.addEventListener('click', function () { startExam(btn.dataset.start); });
@@ -351,7 +364,7 @@
           try {
             var st = data.student || {};
             localStorage.setItem('geo_student_name', st.fullName || st.name || '');
-            localStorage.setItem('geo_student_meta', [st.className || '', st.school || ''].filter(Boolean).join(' \u00b7 '));
+            localStorage.setItem('geo_student_meta', [st.className || '', st.school || ''].filter(Boolean).join(' · '));
           } catch (e0) {}
           fillStudentHeader();
           show($('loginView'), false);

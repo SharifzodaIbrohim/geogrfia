@@ -1,0 +1,209 @@
+/* Student reg + camera + CSV + folder + Даватнома */
+(function () {
+  var TOKEN_KEY = "geo_admin_token";
+  var DIR_DB = "geografia_admin_fs";
+  var DIR_STORE = "handles";
+  var DIR_KEY = "students_info_dir";
+  var _regLock = false;
+  var _dirMemory = null;
+  var _camStream = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&" + "amp;")
+      .replace(/</g, "&" + "lt;")
+      .replace(/>/g, "&" + "gt;")
+      .replace(/"/g, "&" + "quot;")
+      .replace(/'/g, "&#" + "39;");
+  }
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem("adminToken") || "";
+  }
+  async function api(path, options) {
+    options = options || {};
+    var headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+    var token = getToken();
+    if (token) {
+      headers["X-Admin-Token"] = token;
+      headers["Authorization"] = "Bearer " + token;
+    }
+    var res = await fetch(path, Object.assign({}, options, { headers: headers, credentials: "include" }));
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || data.message || ("Хато " + res.status));
+    return data;
+  }
+  function val(id) {
+    var el = document.getElementById(id);
+    return el && el.value != null ? String(el.value).trim() : "";
+  }
+  function applyPhoto(dataUrl) {
+    var hidden = document.getElementById("stPhotoData");
+    var img = document.getElementById("photoImg");
+    var ph = document.getElementById("photoPlaceholder");
+    if (hidden) hidden.value = dataUrl || "";
+    if (img && dataUrl) { img.src = dataUrl; img.style.display = "block"; }
+    else if (img) { img.removeAttribute("src"); img.style.display = "none"; }
+    if (ph) ph.style.display = dataUrl ? "none" : "";
+  }
+  function clearPhoto() {
+    applyPhoto("");
+    var f = document.getElementById("photoFileInput");
+    if (f) f.value = "";
+  }
+  function setCamStatus(msg) {
+    var el = document.getElementById("cameraStatus");
+    if (el) el.textContent = msg || "";
+  }
+  async function listCameras() {
+    var sel = document.getElementById("cameraSelect");
+    if (!sel || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      var cams = devices.filter(function (d) { return d.kind === "videoinput"; });
+      sel.innerHTML = "";
+      if (!cams.length) { sel.innerHTML = '<option value="">Камера ёфт нашуд</option>'; return; }
+      cams.forEach(function (d, i) {
+        var o = document.createElement("option");
+        o.value = d.deviceId || "";
+        o.textContent = d.label || ("Камера " + (i + 1));
+        sel.appendChild(o);
+      });
+    } catch (e) { setCamStatus("Рӯйхати камера: " + (e.message || e)); }
+  }
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCamStatus("Камера дастгирӣ намешавад (HTTPS лозим)"); return;
+    }
+    stopCamera();
+    var sel = document.getElementById("cameraSelect");
+    var video = document.getElementById("cameraVideo");
+    if (!video) return;
+    var constraints = { video: { facingMode: "user" }, audio: false };
+    if (sel && sel.value) constraints.video = { deviceId: { exact: sel.value } };
+    try {
+      setCamStatus("Кушодан...");
+      _camStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = _camStream;
+      video.style.display = "block";
+      await video.play().catch(function () {});
+      setCamStatus("Камера фаъол");
+      await listCameras();
+    } catch (e) {
+      setCamStatus("Хато: " + (e.message || e));
+      _camStream = null;
+    }
+  }
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      _camStream = null;
+    }
+    var video = document.getElementById("cameraVideo");
+    if (video) { video.srcObject = null; video.style.display = "none"; }
+    setCamStatus("");
+  }
+  function capturePhoto() {
+    var video = document.getElementById("cameraVideo");
+    var canvas = document.getElementById("cameraCanvas");
+    if (!video || !canvas || !video.srcObject || video.videoWidth < 2) {
+      setCamStatus("Аввал камераро кушоед"); return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    applyPhoto(canvas.toDataURL("image/jpeg", 0.88));
+    setCamStatus("Акс гирифта шуд");
+  }
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DIR_DB, 1);
+      req.onupgradeneeded = function () {
+        if (!req.result.objectStoreNames.contains(DIR_STORE)) req.result.createObjectStore(DIR_STORE);
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  async function idbSet(key, val) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(DIR_STORE, "readwrite");
+      tx.objectStore(DIR_STORE).put(val, key);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+  async function idbGet(key) {
+    var db = await idbOpen();
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(DIR_STORE, "readonly").objectStore(DIR_STORE).get(key);
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function updateFolderStatus(ok, name) {
+    var el = document.getElementById("localFolderStatus");
+    if (!el) return;
+    el.textContent = ok ? ("📁 " + (name || "папка")) : (name || "");
+    el.style.color = ok ? "var(--accent, #70db97)" : "";
+  }
+  async function tryRestoreDir() {
+    try {
+      if (!window.showDirectoryPicker) return null;
+      var handle = await idbGet(DIR_KEY);
+      if (!handle) return null;
+      if (handle.queryPermission) {
+        var perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          perm = await handle.requestPermission({ mode: "readwrite" });
+          if (perm !== "granted") return null;
+        }
+      }
+      _dirMemory = handle;
+      updateFolderStatus(true, handle.name || "папка");
+      return handle;
+    } catch (_) { return null; }
+  }
+  async function pickStudentsFolder() {
+    if (!window.showDirectoryPicker) {
+      alert("Chrome/Edge лозим барои папкаи маҳаллӣ."); return;
+    }
+    try {
+      var handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      _dirMemory = handle;
+      await idbSet(DIR_KEY, handle);
+      updateFolderStatus(true, handle.name || "папка");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      alert("Папка: " + (e.message || e));
+    }
+  }
+  function formatTgDate(v) {
+    if (!v) return "—";
+    var s = String(v).trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) {
+      return s;
+    }
+    var months = ["январ","феврал","март","апрел","май","июн","июл","август","сентябр","октябр","ноябр","декабр"];
+    return parseInt(m[3], 10) + " " + (months[parseInt(m[2], 10) - 1] || m[2]) + "и соли " + m[1];
+  }
+  function buildStudentCardHtml(st) {
+    var id = st.id || "";
+    var full = st.fullName || [st.lastName, st.firstName, st.patronymic].filter(Boolean).join(" ");
+    var photo = st.photoData || "";
+    var genderLabel = st.gender === "male" ? "Мард" : (st.gender === "female" ? "Зан" : (st.gender || "—"));
+    var olyTitle = st.olympiadTitle || "—";
+    var olyStart = st.olympiadStart ? formatTgDate(st.olympiadStart) : "—";
+    var regRaw = st.createdAt || st.registeredAt || st.created_at || st.registered_at || "";
+    var regFmt = regRaw ? formatTgDate(regRaw) : "—";
+    var birthFmt = st.birthDate ? formatTgDate(st.birthDate) : "—";
+    var examSubject = (st.examSubject || st.subject || st.fan || "").trim() || "—";
+    var webUrl = "https://geografia.tj";
+    var webQr = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=6&color=0b3d2e&bgcolor=ffffff&data=" + encodeURIComponent(webUrl);
+    var igQr = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=4&color=000000&bgcolor=ffffff&data=" + encodeURIComponent("https://www.instagram.com/geografia.tj/");
+    var logoBase = "https://geografia.tj";
+    var logoL = logoBase + "/%D0%90%D0%B7_%D1%82%D0%B0%D1%80%D0%B0%D1%84%D0%B8_%D1%87%D0%B0%D0%BF.jpg";
+    var logoR = logoBase + "/%D0%90%D0%B7_%D1%82%D0%B0%D1%80%D0%B0%D1%84%D0%B8_%D1%80%D0%BE%D1%81%D1%82.jpg";
+    var photoBlock = photo
+      ? ('<di

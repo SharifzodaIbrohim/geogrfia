@@ -64,7 +64,9 @@ print(f"[boot] mode={_boot_mode}")
 # Post-core: PUBLIC_PATHS extras + patches (full install block)
 try:
     from pathlib import Path as _P
-    _after = (_P(__file__).resolve().parent / "db" / "boot_after_core.py").read_text(encoding="utf-8")
+    _root = _P(__file__).resolve().parent
+    _after = (_root / "db" / "boot_after_0.py").read_text(encoding="utf-8")
+    _after += (_root / "db" / "boot_after_1.py").read_text(encoding="utf-8")
     exec(compile(_after, "db/boot_after_core.py", "exec"), globals())
 except Exception as _e:
     print("[boot] boot_after_core failed:", _e)
